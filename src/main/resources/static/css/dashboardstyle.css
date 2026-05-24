@@ -293,7 +293,6 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) {
   width: 100%;
   table-layout: fixed;
   border-collapse: collapse;
-  background: var(--surface);
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
   overflow: visible;
