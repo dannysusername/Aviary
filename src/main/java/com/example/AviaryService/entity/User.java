@@ -43,6 +43,18 @@ public class User {
     @Column
     private String makeModelSN;
 
+    @Column
+    private java.time.Instant hobbsUpdatedAt;
+
+    @Column
+    private java.time.Instant tachUpdatedAt;
+
+    @Column
+    private String hobbsUpdatedSource;
+
+    @Column
+    private String tachUpdatedSource;
+
     public User(){
 
     }
@@ -145,4 +157,16 @@ public class User {
     public void setFlightLogs(List<FlightLog> flightLogs) {
         this.flightLogs = flightLogs;
     }
+
+    public java.time.Instant getHobbsUpdatedAt() { return hobbsUpdatedAt; }
+    public void setHobbsUpdatedAt(java.time.Instant hobbsUpdatedAt) { this.hobbsUpdatedAt = hobbsUpdatedAt; }
+
+    public java.time.Instant getTachUpdatedAt() { return tachUpdatedAt; }
+    public void setTachUpdatedAt(java.time.Instant tachUpdatedAt) { this.tachUpdatedAt = tachUpdatedAt; }
+
+    public String getHobbsUpdatedSource() { return hobbsUpdatedSource; }
+    public void setHobbsUpdatedSource(String hobbsUpdatedSource) { this.hobbsUpdatedSource = hobbsUpdatedSource; }
+
+    public String getTachUpdatedSource() { return tachUpdatedSource; }
+    public void setTachUpdatedSource(String tachUpdatedSource) { this.tachUpdatedSource = tachUpdatedSource; }
 }

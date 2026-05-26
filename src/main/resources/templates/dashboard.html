@@ -5,7 +5,7 @@
     <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dashboard</title>
-    <link rel="stylesheet" th:href="@{/css/dashboardstyle.css}" href="/Users/danieli/Documents/Projects/aviaryservice/src/main/resources/static/css/dashboardstyle.css">
+    <link rel="stylesheet" th:href="@{/css/dashboardstyle.css}">
     
 </head>
 <body>
@@ -32,8 +32,14 @@
         <div class="my-hours">
             <h3>My Hours</h3>
             <div class="hours-display-and-editbutton-container">
-                <span class="current-hobbs-display" id="current-hobbs-display" th:text="'Hobbs Time: ' + ${hobbsHours}"></span>
-                <span class="current-tach-display" id="current-tach-display" th:text="'Tach Time: ' + ${tachHours}"></span>
+                <div class="hours-block">
+                    <span class="current-hobbs-display" id="current-hobbs-display" th:text="'Hobbs Time: ' + ${hobbsHours}"></span>
+                    <span class="hours-updated" id="hobbs-updated" th:attr="data-updated=${hobbsUpdatedAt},data-source=${hobbsUpdatedSource}"></span>
+                </div>
+                <div class="hours-block">
+                    <span class="current-tach-display" id="current-tach-display" th:text="'Tach Time: ' + ${tachHours}"></span>
+                    <span class="hours-updated" id="tach-updated" th:attr="data-updated=${tachUpdatedAt},data-source=${tachUpdatedSource}"></span>
+                </div>
                 <button class="edit-hours-btn no-print">Edit</button>
             </div>
             <div class="edit-hours-section no-print" style="display: none;">
@@ -84,8 +90,8 @@
                         <td><input type="text" name="ownerName" autocomplete="ownerName" class="user-info-input no-print" th:value="${ownerName}" placeholder="Owner "><span class="print-only" th:text="${ownerName}"></span></td>
                     </tr>
                     <tr>
-                        <td class = "make-model-s\n-tag">Make/model S/N:</td>
-                        <td><input type="text" name="makeModelSN" autocomplete="make-model-s\n-tag" class="user-info-input no-print" th:value="${makeModelSN}" placeholder="Make/Model S/N"><span class="print-only" th:text="${makeModelSN}"></span></td>
+                        <td class = "make-model-sn-tag">Make/model S/N:</td>
+                        <td><input type="text" name="makeModelSN" autocomplete="off" class="user-info-input no-print" th:value="${makeModelSN}" placeholder="Make/Model S/N"><span class="print-only" th:text="${makeModelSN}"></span></td>
                     </tr>
                 </tbody>
             </table>
@@ -113,13 +119,13 @@
                     <th:block th:each="timeline : ${timelines}">
                         <!-- Title row -->
                         <tr th:if="${timeline.isTitle}" class="title-row" th:data-id="${timeline.id}">
-                            <td class = "grip-cell"><span class="grip-icon no-print"><i class="fa-solid fa-grip-vertical"></span></td>
+                            <td class = "grip-cell"><span class="grip-icon no-print"><i class="fa-solid fa-grip-vertical"></i></span></td>
                             <td colspan="6" class="title-cell" th:text="${timeline.item}"></td>
                             <td class="delete-cell"><span class="delete-icon no-print" onclick="deleteRow(this)"><i class="fa-solid fa-trash-can fa-xl"></i></span></td>
                         </tr>
                         <!-- Regular item row -->
                         <tr th:unless="${timeline.isTitle}" th:data-id="${timeline.id}" th:data-lastDone="${timeline.lastDone}" th:data-dueDate="${timeline.dueDate}" th:data-cycle="${timeline.cycle}" class="auto-save-row">                           
-                            <td class = "grip-cell"><span class="grip-icon no-print"><i class="fa-solid fa-grip-vertical"></span></i></td>
+                            <td class = "grip-cell"><span class="grip-icon no-print"><i class="fa-solid fa-grip-vertical"></i></span></td>
                             <td><textarea name="item" th:text="${timeline.item}" oninput="autoSave(this)" class="no-print"></textarea>
                                 <span class="print-only" th:text="${timeline.item}"></span></td>
                             <td>

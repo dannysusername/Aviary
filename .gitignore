@@ -36,3 +36,11 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### Local AI tooling — not committed (keep AviaryService AI-trace-free) ###
+CLAUDE.md
+.claude/
+
+### Local security notes — not committed by default (an open-findings list should not be public) ###
+docs/SECURITY.md
+.gstack/

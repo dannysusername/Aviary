@@ -7,6 +7,95 @@ let previousHobbsHours = document.getElementById('current-hobbs')?.value || 0;
 let previousTachHours = document.getElementById('current-tach')?.value || 0;
 
 
+// ── Lightweight toast + confirm UI (replaces native alert()/confirm()) ──
+function showToast(message, type = 'info') {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        document.body.appendChild(container);
+    }
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('show'));
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 200);
+    }, 3500);
+}
+
+function showConfirm(message) {
+    return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.className = 'confirm-overlay';
+        overlay.innerHTML =
+            '<div class="confirm-box" role="dialog" aria-modal="true">' +
+            '  <div class="confirm-message"></div>' +
+            '  <div class="confirm-actions">' +
+            '    <button type="button" class="confirm-btn cancel">Cancel</button>' +
+            '    <button type="button" class="confirm-btn ok">Delete</button>' +
+            '  </div>' +
+            '</div>';
+        overlay.querySelector('.confirm-message').textContent = message;
+        document.body.appendChild(overlay);
+        requestAnimationFrame(() => overlay.classList.add('show'));
+
+        function onKey(e) { if (e.key === 'Escape') close(false); }
+        const close = (result) => {
+            overlay.classList.remove('show');
+            setTimeout(() => overlay.remove(), 150);
+            document.removeEventListener('keydown', onKey);
+            resolve(result);
+        };
+        overlay.querySelector('.confirm-btn.ok').addEventListener('click', () => close(true));
+        overlay.querySelector('.confirm-btn.cancel').addEventListener('click', () => close(false));
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(false); });
+        document.addEventListener('keydown', onKey);
+    });
+}
+
+
+// ── "Last updated" formatting for the My Hours card ──
+function relativeTime(date) {
+    const sec = Math.round((Date.now() - date.getTime()) / 1000);
+    if (sec < 45) return 'just now';
+    const min = Math.round(sec / 60);
+    if (min < 60) return min + (min === 1 ? ' minute ago' : ' minutes ago');
+    const hr = Math.round(min / 60);
+    if (hr < 24) return hr + (hr === 1 ? ' hour ago' : ' hours ago');
+    const day = Math.round(hr / 24);
+    if (day < 30) return day + (day === 1 ? ' day ago' : ' days ago');
+    const mon = Math.round(day / 30);
+    if (mon < 12) return mon + (mon === 1 ? ' month ago' : ' months ago');
+    const yr = Math.round(mon / 12);
+    return yr + (yr === 1 ? ' year ago' : ' years ago');
+}
+
+function formatUpdated(iso, source) {
+    if (!iso) return 'not set yet';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return 'not set yet';
+    const when = d.toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    const label = source === 'flightlog' ? ' · from a flight log'
+                : source === 'manual'   ? ' · you edited it'
+                : '';
+    return 'updated ' + when + ' (' + relativeTime(d) + ')' + label;
+}
+
+// Initial render from the server-set data- attributes
+function renderUpdatedFromData(elId) {
+    const el = document.getElementById(elId);
+    if (el) el.textContent = formatUpdated(el.getAttribute('data-updated'), el.getAttribute('data-source'));
+}
+
+// Live render after a change we just made (now + known source)
+function markUpdatedNow(elId, source) {
+    const el = document.getElementById(elId);
+    if (el) el.textContent = formatUpdated(new Date().toISOString(), source);
+}
+
 function setTextareaMinHeight(textarea) {
     textarea.style.height = 'auto'; // Reset to measure content
     const scrollHeight = textarea.scrollHeight;
@@ -124,11 +213,15 @@ function deleteRow(icon) {
     }
     const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
     const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
-    if (confirm('Are you sure you want to delete this entry?')) {
+    showConfirm('Delete this entry?').then(confirmed => {
+        if (!confirmed) return;
         axios.delete(`/delete/${id}`, { headers: { [csrfHeader]: csrfToken } })
             .then(() => row.remove())
-            .catch(error => console.error('Error deleting:', error.response ? error.response.data : error));
-    }
+            .catch(error => {
+                console.error('Error deleting:', error.response ? error.response.data : error);
+                showToast('Could not delete the entry. Please try again.', 'error');
+            });
+    });
 }
 
 function updateOrderOnServer() {
@@ -260,7 +353,8 @@ function calculateTimeLeft(dueDateStr, currentTachHours) {
     // Parse dueDateStr
     const dueDateParts = dueDateStr.split(' ');
     const dueDateDate = dueDateParts[0]?.match(/^\d{4}-\d{2}-\d{2}$/) ? dueDateParts[0] : null;
-    const dueDateTime = dueDateParts.find(part => part.match(/^\d+$/)) || null;
+    // Hours part: whole or decimal (e.g. "100" or "100.5" or ".5"). Exclude the date part if present.
+    const dueDateTime = dueDateParts.find(part => part !== dueDateDate && /^\d*\.?\d+$/.test(part)) || null;
 
     // Calculate days if dueDate has a calendar date
     if (dueDateDate) {
@@ -272,9 +366,9 @@ function calculateTimeLeft(dueDateStr, currentTachHours) {
 
     // Calculate hours if dueDate has a clock value
     if (dueDateTime) {
-        const dueDateHours = parseInt(dueDateTime);
+        const dueDateHours = parseFloat(dueDateTime);
         if (!isNaN(dueDateHours) && !isNaN(currentTachHours)) {
-            const hoursLeft = dueDateHours - currentTachHours;
+            const hoursLeft = Math.round((dueDateHours - currentTachHours) * 10) / 10;
             const hoursText = hoursLeft < 0 ? `${Math.abs(hoursLeft)} hours overdue` : `${hoursLeft} hours left`;
             output += output ? `\n${hoursText}` : hoursText;
         }
@@ -381,6 +475,10 @@ document.addEventListener('DOMContentLoaded', () => {
     updateAllTimeLeft(); // Initial call to set Time Left immediately
     updateAddRowTimeLeft();
     scheduleMidnightUpdate();
+
+    // My Hours "last updated" lines (initial render from server data)
+    renderUpdatedFromData('hobbs-updated');
+    renderUpdatedFromData('tach-updated');
     
     document.querySelectorAll('.user-info-input').forEach(input => {
         input.addEventListener('input', () => autoSaveUserInfo(input));
@@ -396,7 +494,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const optionDiv = event.target.closest('.option');
             const deletedValue = optionDiv.getAttribute('data-value');
     
-            if (confirm('Are you sure you want to delete this option?')) {
+            showConfirm('Delete this option?').then(confirmed => {
+                if (!confirmed) return;
                 if (optionId) {
                     // Existing option with an ID (from server)
                     const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
@@ -425,7 +524,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     })
                     .catch(error => {
                         console.error('Error deleting option:', error);
-                        alert('Failed to delete option: ' + (error.response?.data || error.message));
+                        showToast('Failed to delete option: ' + (error.response?.data || error.message), 'error');
                     });
                 } else if (optionValue) {
                     // New option without an ID (not yet saved)
@@ -433,7 +532,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         .forEach(opt => opt.remove());
                     console.log(`New option ${optionValue} removed locally`);
                 }
-            }
+            });
         } else if (event.target.classList.contains('trigger-dropdown')) {
             const sibling = event.target.nextElementSibling;
             if (sibling && sibling.classList.contains('type-dropdown')) {
@@ -486,7 +585,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     newInput.className = 'extra-input';
                     newInput.placeholder = 'Enter hours';
                     newInput.oninput = () => {
-                        newInput.value = newInput.value.replace(/[^0-9]/g, '');
+                        // allow digits and a single decimal point
+                        let v = newInput.value.replace(/[^\d.]/g, '');
+                        const firstDot = v.indexOf('.');
+                        if (firstDot !== -1) v = v.slice(0, firstDot + 1) + v.slice(firstDot + 1).replace(/\./g, '');
+                        newInput.value = v;
                         if (tr.classList.contains('auto-save-row')) {
                             autoSave(newInput);
                         } else {
@@ -667,19 +770,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (response.data.status === 'success') {
                         previousHobbsHours = newHobbsHours;
                         document.getElementById('current-hobbs-display').textContent = `Hobbs Time: ${newHobbsHours}`;
+                        markUpdatedNow('hobbs-updated', 'manual');
                         console.log('Hobbs hours updated successfully:', response.data.newHobbs);
                     } else {
                         this.value = previousHobbsHours;
                         document.getElementById('current-hobbs-display').textContent = `Hobbs Time: ${previousHobbsHours}`;
                         console.error('Failed to update hobbs hours:', response.data.message);
-                        alert('Failed to update hobbs hours');
+                        showToast('Failed to update Hobbs hours.', 'error');
                     }
                 })
                 .catch(error => {
                     console.error('Error updating hours:', error.response ? error.response.data : error);
                     this.value = previousHobbsHours;
                     document.getElementById('current-hobbs-display').textContent = `Hobbs Time: ${previousHobbsHours}`;
-                    alert('Failed to update hobbs hours');
+                    showToast('Failed to update Hobbs hours.', 'error');
                 });
             }, 500);
         });
@@ -707,19 +811,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (response.data.status === 'success') {
                         previousTachHours = newTachHours;
                         document.getElementById('current-tach-display').textContent = `Tach Time: ${newTachHours}`;
+                        markUpdatedNow('tach-updated', 'manual');
                         console.log('Tach hours updated successfully:', response.data.newTach);
                     } else {
                         this.value = previousTachHours;
                         document.getElementById('current-tach-display').textContent = `Tach Time: ${previousTachHours}`;
                         console.error('Failed to update tach hours:', response.data.message);
-                        alert('Failed to update tach hours');
+                        showToast('Failed to update Tach hours.', 'error');
                     }
                 })
                 .catch(error => {
                     console.error('Error updating hours:', error.response ? error.response.data : error);
                     this.value = previousTachHours;
                     document.getElementById('current-tach-display').textContent = `Tach Time: ${previousTachHours}`;
-                    alert('Failed to update Tach hours');
+                    showToast('Failed to update Tach hours.', 'error');
                 });
             }, 500);
         });
@@ -838,7 +943,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const item = isTitle ? titleInput.value : itemInput.value;
 
         if (!item) {
-            alert('Please enter an item or title before submitting.');
+            showToast('Please enter an item or title before submitting.', 'error');
             return;
         }
 
@@ -1036,7 +1141,7 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .catch(error => {
                 console.error('Error adding row:', error.response ? error.response.data : error);
-                alert('Error adding row: ' + (error.response?.data || error.message));
+                showToast('Error adding row: ' + (error.response?.data || error.message), 'error');
             });
         });
     }
@@ -1109,16 +1214,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log('Tach updated successfully:', newTach);
                 }
     
+                if ('hobbsTimeToAdd' in updateParams) markUpdatedNow('hobbs-updated', 'manual');
+                if ('tachTimeToAdd' in updateParams) markUpdatedNow('tach-updated', 'manual');
+
                 // Update time left displays if needed (from your existing functions)
                 updateAllTimeLeft();
                 updateAddRowTimeLeft();
             } else {
                 console.error('Failed to update hours:', response.data.message);
-                alert('Failed to update hours');
+                showToast('Failed to update hours.', 'error');
             }
         } catch (error) {
             console.error('Error updating hours:', error.response ? error.response.data : error);
-            alert('Error updating hours');
+            showToast('Error updating hours.', 'error');
         }
     }
 
@@ -1348,6 +1456,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         document.getElementById('current-tach-display').textContent = `Tach Time: ${newTach}`;
                         previousTachHours = newTach;
                     }
+                    markUpdatedNow('hobbs-updated', 'flightlog');
+                    markUpdatedNow('tach-updated', 'flightlog');
                     updateAllTimeLeft();
                     updateAddRowTimeLeft();
                 } catch (error) {
@@ -1366,6 +1476,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('current-tach-display').textContent = `Tach Time: ${log.newTach}`;
             previousTachHours = log.newTach;
         }
+        markUpdatedNow('hobbs-updated', 'flightlog');
+        markUpdatedNow('tach-updated', 'flightlog');
         updateAllTimeLeft();
         updateAddRowTimeLeft();
 
@@ -1407,6 +1519,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('current-tach-display').textContent = `Tach Time: ${newTach}`;
                     previousTachHours = newTach;
                 }
+                markUpdatedNow('hobbs-updated', 'flightlog');
+                markUpdatedNow('tach-updated', 'flightlog');
                 updateAllTimeLeft();
                 updateAddRowTimeLeft();
             } catch (error) {
