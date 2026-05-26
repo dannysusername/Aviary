@@ -20,7 +20,7 @@ Each stylesheet defines the same CSS-variable palette (`--primary` green `#2C9B6
 ## `dashboard.js` patterns (~1400 lines, one file)
 - **AJAX:** `axios`, with the Spring CSRF token read from `<meta name="_csrf">` / `_csrf_header` and sent on every mutating call.
 - **Reorder:** SortableJS → `POST /updateOrder`.
-- **Time Left:** `calculateTimeLeft(dueDate, currentTach)` parses a due value that may hold a calendar date and/or an hours number; recomputed on hours change and at midnight.
+- **Time Left:** `calculateTimeLeft(dueDate, currentTach)` parses a due value that may hold a calendar date and/or an hours number (whole or decimal — e.g. `100`, `100.5`, `.5`); recomputed on hours change and at midnight. The Clock-input sanitizer accepts digits plus a single decimal point.
 - **Custom dropdowns + date/clock pickers** are hand-rolled (no library); open/close handled by a document click listener.
 - **Notifications:** `showToast()` / `showConfirm()` replaced native `alert()`/`confirm()`.
 - **Hours "last updated":** `formatUpdated(iso, source)` + `relativeTime()` render the My Hours freshness lines in the browser's local timezone (server stores UTC). `renderUpdatedFromData()` on load (reads `data-updated`/`data-source` attrs); `markUpdatedNow()` after a live change. Uses `textContent`, not `innerHTML`.

@@ -353,7 +353,8 @@ function calculateTimeLeft(dueDateStr, currentTachHours) {
     // Parse dueDateStr
     const dueDateParts = dueDateStr.split(' ');
     const dueDateDate = dueDateParts[0]?.match(/^\d{4}-\d{2}-\d{2}$/) ? dueDateParts[0] : null;
-    const dueDateTime = dueDateParts.find(part => part.match(/^\d+$/)) || null;
+    // Hours part: whole or decimal (e.g. "100" or "100.5" or ".5"). Exclude the date part if present.
+    const dueDateTime = dueDateParts.find(part => part !== dueDateDate && /^\d*\.?\d+$/.test(part)) || null;
 
     // Calculate days if dueDate has a calendar date
     if (dueDateDate) {
@@ -365,7 +366,7 @@ function calculateTimeLeft(dueDateStr, currentTachHours) {
 
     // Calculate hours if dueDate has a clock value
     if (dueDateTime) {
-        const dueDateHours = parseInt(dueDateTime);
+        const dueDateHours = parseFloat(dueDateTime);
         if (!isNaN(dueDateHours) && !isNaN(currentTachHours)) {
             const hoursLeft = Math.round((dueDateHours - currentTachHours) * 10) / 10;
             const hoursText = hoursLeft < 0 ? `${Math.abs(hoursLeft)} hours overdue` : `${hoursLeft} hours left`;
@@ -584,7 +585,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     newInput.className = 'extra-input';
                     newInput.placeholder = 'Enter hours';
                     newInput.oninput = () => {
-                        newInput.value = newInput.value.replace(/[^0-9]/g, '');
+                        // allow digits and a single decimal point
+                        let v = newInput.value.replace(/[^\d.]/g, '');
+                        const firstDot = v.indexOf('.');
+                        if (firstDot !== -1) v = v.slice(0, firstDot + 1) + v.slice(firstDot + 1).replace(/\./g, '');
+                        newInput.value = v;
                         if (tr.classList.contains('auto-save-row')) {
                             autoSave(newInput);
                         } else {
