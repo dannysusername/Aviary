@@ -121,4 +121,31 @@ class UserControllerTest {
         List<ServiceTimeline> timelines = serviceTimelineRepository.findByUserOrderByTimelineOrderAsc(user);
         assertTrue(timelines.stream().anyMatch(t -> t.getItem().equals("Item") && t.getDescription().equals("Custom Desc")));
     }
+
+    @Test
+    @WithMockUser(username = "user1", roles = {"USER"})
+    void testUpdateHoursStampsManualSource() throws Exception {
+        mockMvc.perform(post("/updateHours")
+                .param("newTachTime", "123.4")
+                .with(SecurityMockMvcRequestPostProcessors.csrf()))
+                .andExpect(status().isOk());
+
+        User user = userRepository.findByUsername("user1");
+        assertTrue(user.getTachUpdatedAt() != null, "tachUpdatedAt should be set after a manual edit");
+        assertTrue("manual".equals(user.getTachUpdatedSource()), "tach source should be 'manual'");
+    }
+
+    @Test
+    @WithMockUser(username = "user2", roles = {"USER"})
+    void testAddFlightLogStampsFlightlogSource() throws Exception {
+        mockMvc.perform(post("/addflightlog")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"fromAirport\":\"KAAA\",\"toAirport\":\"KBBB\",\"hobbsOut\":10.0,\"hobbsIn\":11.0,\"tachOut\":9.0,\"tachIn\":10.0}")
+                .with(SecurityMockMvcRequestPostProcessors.csrf()))
+                .andExpect(status().isOk());
+
+        User user = userRepository.findByUsername("user2");
+        assertTrue("flightlog".equals(user.getTachUpdatedSource()), "tach source should be 'flightlog'");
+        assertTrue(user.getTachUpdatedAt() != null, "tachUpdatedAt should be set after a flight log");
+    }
 }

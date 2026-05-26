@@ -106,6 +106,10 @@ public class UserController {
         model.addAttribute("ownerName", user.getOwnerName());
         model.addAttribute("makeModelSN", user.getMakeModelSN());
         model.addAttribute("flightlogs", flightLogRepository.findByUser(user));
+        model.addAttribute("hobbsUpdatedAt", user.getHobbsUpdatedAt() != null ? user.getHobbsUpdatedAt().toString() : null);
+        model.addAttribute("tachUpdatedAt", user.getTachUpdatedAt() != null ? user.getTachUpdatedAt().toString() : null);
+        model.addAttribute("hobbsUpdatedSource", user.getHobbsUpdatedSource());
+        model.addAttribute("tachUpdatedSource", user.getTachUpdatedSource());
 
             return "dashboard";
     }
@@ -250,6 +254,16 @@ public ResponseEntity<Map<String, String>> updateHours(
             throw new IllegalArgumentException("At least one update parameter must be provided");
         }
 
+        java.time.Instant now = java.time.Instant.now();
+        if (newHobbsTime != null || hobbsTimeToAdd != null) {
+            user.setHobbsUpdatedAt(now);
+            user.setHobbsUpdatedSource("manual");
+        }
+        if (newTachTime != null || tachTimeToAdd != null) {
+            user.setTachUpdatedAt(now);
+            user.setTachUpdatedSource("manual");
+        }
+
         userRepository.save(user);
         Map<String, String> response = new HashMap<>();
         response.put("status", "success");
@@ -277,7 +291,15 @@ public ResponseEntity<Map<String, String>> updateHours(
             ServiceTimeline timeline = serviceTimelineRepository.findById(id)
                     .orElseThrow(() -> new IllegalArgumentException("Invalid timeline ID: " + id));
 
-                    System.out.println("Received updateDTO: item=" + updateDTO.getItem() + ", cycle=" + updateDTO.getCycle() + 
+            User user = userRepository.findByUsername(authentication.getName());
+            if (user == null || timeline.getUser() == null || timeline.getUser().getId() != user.getId()) {
+                Map<String, String> forbidden = new HashMap<>();
+                forbidden.put("status", "error");
+                forbidden.put("message", "You do not own this timeline");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(forbidden);
+            }
+
+                    System.out.println("Received updateDTO: item=" + updateDTO.getItem() + ", cycle=" + updateDTO.getCycle() +
                     ", description=" + updateDTO.getDescription() + ", lastDone=" + updateDTO.getLastDone() + 
                     ", dueDate=" + updateDTO.getDueDate() + ", timeLeft=" + updateDTO.getTimeLeft());
 
@@ -315,10 +337,15 @@ public ResponseEntity<Map<String, String>> updateHours(
 
     @DeleteMapping("/delete/{id}")
     @ResponseBody
-    public void deleteTimeline(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteTimeline(@PathVariable Long id, Authentication authentication) {
         ServiceTimeline timeline = serviceTimelineRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid timeline ID: " + id));
+        User user = userRepository.findByUsername(authentication.getName());
+        if (user == null || timeline.getUser() == null || timeline.getUser().getId() != user.getId()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         serviceTimelineRepository.delete(timeline);
+        return ResponseEntity.ok().build();
     }
 
     @DeleteMapping("/deleteOption/{id}")
@@ -357,7 +384,7 @@ public ResponseEntity<Map<String, String>> updateHours(
         for (int i = 0; i < ids.size(); i++) {
             Long id = ids.get(i);
             ServiceTimeline timeline = timelines.stream()
-                .filter(t -> t.getId() == id)
+                .filter(t -> t.getId().equals(id))
                 .findFirst()
                 .orElse(null);
             if (timeline != null) {
@@ -388,6 +415,11 @@ public ResponseEntity<Map<String, String>> updateHours(
         double newTach = calculateMergedHours(allLogs, false);
         user.setHobbsHours(newHobbs);
         user.setTachHours(newTach);
+        java.time.Instant flightNow = java.time.Instant.now();
+        user.setHobbsUpdatedAt(flightNow);
+        user.setHobbsUpdatedSource("flightlog");
+        user.setTachUpdatedAt(flightNow);
+        user.setTachUpdatedSource("flightlog");
         userRepository.save(user);
 
         Map<String, Object> response = new HashMap<>();
@@ -422,6 +454,11 @@ public ResponseEntity<Map<String, String>> updateHours(
             double newTach = calculateMergedHours(remainingLogs, false);
             user.setHobbsHours(newHobbs);
             user.setTachHours(newTach);
+            java.time.Instant flightNow = java.time.Instant.now();
+            user.setHobbsUpdatedAt(flightNow);
+            user.setHobbsUpdatedSource("flightlog");
+            user.setTachUpdatedAt(flightNow);
+            user.setTachUpdatedSource("flightlog");
             userRepository.save(user);
 
             Map<String, Object> response = new HashMap<>();
