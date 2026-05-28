@@ -7,6 +7,9 @@ public class TimelineUpdateDTO {
     private String lastDone;
     private String dueDate;
     private String timeLeft;
+    private Integer cycleCalendarValue;
+    private String cycleCalendarUnit;
+    private Double cycleHours;
 
     // Default constructor (required for Jackson deserialization)
     public TimelineUpdateDTO() {}
@@ -24,4 +27,13 @@ public class TimelineUpdateDTO {
     public void setDueDate(String dueDate) { this.dueDate = dueDate; }
     public String getTimeLeft() { return timeLeft; }
     public void setTimeLeft(String timeLeft) { this.timeLeft = timeLeft; }
+
+    public Integer getCycleCalendarValue() { return cycleCalendarValue; }
+    public void setCycleCalendarValue(Integer v) { this.cycleCalendarValue = v; }
+
+    public String getCycleCalendarUnit() { return cycleCalendarUnit; }
+    public void setCycleCalendarUnit(String u) { this.cycleCalendarUnit = u; }
+
+    public Double getCycleHours() { return cycleHours; }
+    public void setCycleHours(Double h) { this.cycleHours = h; }
 }

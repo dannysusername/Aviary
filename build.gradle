@@ -17,6 +17,20 @@ repositories {
 	mavenCentral()
 }
 
+// Browser tests live in src/browserTest. Separate source set so the
+// slow Playwright suite doesn't bog down `./gradlew test`.
+sourceSets {
+    browserTest {
+        compileClasspath += sourceSets.main.output + sourceSets.test.output
+        runtimeClasspath += sourceSets.main.output + sourceSets.test.output
+    }
+}
+
+configurations {
+    browserTestImplementation.extendsFrom testImplementation
+    browserTestRuntimeOnly.extendsFrom testRuntimeOnly
+}
+
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
@@ -32,11 +46,28 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'org.mockito:mockito-core:5.11.0'
+
+    // Playwright drives a real Chromium for full-stack browser tests.
+    // First run downloads ~150MB of browser binaries to ~/.cache/ms-playwright/.
+    browserTestImplementation 'com.microsoft.playwright:playwright:1.47.0'
 }
 
 test {
     useJUnitPlatform()
     testLogging {
         events "passed", "skipped", "failed"
+    }
+}
+
+tasks.register('browserTest', Test) {
+    description = 'Runs Playwright browser tests (full-stack via real Chromium). Slow — opt-in.'
+    group = 'verification'
+    testClassesDirs = sourceSets.browserTest.output.classesDirs
+    classpath = sourceSets.browserTest.runtimeClasspath
+    useJUnitPlatform()
+    shouldRunAfter test
+    testLogging {
+        events "passed", "skipped", "failed"
+        showStandardStreams = true
     }
 }

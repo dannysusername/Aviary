@@ -55,6 +55,15 @@ public class User {
     @Column
     private String tachUpdatedSource;
 
+    // Manual "floor" for the airframe meter. Any manual edit on /updateHours
+    // writes this column too; log-book activity can only raise the displayed
+    // value above this floor, never below it. See computeDisplayedHours().
+    @Column
+    private Double hobbsManualBaseline;
+
+    @Column
+    private Double tachManualBaseline;
+
     public User(){
 
     }
@@ -169,4 +178,11 @@ public class User {
 
     public String getTachUpdatedSource() { return tachUpdatedSource; }
     public void setTachUpdatedSource(String tachUpdatedSource) { this.tachUpdatedSource = tachUpdatedSource; }
+
+    // Nullable on purpose: callers must distinguish "never set" from "set to 0".
+    public Double getHobbsManualBaseline() { return hobbsManualBaseline; }
+    public void setHobbsManualBaseline(Double hobbsManualBaseline) { this.hobbsManualBaseline = hobbsManualBaseline; }
+
+    public Double getTachManualBaseline() { return tachManualBaseline; }
+    public void setTachManualBaseline(Double tachManualBaseline) { this.tachManualBaseline = tachManualBaseline; }
 }
