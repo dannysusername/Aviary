@@ -24,8 +24,6 @@ import org.slf4j.LoggerFactory;
 import jakarta.transaction.Transactional;
 
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -92,12 +90,13 @@ public class UserController {
     }
 
     @GetMapping("/dashboard")
+    @Transactional
     public String showDashboard(Model model, Authentication authentication) {
         String username = authentication.getName();
         User user = userRepository.findByUsername(username);
         model.addAttribute("username", username);
         model.addAttribute("timelines", serviceTimelineRepository.findByUserOrderByTimelineOrderAsc(user));
-        model.addAttribute("descriptionOptions", descriptionOptionRepository.findByUser(user));
+        model.addAttribute("descriptionOptions", cleanupAndLoadDescriptionOptions(user));
         model.addAttribute("hobbsHours", user.getHobbsHours());
         model.addAttribute("tachHours", user.getTachHours());
 
@@ -147,6 +146,9 @@ public class UserController {
             
         }
         timeline.setCycle(cycle);
+        timeline.setCycleCalendarValue(parseIntOrNull(data.get("cycleCalendarValue")));
+        timeline.setCycleCalendarUnit(normalizeCalendarUnit(data.get("cycleCalendarUnit")));
+        timeline.setCycleHours(parseDoubleOrNull(data.get("cycleHours")));
         timeline.setLastDone(lastDone);
         timeline.setDueDate(dueDate);
         timeline.setTimeLeft(timeLeft);  // POSSIBLY REMOVE THIS !!!
@@ -196,6 +198,9 @@ public class UserController {
         response.put("item", timeline.getItem());
         response.put("description", timeline.getDescription());
         response.put("cycle", timeline.getCycle());
+        response.put("cycleCalendarValue", timeline.getCycleCalendarValue());
+        response.put("cycleCalendarUnit", timeline.getCycleCalendarUnit());
+        response.put("cycleHours", timeline.getCycleHours());
         response.put("lastDone", timeline.getLastDone());
         response.put("dueDate", timeline.getDueDate());
         response.put("timeLeft", timeline.getTimeLeft());
@@ -224,11 +229,15 @@ public ResponseEntity<Map<String, String>> updateHours(
 
         if (newHobbsTime != null) {
             user.setHobbsHours(newHobbsTime);
+            // Manual edit also sets the floor — logs can raise this, never lower it.
+            user.setHobbsManualBaseline(newHobbsTime);
             System.out.println("Setting Hobbs time to: " + newHobbsTime);
             updated = true;
         } else if (hobbsTimeToAdd != null) {
             double currentHobbs = user.getHobbsHours();
-            user.setHobbsHours(currentHobbs + hobbsTimeToAdd);
+            double newHobbs = currentHobbs + hobbsTimeToAdd;
+            user.setHobbsHours(newHobbs);
+            user.setHobbsManualBaseline(newHobbs);
             System.out.println("Adding " + hobbsTimeToAdd + " to current Hobbs: " + currentHobbs);
             updated = true;
         }
@@ -238,11 +247,14 @@ public ResponseEntity<Map<String, String>> updateHours(
 
         if (newTachTime != null) {
             user.setTachHours(newTachTime);
+            user.setTachManualBaseline(newTachTime);
             System.out.println("Setting Tach time to: " + newTachTime);
             updated = true;
         } else if (tachTimeToAdd != null) {
             double currentTach = user.getTachHours();
-            user.setTachHours(currentTach + tachTimeToAdd);
+            double newTach = currentTach + tachTimeToAdd;
+            user.setTachHours(newTach);
+            user.setTachManualBaseline(newTach);
             System.out.println("Adding " + tachTimeToAdd + " to current Tach: " + currentTach);
             updated = true;
         }
@@ -314,6 +326,12 @@ public ResponseEntity<Map<String, String>> updateHours(
                 saveCustomDescriptionOption(description, userRepository.findByUsername(authentication.getName()));
             }
             if (updateDTO.getCycle() != null) timeline.setCycle(updateDTO.getCycle());
+            // Structured cycle fields. The client sends them on every save so
+            // null actually means "clear it" here — distinguish empty/null on
+            // the client if you ever want partial updates.
+            timeline.setCycleCalendarValue(updateDTO.getCycleCalendarValue());
+            timeline.setCycleCalendarUnit(normalizeCalendarUnit(updateDTO.getCycleCalendarUnit()));
+            timeline.setCycleHours(updateDTO.getCycleHours());
             if (updateDTO.getLastDone() != null) timeline.setLastDone(updateDTO.getLastDone());
             if (updateDTO.getDueDate() != null) {
                 timeline.setDueDate(updateDTO.getDueDate());
@@ -405,14 +423,54 @@ public ResponseEntity<Map<String, String>> updateHours(
     // POST to add flight log
     @PostMapping(value = "/addflightlog", consumes = "application/json")
     @ResponseBody
+    @Transactional
     public ResponseEntity<Map<String, Object>> addFlightLog(@RequestBody FlightLog newLog, Authentication authentication) {
         User user = userRepository.findByUsername(authentication.getName());
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(errorBody("User not authenticated"));
+        }
+
+        // ── Validation ─────────────────────────────────────────────────────────
+        // Reject incomplete entries before they can corrupt displayed hours.
+        // Rule: must provide at least one COMPLETE pair (hobbsOut+hobbsIn or
+        // tachOut+tachIn). Partial pairs (e.g. only tachOut) are the exact case
+        // that used to silently wipe the user's manual hours to zero.
+        Double ho = newLog.getHobbsOut(), hi = newLog.getHobbsIn();
+        Double to = newLog.getTachOut(), ti = newLog.getTachIn();
+        boolean hobbsPair = (ho != null && hi != null);
+        boolean tachPair  = (to != null && ti != null);
+        boolean hobbsPartial = (ho == null) != (hi == null);  // exactly one set
+        boolean tachPartial  = (to == null) != (ti == null);
+
+        if (!hobbsPair && !tachPair) {
+            return ResponseEntity.badRequest().body(errorBody(
+                "Enter both Hobbs Out and Hobbs In, or both Tach Out and Tach In."));
+        }
+        if (hobbsPartial) {
+            return ResponseEntity.badRequest().body(errorBody(
+                "Hobbs entry is incomplete — enter both Hobbs Out and Hobbs In."));
+        }
+        if (tachPartial) {
+            return ResponseEntity.badRequest().body(errorBody(
+                "Tach entry is incomplete — enter both Tach Out and Tach In."));
+        }
+        if (hobbsPair && (ho < 0 || hi < 0 || hi < ho)) {
+            return ResponseEntity.badRequest().body(errorBody(
+                "Hobbs In must be ≥ Hobbs Out, and values cannot be negative."));
+        }
+        if (tachPair && (to < 0 || ti < 0 || ti < to)) {
+            return ResponseEntity.badRequest().body(errorBody(
+                "Tach In must be ≥ Tach Out, and values cannot be negative."));
+        }
+
+        // Force user ownership server-side regardless of what the client sent.
         newLog.setUser(user);
         FlightLog savedLog = flightLogRepository.save(newLog);
 
         List<FlightLog> allLogs = flightLogRepository.findByUser(user);
-        double newHobbs = calculateMergedHours(allLogs, true);
-        double newTach = calculateMergedHours(allLogs, false);
+        double newHobbs = computeDisplayedHours(user, allLogs, /*useHobbs=*/true);
+        double newTach  = computeDisplayedHours(user, allLogs, /*useHobbs=*/false);
         user.setHobbsHours(newHobbs);
         user.setTachHours(newTach);
         java.time.Instant flightNow = java.time.Instant.now();
@@ -435,6 +493,161 @@ public ResponseEntity<Map<String, String>> updateHours(
         return ResponseEntity.ok(response);
     }
 
+    private static Map<String, Object> errorBody(String message) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("status", "error");
+        body.put("message", message);
+        return body;
+    }
+
+    // POST: complete maintenance on a row.
+    // Server authoritatively picks "today" and "current tach hours" so the
+    // result is the same regardless of which tab the user clicks from.
+    @PostMapping("/completeMaintenance/{id}")
+    @ResponseBody
+    @Transactional
+    public ResponseEntity<Map<String, Object>> completeMaintenance(
+            @PathVariable Long id, Authentication authentication) {
+        User user = userRepository.findByUsername(authentication.getName());
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorBody("User not authenticated"));
+        }
+        ServiceTimeline timeline = serviceTimelineRepository.findById(id).orElse(null);
+        if (timeline == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorBody("Row not found"));
+        }
+        if (timeline.getUser() == null || timeline.getUser().getId() != user.getId()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorBody("You do not own this row"));
+        }
+
+        Integer calVal = timeline.getCycleCalendarValue();
+        String  calUnit = normalizeCalendarUnit(timeline.getCycleCalendarUnit());
+        Double  hrsCycle = timeline.getCycleHours();
+        boolean hasCalendar = (calVal != null && calVal > 0 && calUnit != null);
+        boolean hasHours    = (hrsCycle != null && hrsCycle > 0);
+        if (!hasCalendar && !hasHours) {
+            return ResponseEntity.badRequest().body(errorBody(
+                "Set a calendar cycle or an hours cycle before marking maintenance complete."));
+        }
+
+        java.time.LocalDate today = java.time.LocalDate.now();
+        double currentTach = user.getTachHours();
+
+        String lastDoneStr = buildDateHoursString(
+            hasCalendar ? today : null,
+            hasHours    ? currentTach : null);
+
+        java.time.LocalDate dueDateLd = null;
+        if (hasCalendar) {
+            switch (calUnit) {
+                case "DAYS":   dueDateLd = today.plusDays(calVal); break;
+                case "MONTHS": dueDateLd = today.plusMonths(calVal); break;
+                case "YEARS":  dueDateLd = today.plusYears(calVal); break;
+                default:
+                    return ResponseEntity.badRequest().body(errorBody("Invalid calendar unit: " + calUnit));
+            }
+        }
+        Double dueHours = hasHours ? (currentTach + hrsCycle) : null;
+        String dueDateStr = buildDateHoursString(dueDateLd, dueHours);
+
+        String timeLeftStr = computeTimeLeftString(dueDateLd, dueHours, today, currentTach);
+
+        timeline.setLastDone(lastDoneStr);
+        timeline.setDueDate(dueDateStr);
+        timeline.setTimeLeft(timeLeftStr);
+        serviceTimelineRepository.save(timeline);
+
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("status", "ok");
+        resp.put("lastDone", lastDoneStr);
+        resp.put("dueDate", dueDateStr);
+        resp.put("timeLeft", timeLeftStr);
+        return ResponseEntity.ok(resp);
+    }
+
+    private static Integer parseIntOrNull(String s) {
+        if (s == null || s.trim().isEmpty()) return null;
+        try { return Integer.valueOf(s.trim()); } catch (NumberFormatException e) { return null; }
+    }
+
+    private static Double parseDoubleOrNull(String s) {
+        if (s == null || s.trim().isEmpty()) return null;
+        try { return Double.valueOf(s.trim()); } catch (NumberFormatException e) { return null; }
+    }
+
+    private static String normalizeCalendarUnit(String raw) {
+        if (raw == null) return null;
+        String u = raw.trim().toUpperCase();
+        if (u.isEmpty()) return null;
+        if (u.equals("DAYS") || u.equals("MONTHS") || u.equals("YEARS")) return u;
+        return null;
+    }
+
+    // Stored format matches the existing "YYYY-MM-DD <hours>" convention that
+    // the rest of the app already parses (see calculateTimeLeft in dashboard.js).
+    private static String buildDateHoursString(java.time.LocalDate date, Double hours) {
+        StringBuilder sb = new StringBuilder();
+        if (date != null) sb.append(date.toString());
+        if (hours != null) {
+            if (sb.length() > 0) sb.append(' ');
+            // Trim trailing zeros: 100.0 -> "100", 100.5 -> "100.5"
+            sb.append(hours == Math.floor(hours)
+                ? Long.toString((long) (double) hours)
+                : Double.toString(hours));
+        }
+        return sb.toString();
+    }
+
+    private static String computeTimeLeftString(java.time.LocalDate dueDate, Double dueHours,
+                                                java.time.LocalDate today, double currentTach) {
+        StringBuilder sb = new StringBuilder();
+        if (dueDate != null) {
+            long daysLeft = java.time.temporal.ChronoUnit.DAYS.between(today, dueDate);
+            sb.append(daysLeft < 0
+                ? Math.abs(daysLeft) + " days overdue"
+                : daysLeft + " days left");
+        }
+        if (dueHours != null) {
+            double hoursLeft = Math.round((dueHours - currentTach) * 10.0) / 10.0;
+            String h = hoursLeft < 0
+                ? Math.abs(hoursLeft) + " hours overdue"
+                : hoursLeft + " hours left";
+            if (sb.length() > 0) sb.append('\n');
+            sb.append(h);
+        }
+        return sb.length() == 0 ? "N/A" : sb.toString();
+    }
+
+    // POST to add a custom description option directly (before any row uses it)
+    @PostMapping(value = "/addDescriptionOption", consumes = "application/json")
+    @ResponseBody
+    @Transactional
+    public ResponseEntity<Map<String, Object>> addDescriptionOption(
+            @RequestBody Map<String, String> body, Authentication authentication) {
+        User user = userRepository.findByUsername(authentication.getName());
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorBody("User not authenticated"));
+        }
+        String raw = body == null ? null : body.get("option");
+        if (raw == null) return ResponseEntity.badRequest().body(errorBody("Missing option"));
+        String trimmed = raw.trim();
+        if (trimmed.isEmpty()) return ResponseEntity.badRequest().body(errorBody("Option cannot be blank"));
+        if (DEFAULT_DESCRIPTION_OPTIONS.contains(trimmed.toLowerCase())) {
+            return ResponseEntity.badRequest().body(errorBody("That option already exists as a default"));
+        }
+        DescriptionOption existing = descriptionOptionRepository.findByUser(user).stream()
+            .filter(opt -> opt.getOption() != null && opt.getOption().equalsIgnoreCase(trimmed))
+            .findFirst().orElse(null);
+        DescriptionOption saved = (existing != null)
+            ? existing
+            : descriptionOptionRepository.save(new DescriptionOption(trimmed, user));
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("status", "ok");
+        resp.put("id", saved.getId());
+        resp.put("option", saved.getOption());
+        return ResponseEntity.ok(resp);
+    }
+
     // DELETE flight log
     @DeleteMapping("/deleteflightlog/{id}")
     @ResponseBody
@@ -450,8 +663,8 @@ public ResponseEntity<Map<String, String>> updateHours(
             flightLogRepository.delete(log);
 
             List<FlightLog> remainingLogs = flightLogRepository.findByUser(user);
-            double newHobbs = calculateMergedHours(remainingLogs, true);
-            double newTach = calculateMergedHours(remainingLogs, false);
+            double newHobbs = computeDisplayedHours(user, remainingLogs, /*useHobbs=*/true);
+            double newTach  = computeDisplayedHours(user, remainingLogs, /*useHobbs=*/false);
             user.setHobbsHours(newHobbs);
             user.setTachHours(newTach);
             java.time.Instant flightNow = java.time.Instant.now();
@@ -471,43 +684,77 @@ public ResponseEntity<Map<String, String>> updateHours(
         }
     }
 
-    // Calculates total hours from all logs using interval merging to prevent double-counting
-    private double calculateMergedHours(List<FlightLog> logs, boolean useHobbs) {
-        List<double[]> intervals = new ArrayList<>();
+    /**
+     * Meter-snapshot recompute: the airframe meter only goes up.
+     *
+     * Displayed hours = max(manualBaseline, highest hobbsIn/tachIn across user's logs).
+     *
+     * If the baseline has never been written (legacy users), seed it from the
+     * user's current hobbsHours/tachHours so log activity can never silently
+     * lower the displayed value. After this call, the baseline is locked in
+     * and subsequent operations behave predictably.
+     */
+    private double computeDisplayedHours(User user, List<FlightLog> logs, boolean useHobbs) {
+        Double baselineBoxed = useHobbs ? user.getHobbsManualBaseline() : user.getTachManualBaseline();
+        if (baselineBoxed == null) {
+            // Seed once from the existing displayed value. Mutates the user;
+            // caller is expected to persist it.
+            double seed = useHobbs ? user.getHobbsHours() : user.getTachHours();
+            if (useHobbs) user.setHobbsManualBaseline(seed);
+            else          user.setTachManualBaseline(seed);
+            baselineBoxed = seed;
+        }
+        double baseline = baselineBoxed;
+
+        double maxFromLogs = 0.0;
+        boolean anyReading = false;
         for (FlightLog log : logs) {
-            Double a = useHobbs ? log.getHobbsOut() : log.getTachIn();
-            Double b = useHobbs ? log.getHobbsIn() : log.getTachOut();
-            if (a != null && b != null) {
-                double lo = Math.min(a, b);
-                double hi = Math.max(a, b);
-                if (hi > lo) intervals.add(new double[]{lo, hi});
+            Double reading = useHobbs ? log.getHobbsIn() : log.getTachIn();
+            if (reading != null) {
+                if (!anyReading || reading > maxFromLogs) maxFromLogs = reading;
+                anyReading = true;
             }
         }
-        if (intervals.isEmpty()) return 0.0;
-        intervals.sort(Comparator.comparingDouble(i -> i[0]));
-        double total = 0.0;
-        double[] current = intervals.get(0);
-        for (int i = 1; i < intervals.size(); i++) {
-            double[] interval = intervals.get(i);
-            if (interval[0] <= current[1]) {
-                current[1] = Math.max(current[1], interval[1]);
+        return anyReading ? Math.max(baseline, maxFromLogs) : baseline;
+    }
+
+    private static final java.util.Set<String> DEFAULT_DESCRIPTION_OPTIONS =
+        java.util.Set.of("inspect", "test", "replace", "overhaul");
+
+    // Drops blank entries and any custom option that duplicates a built-in
+    // (case-insensitive). Self-heals legacy bad rows on first dashboard load
+    // after this fix ships.
+    private List<DescriptionOption> cleanupAndLoadDescriptionOptions(User user) {
+        List<DescriptionOption> all = descriptionOptionRepository.findByUser(user);
+        java.util.Set<String> keptLower = new java.util.HashSet<>();
+        List<DescriptionOption> kept = new java.util.ArrayList<>();
+        List<DescriptionOption> toDelete = new java.util.ArrayList<>();
+        for (DescriptionOption opt : all) {
+            String value = opt.getOption();
+            String trimmed = value == null ? "" : value.trim();
+            String lower = trimmed.toLowerCase();
+            boolean isBlank = trimmed.isEmpty();
+            boolean isDefault = DEFAULT_DESCRIPTION_OPTIONS.contains(lower);
+            boolean isDup = !keptLower.add(lower);
+            if (isBlank || isDefault || isDup) {
+                toDelete.add(opt);
             } else {
-                total += current[1] - current[0];
-                current = interval;
+                kept.add(opt);
             }
         }
-        total += current[1] - current[0];
-        return total;
+        if (!toDelete.isEmpty()) descriptionOptionRepository.deleteAll(toDelete);
+        return kept;
     }
 
     private void saveCustomDescriptionOption(String description, User user) {
-        if (description != null) {
-            String[] defaults = {"inspect", "test", "replace", "overhaul"};
-            if (!java.util.Arrays.asList(defaults).contains(description)) {
-                if (!descriptionOptionRepository.findByUser(user).stream().anyMatch(opt -> opt.getOption().equals(description))) {
-                    descriptionOptionRepository.save(new DescriptionOption(description, user));
-                }
-            }
+        if (description == null) return;
+        String trimmed = description.trim();
+        if (trimmed.isEmpty()) return;
+        if (DEFAULT_DESCRIPTION_OPTIONS.contains(trimmed.toLowerCase())) return;
+        boolean alreadyExists = descriptionOptionRepository.findByUser(user).stream()
+            .anyMatch(opt -> opt.getOption() != null && opt.getOption().equalsIgnoreCase(trimmed));
+        if (!alreadyExists) {
+            descriptionOptionRepository.save(new DescriptionOption(trimmed, user));
         }
     }
 }

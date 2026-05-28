@@ -108,6 +108,7 @@
                         <th class = "print">Due Date</th>
                         <th class = "print">Time Left</th>
                         <!--<th class = "status-header">Status</th>-->
+                        <th class = "complete-header no-print"></th>
                         <th class = "delete-header"></th>
                     </tr>
                 </thead>
@@ -121,14 +122,15 @@
                         <tr th:if="${timeline.isTitle}" class="title-row" th:data-id="${timeline.id}">
                             <td class = "grip-cell"><span class="grip-icon no-print"><i class="fa-solid fa-grip-vertical"></i></span></td>
                             <td colspan="6" class="title-cell" th:text="${timeline.item}"></td>
+                            <td class="complete-cell no-print"></td>
                             <td class="delete-cell"><span class="delete-icon no-print" onclick="deleteRow(this)"><i class="fa-solid fa-trash-can fa-xl"></i></span></td>
                         </tr>
                         <!-- Regular item row -->
                         <tr th:unless="${timeline.isTitle}" th:data-id="${timeline.id}" th:data-lastDone="${timeline.lastDone}" th:data-dueDate="${timeline.dueDate}" th:data-cycle="${timeline.cycle}" class="auto-save-row">                           
                             <td class = "grip-cell"><span class="grip-icon no-print"><i class="fa-solid fa-grip-vertical"></i></span></td>
-                            <td><textarea name="item" th:text="${timeline.item}" oninput="autoSave(this)" class="no-print"></textarea>
+                            <td data-label="Item"><textarea name="item" rows="1" th:text="${timeline.item}" oninput="autoSave(this)" class="no-print"></textarea><i class="fa-solid fa-chevron-down card-caret no-print"></i>
                                 <span class="print-only" th:text="${timeline.item}"></span></td>
-                            <td>
+                            <td data-label="Description">
                                 <div class="custom-dropdown no-print">
                                     <div class="selected-option no-print"></div>
                                     <input type="hidden" name="description" th:value="${timeline.description}">
@@ -141,7 +143,7 @@
                                         <div class="option" data-value="Overhaul">Overhaul</div>
                                         <div th:each="option : ${descriptionOptions}" class="option custom-option" th:data-value="${option.option}" th:data-option-id="${option.id}">
                                             <span th:text="${option.option}"></span>
-                                            <button class="remove-option-btn" th:data-option-id="${option.id}"><i class="fa-solid fa-xmark"></i></button>
+                                            <button class="remove-option-btn" th:data-option-id="${option.id}">x</button>
                                         </div>
                                         <div class="add-option-container">
                                             <input type="text" class="custom-description" placeholder="New option">
@@ -151,8 +153,31 @@
                                 </div>
                                 <span class="print-only" th:text="${timeline.description}"></span>
                             </td>
-                            <td><textarea name="cycle" oninput="autoSave(this)" th:text="${timeline.cycle}" class="no-print"></textarea><span class="print-only" th:text="${timeline.cycle}"></span></td>
-                            <td>
+                            <td data-label="Cycle">
+                                <div class="cycle-structured no-print">
+                                    <div class="cycle-row">
+                                        <input type="number" min="1" step="1" name="cycleCalendarValue"
+                                            class="cycle-num" placeholder="#"
+                                            th:value="${timeline.cycleCalendarValue}"
+                                            oninput="autoSave(this)">
+                                        <select name="cycleCalendarUnit" class="cycle-unit" onchange="autoSave(this)">
+                                            <option value="" th:selected="${timeline.cycleCalendarUnit == null}">unit</option>
+                                            <option value="DAYS"   th:selected="${timeline.cycleCalendarUnit == 'DAYS'}">days</option>
+                                            <option value="MONTHS" th:selected="${timeline.cycleCalendarUnit == 'MONTHS'}">months</option>
+                                            <option value="YEARS"  th:selected="${timeline.cycleCalendarUnit == 'YEARS'}">years</option>
+                                        </select>
+                                    </div>
+                                    <div class="cycle-row">
+                                        <input type="number" min="0.1" step="0.1" name="cycleHours"
+                                            class="cycle-num" placeholder="#"
+                                            th:value="${timeline.cycleHours}"
+                                            oninput="autoSave(this)">
+                                        <span class="cycle-unit-label">hrs</span>
+                                    </div>
+                                </div>
+                                <span class="print-only"></span>
+                            </td>
+                            <td data-label="Last Done">
                                 <div class="input-with-dropdown no-print">
                                     <i class="fa-solid fa-chevron-down trigger-dropdown"></i>
                                     <div class="type-dropdown" style="display: none;">
@@ -168,7 +193,7 @@
                                 </div>
                                 <span class="print-only" th:text="${timeline.lastDone}"></span>
                             </td>
-                            <td>
+                            <td data-label="Due Date">
                                 <div class="input-with-dropdown no-print">
                                     <i class="fa-solid fa-chevron-down trigger-dropdown"></i>
                                     <div class="type-dropdown" style="display: none;">
@@ -184,9 +209,17 @@
                                 </div>
                                 <span class="print-only" th:text="${timeline.dueDate}"></span>
                             </td>
-                            <td><div class="time-left" th:text="${timeline.timeLeft != null ? timeline.timeLeft : ''}"></div></td>
+                            <td data-label="Time Left"><div class="time-left" th:text="${timeline.timeLeft != null ? timeline.timeLeft : ''}"></div></td>
                             <!--<td class="status-cell"><span class="save-status no-print">✓</span></td>-->
-                            <td class="delete-cell"><span class="delete-icon no-print" onclick="deleteRow(this)"><i class="fa-solid fa-trash-can fa-xl"></i></span></td>
+                            <td class="complete-cell no-print" data-label="">
+                                <button type="button" class="complete-btn"
+                                        title="Mark maintenance complete: sets Last Done to today/current hours and rolls Due Date forward by the cycle."
+                                        onclick="completeMaintenance(this)">
+                                    <i class="fa-solid fa-rotate-right"></i>
+                                    <span class="complete-btn-label">Mark complete</span>
+                                </button>
+                            </td>
+                            <td class="delete-cell" data-label=""><span class="delete-icon no-print" onclick="deleteRow(this)"><i class="fa-solid fa-trash-can fa-xl"></i></span></td>
                         </tr>
                     </th:block>
                 </tbody>
@@ -194,13 +227,13 @@
                 <tbody>
                     <tr class="add-row no-print"> <!-- Add row -->
                         <td class="grip-column"></td>
-                        <td>
+                        <td data-label="Item">
                             <div class="row-type-selector"> <!--Choose Item/Title-->
                                 <span class="row-type-option" data-type="item" onclick="selectRowType('item', this)">Item</span> <!-- Item button -->
                                 <span class="row-type-option" data-type="title" onclick="selectRowType('title', this)">Title</span> <!-- Title button -->
                             </div>
                             <div id="itemInput" style="display: none;"> <!--"Enter Item" item textarea div-->
-                                <textarea name="item" placeholder="Enter item"></textarea> <!--Item textarea-->
+                                <textarea name="item" rows="1" placeholder="Enter item"></textarea> <!--Item textarea-->
                             </div>
                             <div id="titleInput" style="display: none;"> <!--"Enter Title" title -->
                                 <input type="text" name="title" placeholder="Enter title" class="title-input">
@@ -208,7 +241,7 @@
                             <input type="hidden" name="item" id="itemHidden">
                             <input type="hidden" name="isTitle" id="isTitleHidden" value="false">
                         </td>
-                        <td>
+                        <td data-label="Description">
                             <div class="custom-dropdown no-print">
                                 <div class="selected-option no-print"></div>
                                 <input type="hidden" name="description" value="">
@@ -230,8 +263,24 @@
                                 </div>
                             </div>
                         </td>
-                        <td><textarea placeholder = "Service cycle time. Ex. 100 hours" name="cycle"></textarea></td>
-                        <td>
+                        <td data-label="Cycle">
+                            <div class="cycle-structured">
+                                <div class="cycle-row">
+                                    <input type="number" min="1" step="1" name="cycleCalendarValue" class="cycle-num" placeholder="#">
+                                    <select name="cycleCalendarUnit" class="cycle-unit">
+                                        <option value="" selected>unit</option>
+                                        <option value="DAYS">days</option>
+                                        <option value="MONTHS">months</option>
+                                        <option value="YEARS">years</option>
+                                    </select>
+                                </div>
+                                <div class="cycle-row">
+                                    <input type="number" min="0.1" step="0.1" name="cycleHours" class="cycle-num" placeholder="#">
+                                    <span class="cycle-unit-label">hrs</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td data-label="Last Done">
                             <div class="input-with-dropdown">
                                 <i class="fa-solid fa-chevron-down trigger-dropdown"></i>
                                 <div class="type-dropdown" style="display: none;">
@@ -241,7 +290,7 @@
                             </div>
                             <input type="hidden" name="lastDone" id="lastDoneHidden">
                         </td>
-                        <td>
+                        <td data-label="Due Date">
                             <div class="input-with-dropdown">
                                 <i class="fa-solid fa-chevron-down trigger-dropdown"></i>
                                 <div class="type-dropdown" style="display: none;">
@@ -251,9 +300,12 @@
                             </div>
                             <input type="hidden" name="dueDate" id="dueDateHidden">
                         </td>
-                        <td><div class="time-left"></div></td>
+                        <td data-label="Time Left"><div class="time-left"></div></td>
                         <!--<td class="status-cell"><span class="save-status"></span></td>-->
-                        <td class="add-cell">
+                        <!-- add-cell spans 2 columns so the Add button gets room
+                             to breathe AND grows with screen width (those two
+                             columns are 4%+4% of viewport). -->
+                        <td class="add-cell no-print" data-label="" colspan="2">
                             <form method="post" th:action="@{/dashboard}">
                                 <input type="hidden" name="item" id="itemHiddenDuplicate">
                                 <input type="hidden" name="isTitle" id="isTitleHiddenDuplicate" value="false">

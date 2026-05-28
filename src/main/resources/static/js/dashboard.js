@@ -26,7 +26,7 @@ function showToast(message, type = 'info') {
     }, 3500);
 }
 
-function showConfirm(message) {
+function showConfirm(message, confirmLabel = 'Confirm') {
     return new Promise(resolve => {
         const overlay = document.createElement('div');
         overlay.className = 'confirm-overlay';
@@ -35,9 +35,10 @@ function showConfirm(message) {
             '  <div class="confirm-message"></div>' +
             '  <div class="confirm-actions">' +
             '    <button type="button" class="confirm-btn cancel">Cancel</button>' +
-            '    <button type="button" class="confirm-btn ok">Delete</button>' +
+            '    <button type="button" class="confirm-btn ok"></button>' +
             '  </div>' +
             '</div>';
+        overlay.querySelector('.confirm-btn.ok').textContent = confirmLabel;
         overlay.querySelector('.confirm-message').textContent = message;
         document.body.appendChild(overlay);
         requestAnimationFrame(() => overlay.classList.add('show'));
@@ -115,11 +116,29 @@ function autoSave(input) {
     const id = row.getAttribute('data-id'); //grab 'data-id' of row
     //const status = row.querySelector('.save-status');  grab element in the auto-save-row called 'save-status'
     
-    const data = {
-        item: row.querySelector('textarea[name="item"]').value, //get rows item name 
-        description: row.querySelector('input[name="description"]').value, //get rows description option
-        cycle: row.querySelector('textarea[name="cycle"]').value //get rows cycle text
+    const calValEl  = row.querySelector('input[name="cycleCalendarValue"]');
+    const calUnitEl = row.querySelector('select[name="cycleCalendarUnit"]');
+    const hrsEl     = row.querySelector('input[name="cycleHours"]');
+    const parsedInt = (el) => {
+        if (!el || el.value === '' || el.value == null) return null;
+        const n = parseInt(el.value, 10);
+        return isNaN(n) ? null : n;
     };
+    const parsedFloat = (el) => {
+        if (!el || el.value === '' || el.value == null) return null;
+        const n = parseFloat(el.value);
+        return isNaN(n) ? null : n;
+    };
+
+    const data = {
+        item: row.querySelector('textarea[name="item"]').value, //get rows item name
+        description: row.querySelector('input[name="description"]').value, //get rows description option
+        cycleCalendarValue: parsedInt(calValEl),
+        cycleCalendarUnit:  calUnitEl ? (calUnitEl.value || null) : null,
+        cycleHours:         parsedFloat(hrsEl)
+    };
+
+    refreshCompleteButtonState(row);
 
     ['lastDone', 'dueDate'].forEach((field, index) => { //loops through lastDone and dueDate fields
         const container = row.querySelector(`td:nth-child(${index === 0 ? 5 : 6}) .input-with-dropdown`); //grab .input-with-dropdown in td child n
@@ -213,7 +232,7 @@ function deleteRow(icon) {
     }
     const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
     const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
-    showConfirm('Delete this entry?').then(confirmed => {
+    showConfirm('Delete this entry?', 'Delete').then(confirmed => {
         if (!confirmed) return;
         axios.delete(`/delete/${id}`, { headers: { [csrfHeader]: csrfToken } })
             .then(() => row.remove())
@@ -222,6 +241,126 @@ function deleteRow(icon) {
                 showToast('Could not delete the entry. Please try again.', 'error');
             });
     });
+}
+
+// Builds the human-readable cycle string from a row's structured inputs.
+// Used for the print-only column and the Excel export. Empty when no cycle.
+function formatCycleDisplay(row) {
+    const calVal  = row.querySelector('input[name="cycleCalendarValue"]')?.value;
+    const calUnit = row.querySelector('select[name="cycleCalendarUnit"]')?.value;
+    const hrs     = row.querySelector('input[name="cycleHours"]')?.value;
+    const parts = [];
+    if (calVal && parseInt(calVal, 10) > 0 && calUnit) {
+        parts.push(`${calVal} ${calUnit.toLowerCase()}`);
+    }
+    if (hrs && parseFloat(hrs) > 0) {
+        parts.push(`${hrs} hrs`);
+    }
+    return parts.join(' / ');
+}
+
+// Disable the Update button on rows where no structured cycle is set yet —
+// the server would reject the click anyway, so prevent the round-trip.
+function refreshCompleteButtonState(row) {
+    const btn = row.querySelector('.complete-btn');
+    if (!btn) return;
+    const calVal = row.querySelector('input[name="cycleCalendarValue"]')?.value;
+    const calUnit = row.querySelector('select[name="cycleCalendarUnit"]')?.value;
+    const hrs    = row.querySelector('input[name="cycleHours"]')?.value;
+    const hasCal = calVal && parseInt(calVal, 10) > 0 && calUnit;
+    const hasHrs = hrs    && parseFloat(hrs)         > 0;
+    if (hasCal || hasHrs) {
+        btn.removeAttribute('disabled');
+        btn.title = 'Mark maintenance complete: sets Last Done to today/current hours and rolls Due Date forward by the cycle.';
+    } else {
+        btn.setAttribute('disabled', 'disabled');
+        btn.title = 'Set a cycle (months/years/days or hours) on this row to enable.';
+    }
+}
+
+function refreshAllCompleteButtons() {
+    document.querySelectorAll('.auto-save-row').forEach(refreshCompleteButtonState);
+}
+
+// Click handler for the per-row "complete maintenance" button.
+// Server is authoritative for today + current hours; client only repaints
+// the row from the response so a stale tab can't desync the displayed value.
+async function completeMaintenance(button) {
+    const row = button.closest('.auto-save-row');
+    if (!row) return;
+    const id = row.getAttribute('data-id');
+    if (!id) {
+        showToast('Could not identify row.', 'error');
+        return;
+    }
+    const confirmed = await showConfirm(
+        'Mark this maintenance as just completed? This will reset Last Done to today / current hours and roll Due Date forward by the cycle.',
+        'Mark complete');
+    if (!confirmed) return;
+    try {
+        const csrfToken  = document.querySelector('meta[name="_csrf"]').getAttribute('content');
+        const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
+        const response = await axios.post(`/completeMaintenance/${id}`, {}, {
+            headers: { [csrfHeader]: csrfToken, 'Content-Type': 'application/json' }
+        });
+        const { lastDone, dueDate, timeLeft } = response.data;
+        repaintDateHoursCell(row, 'lastDone', lastDone);
+        repaintDateHoursCell(row, 'dueDate',  dueDate);
+        row.setAttribute('data-lastDone', lastDone || '');
+        row.setAttribute('data-dueDate',  dueDate  || '');
+        const tl = row.querySelector('td:nth-child(7) .time-left');
+        if (tl) setTimeLeftText(tl, timeLeft || 'N/A');
+        showToast('Maintenance completed. Due Date rolled forward.', 'success');
+    } catch (error) {
+        const msg = error?.response?.data?.message || 'Failed to update maintenance.';
+        showToast(msg, 'error');
+    }
+}
+
+// Rebuilds the dual-input cell (date input and/or hours input) from a
+// "YYYY-MM-DD <hours>" string. Mirrors the loader at the bottom of dashboard.js
+// so manual edits keep working after the button fires.
+function repaintDateHoursCell(row, field, value) {
+    const tdIndex = field === 'lastDone' ? 5 : 6;
+    const container = row.querySelector(`td:nth-child(${tdIndex}) .input-with-dropdown`);
+    if (!container) return;
+    container.querySelectorAll('input.extra-input').forEach(i => i.remove());
+    container.querySelectorAll('.add-type').forEach(btn => btn.textContent = '+');
+    if (!value) return;
+
+    const parts = value.split(' ');
+    let datePart = null, textPart = null;
+    if (parts[0] && parts[0].match(/^\d{4}-\d{2}-\d{2}$/)) {
+        datePart = parts[0];
+        if (parts.length > 1) textPart = parts.slice(1).join(' ');
+    } else {
+        textPart = value;
+    }
+    const trigger = container.querySelector('.trigger-dropdown');
+
+    if (datePart) {
+        const dateInput = document.createElement('input');
+        dateInput.type = 'date';
+        dateInput.name = `${field}_date`;
+        dateInput.className = 'extra-input';
+        dateInput.value = datePart;
+        dateInput.oninput = () => autoSave(dateInput);
+        container.insertBefore(dateInput, trigger);
+        const calBtn = container.querySelector('.add-type[data-type="calendar"]');
+        if (calBtn) calBtn.textContent = '-';
+    }
+    if (textPart) {
+        const textInput = document.createElement('input');
+        textInput.type = 'text';
+        textInput.name = `${field}_text`;
+        textInput.className = 'extra-input';
+        textInput.placeholder = 'Enter hours';
+        textInput.value = textPart;
+        textInput.oninput = () => autoSave(textInput);
+        container.insertBefore(textInput, trigger);
+        const clkBtn = container.querySelector('.add-type[data-type="clock"]');
+        if (clkBtn) clkBtn.textContent = '-';
+    }
 }
 
 function updateOrderOnServer() {
@@ -280,35 +419,50 @@ function selectOption(option) {
     if (dropdown.closest('.auto-save-row')) autoSave(hiddenInput);
 }
 
-function addCustomDescription(button) {
+async function addCustomDescription(button) {
     const container = button.parentElement;
     const input = container.querySelector('.custom-description');
     const customValue = input.value.trim();
     if (!customValue) return;
-    // Add the new option to all dropdowns without selecting it
-    if (!isDefaultOption(customValue)) {
-        updateAllDropdowns(customValue);
+    if (isDefaultOption(customValue)) { input.value = ''; return; }
+    // Already present in any dropdown? Just clear and bail — no double-add.
+    if (document.querySelector(`.dropdown-options .option[data-value="${CSS.escape(customValue)}"]`)) {
+        input.value = '';
+        return;
     }
-    input.value = '';
-    // Do not select the new option or trigger autoSave
+    try {
+        const csrfToken  = document.querySelector('meta[name="_csrf"]').getAttribute('content');
+        const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
+        const response = await axios.post('/addDescriptionOption',
+            { option: customValue },
+            { headers: { [csrfHeader]: csrfToken, 'Content-Type': 'application/json' } });
+        const { id, option } = response.data;
+        updateAllDropdowns(option, id);
+        input.value = '';
+    } catch (error) {
+        const msg = error?.response?.data?.message || 'Failed to add option';
+        showToast(msg, 'error');
+    }
 }
 
-function updateAllDropdowns(newOption) {
+function updateAllDropdowns(newOption, optionId) {
     document.querySelectorAll('.dropdown-options').forEach(dropdown => {
-        if (!dropdown.querySelector(`.option[data-value="${newOption}"]`)) {
+        if (!dropdown.querySelector(`.option[data-value="${CSS.escape(newOption)}"]`)) {
             const optionDiv = document.createElement('div');
             optionDiv.className = 'option custom-option';
             optionDiv.setAttribute('data-value', newOption);
-            // Create span for the option text
+            if (optionId != null) optionDiv.setAttribute('data-option-id', optionId);
             const span = document.createElement('span');
             span.textContent = newOption;
             optionDiv.appendChild(span);
-            // Create remove button
             const removeBtn = document.createElement('button');
             removeBtn.className = 'remove-option-btn';
             removeBtn.textContent = 'x';
-            // Use data-option-value since we don't have an ID yet
-            removeBtn.setAttribute('data-option-value', newOption);
+            if (optionId != null) {
+                removeBtn.setAttribute('data-option-id', optionId);
+            } else {
+                removeBtn.setAttribute('data-option-value', newOption);
+            }
             optionDiv.appendChild(removeBtn);
             optionDiv.onclick = () => selectOption(optionDiv);
             dropdown.insertBefore(optionDiv, dropdown.querySelector('.add-option-container'));
@@ -486,15 +640,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     document.addEventListener('click', function(event) {
-        if (event.target.className === 'remove-option-btn') {
+        const removeBtn = event.target.closest('.remove-option-btn');
+        if (removeBtn) {
             event.preventDefault();
             event.stopPropagation();
-            const optionId = event.target.getAttribute('data-option-id');
-            const optionValue = event.target.getAttribute('data-option-value');
-            const optionDiv = event.target.closest('.option');
+            const optionId = removeBtn.getAttribute('data-option-id');
+            const optionValue = removeBtn.getAttribute('data-option-value');
+            const optionDiv = removeBtn.closest('.option');
             const deletedValue = optionDiv.getAttribute('data-value');
     
-            showConfirm('Delete this option?').then(confirmed => {
+            showConfirm('Delete this option?', 'Delete').then(confirmed => {
                 if (!confirmed) return;
                 if (optionId) {
                     // Existing option with an ID (from server)
@@ -634,8 +789,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     function selectOption(option) {
-        if (event.target.classList.contains('remove-option-btn')) {
-            return; // Prevent selection on remove button click
+        if (event.target.closest('.remove-option-btn')) {
+            return; // Prevent selection on remove button click (icon or text)
         }
         const dropdown = option.closest('.custom-dropdown');
         const selected = dropdown.querySelector('.selected-option');
@@ -657,15 +812,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    document.querySelectorAll('.auto-save-row textarea[name="cycle"]').forEach(textarea => {
-        setTextareaMinHeight(textarea);
-        textarea.addEventListener('input', () => {
-            setTextareaMinHeight(textarea);
-        });
-    });
-
     window.addEventListener('resize', () => {
-        document.querySelectorAll('.auto-save-row textarea[name="item"], .auto-save-row textarea[name="cycle"], .add-row textarea[name="item"], .add-row textarea[name="cycle"]').forEach(textarea => {
+        document.querySelectorAll('.auto-save-row textarea[name="item"], .add-row textarea[name="item"]').forEach(textarea => {
             setTextareaMinHeight(textarea);
         });
     });
@@ -690,7 +838,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const titleRow = titleCell.closest('tr');
         filterByTitle(titleRow);
     });
-    
+
+    // Mobile/narrow: tap an item card's headline to collapse it down to just the
+    // item name; tap again (or tap the collapsed card) to expand. Cards are
+    // expanded by default. Delegated on .sortable so dynamically-added rows work
+    // too. The 960px gate matches the CSS card breakpoint, so toggling works for
+    // the whole card range and stays disabled on the desktop table (>=961px).
+    document.querySelector('.sortable').addEventListener('click', function(e) {
+        if (!window.matchMedia('(max-width: 960px)').matches) return;
+        const itemCell = e.target.closest('td[data-label="Item"]');
+        if (!itemCell) return;
+        const row = itemCell.closest('tr');
+        if (!row || row.classList.contains('title-row') || row.classList.contains('add-row')) return;
+        // While expanded, a tap inside the name textarea edits it (don't toggle).
+        // While collapsed, a tap anywhere on the card re-expands it.
+        if (e.target.closest('textarea') && !row.classList.contains('collapsed')) return;
+        row.classList.toggle('collapsed');
+    });
+
     let currentSectionId = null; // To track the current section being viewed
     function filterByTitle(titleRow) {
         currentSectionId = titleRow.getAttribute('data-id');
@@ -875,21 +1040,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     updateAllTimeLeft();
-    
+    refreshAllCompleteButtons();
+
     function closeTypeDropdowns(event) {
         if (!event.target.closest('.input-with-dropdown')) {
             document.querySelectorAll('.type-dropdown').forEach(dropdown => {
                 dropdown.style.display = 'none';
             });
         }
-    }
-
-    const addRowCycleTextarea = document.querySelector('.add-row textarea[name="cycle"]');
-    if (addRowCycleTextarea) {
-        setTextareaMinHeight(addRowCycleTextarea);
-        addRowCycleTextarea.addEventListener('input', () => {
-            setTextareaMinHeight(addRowCycleTextarea);
-        });
     }
 
     const addRowItemTextarea = document.querySelector('.add-row textarea[name="item"]');
@@ -948,10 +1106,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const description = document.querySelector('.add-row .custom-dropdown input[name="description"]').value;
-        const cycle = document.querySelector('.add-row textarea[name="cycle"]').value;
         const lastDone = document.getElementById('lastDoneHidden').value;
         const dueDate = document.getElementById('dueDateHidden').value;
         const timeLeft = document.querySelector('.add-row .time-left').textContent;
+        const addCalVal  = document.querySelector('.add-row input[name="cycleCalendarValue"]')?.value || '';
+        const addCalUnit = document.querySelector('.add-row select[name="cycleCalendarUnit"]')?.value || '';
+        const addHrs     = document.querySelector('.add-row input[name="cycleHours"]')?.value || '';
 
         const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
         const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
@@ -960,7 +1120,9 @@ document.addEventListener('DOMContentLoaded', () => {
             item: item,
             isTitle: isTitleHidden.value,
             description: description,
-            cycle: cycle,
+            cycleCalendarValue: addCalVal,
+            cycleCalendarUnit: addCalUnit,
+            cycleHours: addHrs,
             lastDone: lastDone,
             dueDate: dueDate,
             timeLeft: timeLeft,
@@ -983,6 +1145,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 newRow.innerHTML = `
                     <td class="grip-cell"><span class="grip-icon no-print"><i class="fa-solid fa-grip-vertical"></i></span></td>
                     <td colspan="6" class="title-cell">${newRowData.item}</td>
+                    <td class="complete-cell no-print"></td>
                     <td class="delete-cell"><span class="delete-icon no-print" onclick="deleteRow(this)"><i class="fa-solid fa-trash-can fa-xl"></i></span></td>
                 `;
             } else {
@@ -992,8 +1155,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 newRow.setAttribute('data-cycle', newRowData.cycle);
                 newRow.innerHTML = `
                 <td class="grip-cell"><span class="grip-icon no-print"><i class="fa-solid fa-grip-vertical"></i></span></td>
-                <td><textarea name="item" class="no-print" oninput="autoSave(this)">${newRowData.item}</textarea><span class="print-only">${newRowData.item}</span></td>
-                <td>
+                <td data-label="Item"><textarea name="item" class="no-print" oninput="autoSave(this)">${newRowData.item}</textarea><i class="fa-solid fa-chevron-down card-caret no-print"></i><span class="print-only">${newRowData.item}</span></td>
+                <td data-label="Description">
                     <div class="custom-dropdown no-print">
                         <div class="selected-option no-print">${newRowData.description}</div>
                         <input type="hidden" name="description" value="${newRowData.description}">
@@ -1012,8 +1175,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <span class="print-only">${newRowData.description}</span>
                 </td>
-                <td><textarea name="cycle" class="no-print" oninput="autoSave(this)">${newRowData.cycle}</textarea><span class="print-only">${newRowData.cycle}</span></td>
-                <td>
+                <td data-label="Cycle">
+                    <div class="cycle-structured no-print">
+                        <div class="cycle-row">
+                            <input type="number" min="1" step="1" name="cycleCalendarValue" class="cycle-num" placeholder="#"
+                                value="${newRowData.cycleCalendarValue ?? ''}" oninput="autoSave(this)">
+                            <select name="cycleCalendarUnit" class="cycle-unit" onchange="autoSave(this)">
+                                <option value="" ${!newRowData.cycleCalendarUnit ? 'selected' : ''}>unit</option>
+                                <option value="DAYS"   ${newRowData.cycleCalendarUnit === 'DAYS'   ? 'selected' : ''}>days</option>
+                                <option value="MONTHS" ${newRowData.cycleCalendarUnit === 'MONTHS' ? 'selected' : ''}>months</option>
+                                <option value="YEARS"  ${newRowData.cycleCalendarUnit === 'YEARS'  ? 'selected' : ''}>years</option>
+                            </select>
+                        </div>
+                        <div class="cycle-row">
+                            <input type="number" min="0.1" step="0.1" name="cycleHours" class="cycle-num" placeholder="#"
+                                value="${newRowData.cycleHours ?? ''}" oninput="autoSave(this)">
+                            <span class="cycle-unit-label">hrs</span>
+                        </div>
+                    </div>
+                </td>
+                <td data-label="Last Done">
                     <div class="input-with-dropdown no-print">
                         <i class="fa-solid fa-chevron-down trigger-dropdown"></i>
                         <div class="type-dropdown" style="display: none;">
@@ -1023,7 +1204,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <span class="print-only">${newRowData.lastDone}</span>
                 </td>
-                <td>
+                <td data-label="Due Date">
                     <div class="input-with-dropdown no-print">
                         <i class="fa-solid fa-chevron-down trigger-dropdown"></i>
                         <div class="type-dropdown" style="display: none;">
@@ -1033,8 +1214,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <span class="print-only">${newRowData.dueDate}</span>
                 </td>
-                <td><div class="time-left">${newRowData.timeLeft}</div></td>
-                <td class="delete-cell"><span class="delete-icon no-print" onclick="deleteRow(this)"><i class="fa-solid fa-trash-can fa-xl"></i></span></td>
+                <td data-label="Time Left"><div class="time-left">${newRowData.timeLeft ?? ''}</div></td>
+                <td class="complete-cell no-print" data-label="">
+                    <button type="button" class="complete-btn"
+                            title="Mark maintenance complete"
+                            onclick="completeMaintenance(this)">
+                        <i class="fa-solid fa-rotate-right"></i>
+                        <span class="complete-btn-label">Mark complete</span>
+                    </button>
+                </td>
+                <td class="delete-cell" data-label=""><span class="delete-icon no-print" onclick="deleteRow(this)"><i class="fa-solid fa-trash-can fa-xl"></i></span></td>
             `;
                     // Handle lastDone and dueDate inputs (existing code)
                     ['lastDone', 'dueDate'].forEach((field, index) => {
@@ -1107,13 +1296,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             setTextareaMinHeight(itemTextarea);
                         });
                     }
-                    const cycleTextarea = newRow.querySelector('textarea[name="cycle"]');
-                    if (cycleTextarea) {
-                        setTextareaMinHeight(cycleTextarea);
-                        cycleTextarea.addEventListener('input', () => {
-                            setTextareaMinHeight(cycleTextarea);
-                        });
-                    }
+                    // New rows aren't covered by the page-load refreshAllCompleteButtons
+                    // pass, so initialize the Update-button state here.
+                    refreshCompleteButtonState(newRow);
                 }
 
                 // Update the order on the server TAKE A LOOK HERE
@@ -1123,7 +1308,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Reset add row (existing code)
                 document.querySelector('.add-row textarea[name="item"]').value = '';
                 document.querySelector('.add-row input[name="title"]').value = '';
-                document.querySelector('.add-row textarea[name="cycle"]').value = '';
+                const addCalValEl  = document.querySelector('.add-row input[name="cycleCalendarValue"]');
+                const addCalUnitEl = document.querySelector('.add-row select[name="cycleCalendarUnit"]');
+                const addHrsEl     = document.querySelector('.add-row input[name="cycleHours"]');
+                if (addCalValEl)  addCalValEl.value  = '';
+                if (addCalUnitEl) addCalUnitEl.value = '';
+                if (addHrsEl)     addHrsEl.value     = '';
                 document.querySelector('.add-row .custom-dropdown input[name="description"]').value = '';
                 document.querySelector('.add-row .selected-option').textContent = '';
                 document.querySelectorAll('.add-row .input-with-dropdown input.extra-input').forEach(input => input.remove());
@@ -1264,7 +1454,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Data row: Extract values (similar to autoSave)
                 const item = row.querySelector('textarea[name="item"]')?.value || '';
                 const desc = row.querySelector('input[name="description"]')?.value || '';
-                const cycle = row.querySelector('textarea[name="cycle"]')?.value || '';
+                const cycle = formatCycleDisplay(row);
                 let lastDone = '';
                 let dueDate = '';
 
@@ -1343,10 +1533,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const descPrint = row.querySelector('td:nth-child(3) .print-only');
             if (descInput && descPrint) descPrint.textContent = descInput.value;
 
-            // Cycle
-            const cycleTextarea = row.querySelector('textarea[name="cycle"]');
+            // Cycle (from structured fields)
             const cyclePrint = row.querySelector('td:nth-child(4) .print-only');
-            if (cycleTextarea && cyclePrint) cyclePrint.textContent = cycleTextarea.value;
+            if (cyclePrint) cyclePrint.textContent = formatCycleDisplay(row);
 
             // Last Done (construct from inputs)
             const lastDoneContainer = row.querySelector('td:nth-child(5) .input-with-dropdown');
@@ -1389,18 +1578,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // NEW: Add log row via AJAX
     document.getElementById('add-log-button').addEventListener('click', async () => {  // Note: made async for await if needed
-        const hobbsIn = parseFloat(document.getElementById('hobbsIn').value) || 0;
-        const hobbsOut = parseFloat(document.getElementById('hobbsOut').value) || 0;
-        const tachIn = parseFloat(document.getElementById('tachIn').value) || 0;
-        const tachOut = parseFloat(document.getElementById('tachOut').value) || 0;
-    
+        // Read raw strings first so an empty input stays null (not 0), letting
+        // the server enforce the "complete pair" rule cleanly.
+        const rawHobbsIn  = document.getElementById('hobbsIn').value.trim();
+        const rawHobbsOut = document.getElementById('hobbsOut').value.trim();
+        const rawTachIn   = document.getElementById('tachIn').value.trim();
+        const rawTachOut  = document.getElementById('tachOut').value.trim();
+        const numOrNull = (s) => (s === '' || isNaN(parseFloat(s))) ? null : parseFloat(s);
+
         const data = {
             fromAirport: document.getElementById('fromAirport').value,
             toAirport: document.getElementById('toAirport').value,
-            hobbsIn: hobbsIn || null,
-            hobbsOut: hobbsOut || null,
-            tachIn: tachIn || null,
-            tachOut: tachOut || null
+            hobbsIn:  numOrNull(rawHobbsIn),
+            hobbsOut: numOrNull(rawHobbsOut),
+            tachIn:   numOrNull(rawTachIn),
+            tachOut:  numOrNull(rawTachOut)
         };
     
         const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
@@ -1489,9 +1681,19 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('tachIn').value = '';
         document.getElementById('tachOut').value = '';
         } catch (error) {
-            console.error('Error adding log:', error);
+            // 400 = validation error from the server (e.g. partial pair, negative duration).
+            // Keep the user's typed values intact so they can correct and retry —
+            // the whole point of this code path is "don't hurt the user."
+            const serverMsg = error?.response?.data?.message;
+            const status    = error?.response?.status;
+            if (status === 400 && serverMsg) {
+                showToast(serverMsg, 'error');
+            } else {
+                console.error('Error adding log:', error);
+                showToast('Failed to add flight log.', 'error');
+            }
         }
-    }) 
+    })
 
 });
 

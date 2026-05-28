@@ -34,6 +34,19 @@ public class ServiceTimeline {
     @Column
     private Integer timelineOrder;
 
+    // Structured cycle drives the "Complete Maintenance" button.
+    // Nullable: a row may have a calendar cycle, an hours cycle, both, or
+    // neither (legacy rows where only the free-text `cycle` is filled).
+    @Column
+    private Integer cycleCalendarValue;
+
+    // Stored as the enum name: "DAYS" | "MONTHS" | "YEARS".
+    @Column
+    private String cycleCalendarUnit;
+
+    @Column
+    private Double cycleHours;
+
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
     @JsonBackReference
@@ -83,4 +96,13 @@ public class ServiceTimeline {
 
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
+
+    public Integer getCycleCalendarValue() { return cycleCalendarValue; }
+    public void setCycleCalendarValue(Integer cycleCalendarValue) { this.cycleCalendarValue = cycleCalendarValue; }
+
+    public String getCycleCalendarUnit() { return cycleCalendarUnit; }
+    public void setCycleCalendarUnit(String cycleCalendarUnit) { this.cycleCalendarUnit = cycleCalendarUnit; }
+
+    public Double getCycleHours() { return cycleHours; }
+    public void setCycleHours(Double cycleHours) { this.cycleHours = cycleHours; }
 }
