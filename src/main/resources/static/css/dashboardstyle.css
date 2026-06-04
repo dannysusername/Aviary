@@ -307,7 +307,6 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) {
   table-layout: auto;
   border-collapse: collapse;
   border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
   overflow: visible;
   margin: 0;
 }
@@ -1116,8 +1115,35 @@ textarea::placeholder { display: none; }
   .sortable tr:not(.title-row):not(.add-row) td[data-label="Time Left"]   { grid-column: 1 / -1; grid-row: 4; }
   .sortable tr:not(.title-row):not(.add-row) td.complete-cell             { grid-column: 1 / -1; grid-row: 5; }
   .sortable tr:not(.title-row):not(.add-row) td.delete-cell               { grid-column: 1 / -1; grid-row: 6; }
-  /* Drag handle is a desktop affordance — hide inside cards */
-  .sortable tr:not(.add-row) td.grip-cell { display: none; }
+  /* Drag handle — top-left of the card header, mirroring the desktop grip
+     (which is the leftmost column). The grip-cell overlays row 1 (the Item
+     headline) but is pointer-transparent, so only the dots themselves are
+     interactive: taps elsewhere on the header still collapse/expand the card,
+     and SortableJS (handle: .grip-icon) drives the drag. Title-row grips stay
+     hidden (handled below). */
+  .sortable tr:not(.add-row):not(.title-row) td.grip-cell {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    grid-column: 1 / -1;
+    grid-row: 1;
+    padding: 0;
+    border: none;
+    background: transparent;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .sortable tr:not(.add-row):not(.title-row) td.grip-cell .grip-icon {
+    display: inline-flex;
+    height: auto;
+    margin: 0;                     /* reset desktop's `margin: 0 auto` so the dots pin left */
+    padding: 10px 8px;             /* roomy tap target, distinct from desktop sizing */
+    font-size: 18px;               /* larger dots than the 13px desktop grip */
+    color: #aec5b8;                /* same dot color as desktop */
+    pointer-events: auto;
+    cursor: grab;
+    touch-action: none;            /* let SortableJS own the drag gesture on touch */
+  }
 
   /* Collapsed card → show only the Item headline (tap to re-expand).
      The :not()s match the base rules' specificity so these overrides win. */
@@ -1139,8 +1165,17 @@ textarea::placeholder { display: none; }
      right (the same chevron the fields use, just larger). */
   .sortable tr:not(.title-row):not(.add-row) td[data-label="Item"] {
     position: relative;
+    display: flex;                 /* center the headline text vertically…       */
+    align-items: center;           /* …so it lines up with the grip burger (which */
+    min-height: 44px;              /*    is centred in this same header row)       */
     padding-right: 44px;
+    padding-left: 40px;            /* clear the drag grip overlaid at top-left */
     cursor: pointer;
+  }
+  /* Drop the 32px min-height floor here so the headline textarea hugs its text;
+     centred in the flex cell, its vertical midline then matches the grip's. */
+  .sortable tr:not(.title-row):not(.add-row) td[data-label="Item"] textarea {
+    min-height: 0;
   }
   .sortable tr:not(.title-row):not(.add-row) td[data-label="Item"]::before { display: none; }
   .sortable tr:not(.title-row):not(.add-row) td[data-label="Item"] .card-caret {
@@ -1249,13 +1284,16 @@ textarea::placeholder { display: none; }
   .add-row .cycle-num { max-width: 90px; }
   .add-row .cycle-unit { max-width: 110px; }
 
-  /* Last Done / Due Date = flat, borderless date + hrs + chevron. */
+  /* Last Done / Due Date = flat, borderless date + hrs + chevron. The wider
+     column-gap keeps the native date field's built-in calendar picker icon
+     (which sits flush at the field's right edge) clear of the custom chevron,
+     so a tap on the chevron no longer lands on the calendar picker. */
   .sortable td .input-with-dropdown {
     width: 100%;
     border: none;
     background: transparent;
     padding: 0;
-    column-gap: 4px;
+    column-gap: 12px;
     row-gap: 4px;
   }
   .sortable td .input-with-dropdown input.extra-input {
@@ -1264,8 +1302,12 @@ textarea::placeholder { display: none; }
     padding: 4px 0;
   }
   /* In the half-width right column a native date field must be free to shrink
-     so it (and its chevron) never overflow the cell. */
-  .sortable td .input-with-dropdown input[type="date"].extra-input { min-width: 0; }
+     so it (and its chevron) never overflow the cell. The wider column-gap above
+     (not field padding) is what keeps the native calendar picker clear of the
+     chevron, so the field keeps its full width for the mm/dd/yyyy value. */
+  .sortable td .input-with-dropdown input[type="date"].extra-input {
+    min-width: 0;
+  }
   .sortable td .input-with-dropdown:not(:has(input.extra-input))::before {
     font-size: 14px;
     padding: 8px 0;

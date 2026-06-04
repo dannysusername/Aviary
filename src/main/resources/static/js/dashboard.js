@@ -821,8 +821,23 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize Sortable.js
     const tbody = document.querySelector('.sortable');
     Sortable.create(tbody, {
-        handle: '.grip-icon', //Restricts dragging to grip-icon 
+        handle: '.grip-icon', //Restricts dragging to grip-icon
         animation: 150, // 150ms animation for smooth dragging
+        // The list is ALWAYS a vertical stack (desktop table rows and mobile
+        // cards alike). On mobile each row is `display:grid` with two columns,
+        // which makes SortableJS auto-detect the list as HORIZONTAL and use
+        // X-axis math for swaps — every card shares the same full-width X span,
+        // so upward drags land on the wrong neighbour (or jump to the top).
+        // Pinning direction to 'vertical' forces Y-axis swap math. Desktop rows
+        // already detect as vertical, so this leaves desktop behaviour identical.
+        direction: 'vertical',
+        // Native HTML5 drag-and-drop does not fire on touchscreens, so the grip
+        // would be dead on mobile. forceFallback makes SortableJS drive the drag
+        // with its own pointer/touch handling, which works on touch devices (and
+        // is consistent on desktop). touchStartThreshold avoids hijacking taps.
+        forceFallback: true,
+        fallbackTolerance: 4,
+        touchStartThreshold: 4,
         onEnd: function (evt) {
             updateOrderOnServer(); //After calls this function
         }
