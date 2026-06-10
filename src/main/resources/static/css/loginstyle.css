@@ -272,6 +272,8 @@ form p {
 
 .google-logo-and-text {
   display: flex;
+  /* Icon before label (convention) — DOM has text first, so reverse. */
+  flex-direction: row-reverse;
   align-items: center;
   justify-content: center;
   gap: 10px;
@@ -283,6 +285,12 @@ form p {
   align-items: center;
   color: var(--text-muted);
   font-size: 18px;
+}
+
+/* The markup carries fa-2xl (2em) which balloons the G to ~28px and
+   unbalances the button — pin it to standard 18px icon size. */
+.google-logo i {
+  font-size: 18px !important;
 }
 
 .signin-google-text::before {
