@@ -1527,6 +1527,20 @@ textarea::placeholder { display: none; }
   .my-hours { width: 100%; margin: 8px 0; }
 }
 
+/* ── Narrow phones (≤480px) ──
+   In the half-width card column a native date field at 15px can't show the
+   full mm/dd/yyyy value ("02/01/202…"). Slightly smaller tabular digits and a
+   tighter chevron gap keep the whole date visible. ── */
+@media screen and (max-width: 480px) {
+  .sortable td .input-with-dropdown { column-gap: 4px; }
+  .sortable td .input-with-dropdown input.extra-input {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .custom-dropdown .trigger-dropdown,
+  .input-with-dropdown .trigger-dropdown { min-width: 28px; padding: 6px 4px; }
+}
+
 /* ── Print ── */
 @media print {
 
