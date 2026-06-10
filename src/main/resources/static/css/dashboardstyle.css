@@ -1002,6 +1002,16 @@ Upload csv button
 }
 .add-log-button:hover { background: var(--primary-dark); }
 
+/* Empty state — shown only while the log book has no entries. Hiding is
+   CSS-reactive (:has), so rows added/removed by JS toggle it automatically. */
+.empty-log-row td {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 20px 12px;
+}
+#logbook-body:has(.log-row) .empty-log-row { display: none; }
+
 .delete-log-icon {
   background: none;
   border: none;
@@ -1539,6 +1549,15 @@ textarea::placeholder { display: none; }
     padding: 10px 12px;
     box-sizing: border-box;
   }
+
+  .logbook-table tr.empty-log-row {
+    display: block;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  .logbook-table tr.empty-log-row td { display: block; }
+  .logbook-table tr.empty-log-row td::before { display: none; }
 
   .logbook-table td.delete-cell,
   .logbook-table td.add-cell {

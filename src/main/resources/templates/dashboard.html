@@ -374,6 +374,11 @@
                             <button class="delete-log-icon"><i class="fa-solid fa-trash-can fa-xl"></i></button>
                         </td>
                     </tr>
+                    <!-- Empty state: visible only while there are no log rows
+                         (CSS :has() hides it the moment a .log-row exists). -->
+                    <tr class="empty-log-row no-print">
+                        <td colspan="7">No flights logged yet — add your first flight below.</td>
+                    </tr>
                     <!-- NEW: Add row for new log -->
                     <tr class="add-log-row no-print">
                         <td data-label="From"><input type="text" id="fromAirport" name="fromAirport" autocomplete="fromAirport" placeholder="From Airport"></td>
