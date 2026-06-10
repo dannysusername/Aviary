@@ -235,7 +235,7 @@ input[type="checkbox"]:focus-visible {
   font-size: 13px;
   font-family: inherit;
   border-radius: 20px;
-  transition: all 0.15s;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
 }
 .tab-button:hover { background: var(--primary-light); color: var(--primary); }
 .tab-button.active {
