@@ -31,6 +31,14 @@ body {
   padding: 24px 16px;
 }
 
+/* Keyboard focus: brand-colored ring instead of the browser-default blue. */
+button:focus-visible,
+a:focus-visible,
+input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 /* ── Card ── */
 .register-form {
   background: var(--surface);

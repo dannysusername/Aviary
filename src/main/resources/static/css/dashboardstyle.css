@@ -33,6 +33,15 @@ body {
   line-height: 1.5;
 }
 
+/* Keyboard focus: brand-colored ring instead of the browser-default blue. */
+button:focus-visible,
+a:focus-visible,
+select:focus-visible,
+input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 /* ── Fixed header ── */
 .fixed-header {
   position: fixed;
