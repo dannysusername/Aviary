@@ -1366,7 +1366,15 @@ textarea::placeholder { display: none; }
     gap: 8px;
   }
   .complete-btn:hover { background: var(--primary-dark); color: #fff; }
-  .complete-btn[disabled] { opacity: 0.4; }
+  /* Disabled reads as unmistakably inactive (gray, muted) rather than a
+     washed-out version of the live button. */
+  .complete-btn[disabled] {
+    opacity: 1;
+    background: var(--bg);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+  .complete-btn[disabled]:hover { background: var(--bg); color: var(--text-muted); }
   .complete-btn-label { display: inline; }
 
   /* Delete = centered trash, comfortable tap target */
