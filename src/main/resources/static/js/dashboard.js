@@ -803,6 +803,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (dropdown.closest('.auto-save-row')) autoSave(hiddenInput);
     }
 
+    /*
     document.querySelectorAll('.auto-save-row textarea[name="item"]').forEach(textarea => {
         setTimeout(() => {
             setTextareaMinHeight(textarea);
@@ -817,6 +818,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setTextareaMinHeight(textarea);
         });
     });
+    */
 
     // Initialize Sortable.js
     const tbody = document.querySelector('.sortable');
@@ -968,7 +970,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 500);
         });
     }
-
     if (currentTachHoursInput) {
         previousTachHours = currentTachHoursInput.value || 0;
         currentTachHoursInput.addEventListener('input', function() {
@@ -1534,7 +1535,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update My Hours print-only span
         const currentTachHours = document.getElementById('current-tach').value || '0';
-        
+        const currentHobbsHours = document.getElementById('current-hobbs').value || '0';
 
         // Update print-only spans in table rows with current values
         document.querySelectorAll('.sortable tr:not(.title-row)').forEach(row => {
@@ -1590,15 +1591,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-
     // NEW: Add log row via AJAX
     document.getElementById('add-log-button').addEventListener('click', async () => {  // Note: made async for await if needed
         // Read raw strings first so an empty input stays null (not 0), letting
         // the server enforce the "complete pair" rule cleanly.
-        const rawHobbsIn  = document.getElementById('hobbsIn').value.trim();
-        const rawHobbsOut = document.getElementById('hobbsOut').value.trim();
-        const rawTachIn   = document.getElementById('tachIn').value.trim();
-        const rawTachOut  = document.getElementById('tachOut').value.trim();
+        const rawHobbsIn  = parseFloat(parseFloat(document.getElementById('hobbsIn').value.trim()).toFixed(2));
+        const rawHobbsOut = parseFloat(parseFloat(document.getElementById('hobbsOut').value.trim()).toFixed(2));
+        const rawTachIn   = parseFloat(parseFloat(document.getElementById('tachIn').value.trim()).toFixed(2));
+        const rawTachOut  = parseFloat(parseFloat(document.getElementById('tachOut').value.trim()).toFixed(2));
         const numOrNull = (s) => (s === '' || isNaN(parseFloat(s))) ? null : parseFloat(s);
 
         const data = {
@@ -1745,3 +1745,58 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
+
+    
+
+    document.getElementById('upload-csv-btn').addEventListener('click', function() {
+        document.getElementById('csv-file-input').click();
+    });
+
+    document.getElementById('csv-file-input').addEventListener('change', uploadCSV);
+
+    function uploadCSV() {
+        const csvfile = document.getElementById('csv-file-input').files[0];
+        const formData = new FormData();
+        formData.append('csvfile', csvfile)
+
+        const csrfToken = document.querySelector('meta[name="_csrf"]').content;
+        const csrfHeader = document.querySelector('meta[name="_csrf_header"]').content;
+
+        showToast('Uploading CSV...', 'info');
+
+        axios.post('/logbook/upload-csv', formData, {
+            headers: {
+                [csrfHeader]: csrfToken
+            }
+        }).then(response => {
+            document.getElementById('csv-file-input').value = '';
+
+            const data = response.data;
+            showToast("CSV parsed successfully", 'info');
+
+            document.getElementById("hobbsOut").value = data.hobbsOut ?? '';
+            document.getElementById("hobbsIn").value = data.hobbsIn ?? '';
+            document.getElementById("tachOut").value = data.tachOut ?? '';
+            document.getElementById("tachIn").value = data.tachIn ?? '';
+
+            if (data.warning) {
+                showToast(data.warning, 'error');
+            } else {
+                showToast('Flight log prefilled', 'info');
+            }
+
+        }).catch(error => {
+            const errorData = error.response?.data;
+            const errorMessage = error.response?.data?.error || 'Upload failed';
+            showToast(errorMessage, 'error');
+
+            console.log(errorData?.error);        // "Could not detect airtime or block time"
+            console.log(errorData?.blockStart);   // "10:30:00" (LocalTime serializes as string)
+            console.log(errorData?.blockEnd);
+            console.log(errorData?.airborneStart);
+            console.log(errorData?.airborneEnd);
+
+            document.getElementById('csv-file-input').value = '';
+        });
+
+    }

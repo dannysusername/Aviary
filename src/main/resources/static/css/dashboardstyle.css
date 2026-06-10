@@ -254,10 +254,9 @@ body {
 .hours-table tr {
   display: flex;
   flex-direction: row;
-  border-bottom: 1px solid var(--border);
 }
 .aircraft-info-table tr:last-child,
-.hours-table tr:last-child { border-bottom: none; }
+.hours-table tr:last-child { border-bottom: 1px solid var(--border); }
 
 .aircraft-info-table tr td,
 .hours-table tr td { flex: 0 0 50%; }
@@ -306,7 +305,6 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) {
   width: 100%;
   table-layout: auto;
   border-collapse: collapse;
-  border-radius: var(--radius);
   overflow: visible;
   margin: 0;
 }
@@ -363,6 +361,7 @@ td {
    control needs its own box. */
 table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td {
   border-top: 1px solid var(--border);
+  overflow-wrap: break-word;
 }
 table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td + td {
   border-left: 1px solid var(--border);
@@ -954,6 +953,25 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td:has(> .
   border-color: transparent;
 }
 
+/*
+Upload csv button
+*/
+.upload-csv {
+  padding-left: 24px;
+}
+
+#upload-csv-btn {
+  background: var(--accent);
+  color: #fff;
+  padding: 7px 16px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  border: none;
+  transition: background 0.15s, opacity 0.15s;
+  
+}
+
 .add-log-button {
   width: 100%;
   background: var(--accent);
@@ -1006,7 +1024,6 @@ textarea::placeholder { display: none; }
   /* tr stays as a flex row so label and value remain side-by-side */
   .aircraft-info-table tr, .hours-table tr {
     display: flex;
-    border-bottom: 1px solid var(--border);
   }
   .aircraft-info-table tr:last-child,
   .hours-table tr:last-child { border-bottom: none; }
@@ -1505,36 +1522,56 @@ textarea::placeholder { display: none; }
   .my-hours { width: 100%; margin: 8px 0; }
 }
 
-/* ── Tablet (961–1024px) — desktop table shows here (it fits above ~903px) ── */
-@media screen and (min-width: 961px) and (max-width: 1024px) {
-  table { font-size: 13px; }
-  th, td { padding: 7px 8px; }
-  .grip-column { min-width: 20px; }
-}
-
 /* ── Print ── */
 @media print {
-  .fixed-header { display: none; }
-  main { padding-top: 0; }
+
+  .main { 
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    margin: 0;
+    padding-top: 0; 
+  }
 
   .no-print, .status-cell, .delete-cell, .status-header,
-  .delete-header, .print-remove, .grip-cell { display: none !important; }
+  .delete-header, .grip-cell, .fixed-header { display: none !important; }
 
   .print-only { display: inline !important; visibility: visible; }
 
-  body { padding-top: 0; font-size: 12pt; line-height: 1.4; color: black; background: white; }
+  body { 
+    padding-top: 0;
+    line-height: 1.4; 
+    color: black; 
+    background: white; 
+  }
 
-  .header { position: relative; width: 100%; text-align: center; }
+  .header { 
+    position: relative; 
+    width: 100%; 
+    text-align: center; 
+    background: none;
+  }
 
-  table { border-collapse: collapse; page-break-inside: auto; }
-  th, td { border: 1px solid black !important; padding: 8px; }
+  #service-tab {
+    padding: 16px 24px 0;
+  }
+
+  table { page-break-inside: auto; }
+  th, td { 
+          padding: 8px; 
+        }
   th { background: #2C9B6F !important; -webkit-print-color-adjust: exact; }
 
   th.grip-column, td.grip-column, .title-grip-icon-cell { display: none; }
 
   .time-left { white-space: pre-line; font-weight: bold; }
   .aircraft-info-table td, .hours-table td { text-align: left; }
+
   .my-hours h3, #print-current-hours { visibility: visible; }
+  .hours-display-and-editbutton-container {
+    justify-content: space-evenly;
+  }
 
   tr { page-break-inside: avoid; page-break-after: auto; }
   .title-row td { font-weight: bold; font-size: 14pt; background: #2C9B6F !important; color: white !important; }
@@ -1542,9 +1579,13 @@ textarea::placeholder { display: none; }
   .tab-print-title {
     display: block !important;
     text-align: center;
-    font-size: 18pt;
+    /*visibility: visible;*/
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
     margin: 10px 0 20px 0;
-    visibility: visible;
+    color: var(--text-muted);
   }
 
   /* Never print transient UI */

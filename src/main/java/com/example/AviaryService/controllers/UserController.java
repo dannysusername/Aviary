@@ -9,6 +9,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
 import com.example.AviaryService.entity.DescriptionOption;
 import com.example.AviaryService.entity.FlightLog;
 import com.example.AviaryService.entity.ServiceTimeline;
@@ -19,14 +21,21 @@ import com.example.AviaryService.repositories.FlightLogRepository;
 import com.example.AviaryService.repositories.ServiceTimelineRepository;
 import com.example.AviaryService.repositories.UserRepository;
 
+//import org.checkerframework.checker.units.qual.Speed;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+//import org.slf4j.LoggerFactory;
 import jakarta.transaction.Transactional;
 
+//import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.net.URI;
+import java.time.Duration;
+import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
+import java.util.Set;
 
 @Controller
 public class UserController {
@@ -151,38 +160,7 @@ public class UserController {
         timeline.setCycleHours(parseDoubleOrNull(data.get("cycleHours")));
         timeline.setLastDone(lastDone);
         timeline.setDueDate(dueDate);
-        timeline.setTimeLeft(timeLeft);  // POSSIBLY REMOVE THIS !!!
-        // Automatically calculate timeLeft based on dueDate and user's hours
-
-
-        /* 
-        if (dueDate != null) {
-            try {
-                String[] parts = dueDate.split(" ");
-                String datePart = parts[0];
-                String hoursPart = parts.length > 1 ? parts[1] : null;
-                StringBuilder timeLeftStr = new StringBuilder();
-
-                // Calculate days
-                LocalDate today = LocalDate.now();
-                LocalDate due = LocalDate.parse(datePart);
-                long daysLeft = ChronoUnit.DAYS.between(today, due);
-                timeLeftStr.append(daysLeft < 0 ? Math.abs(daysLeft) + " days overdue" : daysLeft + " days left");
-
-                // Calculate hours if present
-                if (hoursPart != null && hoursPart.matches("\\d+")) {
-                    int dueHours = Integer.parseInt(hoursPart);
-                    int currentHours = user.getHours();
-                    int hoursLeft = dueHours - currentHours;
-                    timeLeftStr.append("\n")
-                            .append(hoursLeft < 0 ? Math.abs(hoursLeft) + " hours overdue" : hoursLeft + " hours left");
-                }
-
-                timeline.setTimeLeft(timeLeftStr.toString());
-            } catch (Exception e) {
-                timeline.setTimeLeft("N/A");
-            }
-        }*/
+        timeline.setTimeLeft(timeLeft);  
     }
     timeline.setUser(user);
 
@@ -491,6 +469,189 @@ public ResponseEntity<Map<String, String>> updateHours(
         response.put("newHobbs", newHobbs);
         response.put("newTach", newTach);
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping(value="/logbook/upload-csv", consumes="multipart/form-data")
+    @ResponseBody
+    public ResponseEntity<Map<String,Object>> uploadCsv(@RequestParam("csvfile") MultipartFile file, Authentication authentication) {
+        User user = userRepository.findByUsername(authentication.getName());
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
+            }
+
+            log.info("Received file: name={}, size={} bytes", file.getOriginalFilename(), file.getSize());
+
+            return parseGarminCsv(file, user);
+
+    }
+
+    public static ResponseEntity<Map<String,Object>> parseGarminCsv(MultipartFile file, User user) {
+
+        // Block time: first → last row where oil pressure > 15 psi.
+        // Mirrors the physical Hobbs meter on the Cirrus, which is oil-pressure activated.
+        LocalTime blockStart = null;
+        LocalTime blockEnd   = null;
+
+        // Flight (airborne) time: GndSpd > 35 kt sustained for 3+ consecutive seconds.
+        // Falls back to IAS when GndSpd is empty (no GPS fix yet).
+        LocalTime airborneStart     = null;
+        LocalTime airborneEnd       = null;
+        int       airborneConsec    = 0;
+        LocalTime airborneCandidate = null;
+
+        try(Scanner scanner = new Scanner(file.getInputStream())) {
+            int lineNumber = 0;
+            HashMap<String, Integer> headerIndexMap = new HashMap<>();
+
+            while(scanner.hasNextLine()) {
+                String line = scanner.nextLine();
+                lineNumber++;
+
+                if(lineNumber == 3) {
+                    String[] headers = line.split(",");
+                    for(int i = 0; i < headers.length; i++) {
+                        headerIndexMap.put(headers[i].trim(), i);
+                    }
+
+                        Set<String> expected = java.util.Set.of(
+                        "Lcl Date", "Lcl Time", "UTCOfst", "AtvWpt", "Latitude", "Longitude",
+                        "AltInd", "BaroA", "AltMSL", "OAT", "IAS", "GndSpd", "VSpd", "Pitch",
+                        "Roll", "LatAc", "NormAc", "HDG", "TRK", "volt1", "volt2", "amp1",
+                        "FQtyL", "FQtyR", "E1 FFlow", "E1 OilT", "E1 OilP", "E1 MAP", "E1 RPM",
+                        "E1 %Pwr", "E1 CHT1", "E1 CHT2", "E1 CHT3", "E1 CHT4", "E1 CHT5", "E1 CHT6",
+                        "E1 EGT1", "E1 EGT2", "E1 EGT3", "E1 EGT4", "E1 EGT5", "E1 EGT6",
+                        "E1 TIT1", "E1 TIT2", "E1 Torq", "E1 NG", "E1 ITT", "E2 FFlow", "E2 MAP",
+                        "E2 RPM", "E2 Torq", "E2 NG", "E2 ITT", "AltGPS", "TAS", "HSIS", "CRS",
+                        "NAV1", "NAV2", "COM1", "COM2", "HCDI", "VCDI", "WndSpd", "WndDr",
+                        "WptDst", "WptBrg", "MagVar", "AfcsOn", "RollM", "PitchM", "RollC",
+                        "PichC", "VSpdG", "GPSfix", "HAL", "VAL", "HPLwas", "HPLfd", "VPLwas"
+                    );
+                    if(!headerIndexMap.keySet().containsAll(expected)) {
+                        return ResponseEntity.badRequest().body(Map.of("error", "Not a Garmin CSV file — headers do not match expected format"));
+                    }
+
+                    continue;
+                }
+
+                if(lineNumber <= 3) continue;
+
+                String[] cols = line.split(",", -1);
+                for(int i = 0; i < cols.length; i++) cols[i] = cols[i].trim();
+
+                //If Lcl Time does not exist in this row
+                Integer timeIdx = headerIndexMap.get("Lcl Time");
+                if(timeIdx == null || cols.length <= timeIdx || cols[timeIdx].isEmpty()) continue;
+
+                //Puts the time into a Local time object
+                LocalTime rowTime;
+                try { rowTime = LocalTime.parse(cols[timeIdx]); }
+                catch(Exception e) { continue; }
+
+                // ── Block time via oil pressure ──────────────────────────────────
+                Integer oilPIdx = headerIndexMap.get("E1 OilP");
+                if(oilPIdx != null && cols.length > oilPIdx && !cols[oilPIdx].isEmpty()) {
+                    try {
+                        if(Double.parseDouble(cols[oilPIdx]) > 15.0) {
+                            if(blockStart == null) blockStart = rowTime;
+                            blockEnd = rowTime;
+                        }
+                    } catch(NumberFormatException ignored) {}
+                }
+
+                // ── Airborne time via groundspeed (IAS fallback) ─────────────────
+                double speed = Double.NaN;
+                Integer gndSpdIdx = headerIndexMap.get("GndSpd");
+                if(gndSpdIdx != null && cols.length > gndSpdIdx && !cols[gndSpdIdx].isEmpty()) {
+                    try { speed = Double.parseDouble(cols[gndSpdIdx]); } catch(NumberFormatException ignored) {}
+                }
+                if(Double.isNaN(speed)) {
+                    Integer iasIdx = headerIndexMap.get("IAS");
+                    if(iasIdx != null && cols.length > iasIdx && !cols[iasIdx].isEmpty()) {
+                        try { speed = Double.parseDouble(cols[iasIdx]); } catch(NumberFormatException ignored) {}
+                    }
+                }
+
+                if(!Double.isNaN(speed) && speed > 35.0) {
+                    airborneConsec++;
+                    if(airborneConsec == 1) airborneCandidate = rowTime;
+                    if(airborneConsec >= 3 && airborneStart == null) airborneStart = airborneCandidate;
+                    if(airborneStart != null) airborneEnd = rowTime;
+                } else {
+                    airborneConsec    = 0;
+                    airborneCandidate = null;
+                }
+            }
+
+            if(blockStart == null && airborneStart == null) {
+                return ResponseEntity.badRequest().body(
+                    csvValues("Could not detect airtime or block time", blockStart, blockEnd, airborneStart, airborneEnd));
+            }
+            
+            if(blockStart == null || blockEnd == null) {
+                return ResponseEntity.badRequest().body(
+                    csvValues("Could not detect engine run — Oil pressure does not go up by 15psi", blockStart, blockEnd, airborneStart, airborneEnd));
+            }
+            
+
+            /* 
+            if(airborneStart == null || airborneEnd == null) {
+                return ResponseEntity.badRequest().body(
+                    csvValues("Could not detect air time — Speed does not go above 35kts", blockStart, blockEnd, airborneStart, airborneEnd));
+            }
+
+            */
+
+            //Calculate Block duration
+            //Create Block String H: M: S: 
+            Duration blockDuration = Duration.between(blockStart, blockEnd);
+            String blockStr = "H:" + blockDuration.toHoursPart() + " M:" + blockDuration.toMinutesPart() + " S:" + blockDuration.toSecondsPart();
+
+
+            String airStr = "N/A";
+            Duration airDuration = null;
+            if(airborneStart != null && airborneEnd != null) {
+                airDuration = Duration.between(airborneStart, airborneEnd);
+                airStr = "H:" + airDuration.toHoursPart() + " M:" + airDuration.toMinutesPart() + " S:" + airDuration.toSecondsPart();
+            }
+
+            double hobbsOut = user.getHobbsHours();
+            double hobbsIn  = Math.round((hobbsOut + blockDuration.toSeconds() / 3600.0) * 100.0) / 100.0;
+            double tachOut  = user.getTachHours();
+            Double tachIn   = airDuration != null
+                ? Math.round((tachOut + airDuration.toSeconds() / 3600.0) * 100.0) / 100.0
+                : null;
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("message",        "CSV parse completed");
+            result.put("flightDuration", blockStr);
+            result.put("airDuration",    airStr);
+            result.put("hobbsOut",       hobbsOut);
+            result.put("hobbsIn",        hobbsIn);
+            result.put("tachOut",        tachIn != null ? tachOut : null);
+            result.put("tachIn",         tachIn);
+
+            if(airDuration == null) {
+                result.put("warning", "Air time not detected — Tach fields were not populated");
+            }
+
+            return ResponseEntity.ok(result);
+
+        } catch (IOException e) {
+            log.error("Failed to read CSV file: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", "Could not read the uploaded file"));
+        }
+
+    }
+
+    private static Map<String, Object> csvValues(String error, LocalTime blockStart, LocalTime blockEnd, LocalTime airborneStart, LocalTime airborneEnd) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("error", error);
+        map.put("blockStart", blockStart);
+        map.put("blockEnd", blockEnd);
+        map.put("airborneStart", airborneStart);
+        map.put("airborneEnd", airborneEnd);
+
+        return map;
     }
 
     private static Map<String, Object> errorBody(String message) {

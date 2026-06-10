@@ -9,11 +9,10 @@
     
 </head>
 <body>
-
     
     <header class="fixed-header">
         <div class="header-left">
-            <h1 class="print-remove">Aviary</h1>
+            <h1 class="no-print">Aviary</h1>
         </div>
         <div class="header-right">
             <form method="post" th:action="@{/logout}" class="no-print">
@@ -73,8 +72,9 @@
     <!-- New aircraft info table -->
 
     <div id="service-tab" class="tab-content">
-        <h2 class="print-only tab-print-title">Service Timeline</h2>
         <div class = "main">
+            <h2 class="print-only tab-print-title">Service Timeline</h2>
+
             <table class="aircraft-info-table">
                 <tbody>
                     <tr>
@@ -325,6 +325,12 @@
     
     <div id="logbook-tab" class="tab-content">
         <h2 class="print-only tab-print-title">Flight Logs</h2>
+
+        <div class = "upload-csv no-print">
+            <input type="file" id="csv-file-input" accept=".csv" style="display: none;">
+            <button id="upload-csv-btn">Upload GARMIN CSV File</button>
+        </div>
+
         <div class="main">
             <table class="logbook-table">
                 <thead>
@@ -372,10 +378,10 @@
                     <tr class="add-log-row no-print">
                         <td data-label="From"><input type="text" id="fromAirport" name="fromAirport" autocomplete="fromAirport" placeholder="From Airport"></td>
                         <td data-label="To"><input type="text" id="toAirport" name="toAirport" autocomplete="toAirport" placeholder="To Airport"></td>
-                        <td data-label="Hobbs Out"><input type="number" id="hobbsOut" name="hobbsOut" autocomplete="hobbsOut" placeholder="Hobbs Out" step="0.1"></td>
-                        <td data-label="Hobbs In"><input type="number" id="hobbsIn" name="hobbsIn" autocomplete="hobbsIn" placeholder="Hobbs In" step="0.1"></td>
-                        <td data-label="Tach Out"><input type="number" id="tachOut" name="tachOut" autocomplete="tachOut" placeholder="Tach Out" step="0.1"></td>
-                        <td data-label="Tach In"><input type="number" id="tachIn" name="tachIn" autocomplete="tachIn" placeholder="Tach In" step="0.1"></td>
+                        <td data-label="Hobbs Out"><input type="number" id="hobbsOut" name="hobbsOut" autocomplete="hobbsOut" placeholder="Hobbs Out" step="0.01"></td>
+                        <td data-label="Hobbs In"><input type="number" id="hobbsIn" name="hobbsIn" autocomplete="hobbsIn" placeholder="Hobbs In" step="0.01"></td>
+                        <td data-label="Tach Out"><input type="number" id="tachOut" name="tachOut" autocomplete="tachOut" placeholder="Tach Out" step="0.01"></td>
+                        <td data-label="Tach In"><input type="number" id="tachIn" name="tachIn" autocomplete="tachIn" placeholder="Tach In" step="0.01"></td>
                         <td class="add-cell" data-label="">
                             <button id="add-log-button" class="add-log-button">Add</button>
                         </td>
