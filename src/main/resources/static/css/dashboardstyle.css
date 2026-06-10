@@ -99,14 +99,17 @@ body {
 }
 #add-hobbs-btn:hover, #add-tach-btn:hover { background: var(--primary-dark); }
 
+/* Utility actions — quiet outline style so they don't compete with the
+   page's real work (the timeline and log book). */
 #print-dashboard,
 #export-excel {
-  background: var(--primary);
-  color: #fff;
+  background: var(--surface);
+  color: var(--primary-dark);
+  border: 1px solid var(--border);
   padding: 8px 16px;
   margin: 16px 0;
 }
-#print-dashboard:hover, #export-excel:hover { background: var(--primary-dark); }
+#print-dashboard:hover, #export-excel:hover { background: var(--primary-light); border-color: var(--primary); }
 
 /* ── Sub-header bar ── */
 .header {
