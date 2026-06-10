@@ -82,30 +82,31 @@ body {
 
 .edit-hours-btn,
 .back-to-full-list-button {
-  background: var(--accent);
-  color: #fff;
+  background: var(--surface);
+  color: var(--primary-dark);
+  border: 1px solid var(--border);
   padding: 7px 14px;
   margin-left: 8px;
 }
 .edit-hours-btn:hover,
-.back-to-full-list-button:hover { background: var(--accent-hover); }
+.back-to-full-list-button:hover { background: var(--primary-light); border-color: var(--primary); }
 
 #add-hobbs-btn,
 #add-tach-btn {
-  background: var(--accent);
+  background: var(--primary);
   color: #fff;
   padding: 5px 10px;
 }
-#add-hobbs-btn:hover, #add-tach-btn:hover { background: var(--accent-hover); }
+#add-hobbs-btn:hover, #add-tach-btn:hover { background: var(--primary-dark); }
 
 #print-dashboard,
 #export-excel {
-  background: var(--accent);
+  background: var(--primary);
   color: #fff;
   padding: 8px 16px;
   margin: 16px 0;
 }
-#print-dashboard:hover, #export-excel:hover { background: var(--accent-hover); }
+#print-dashboard:hover, #export-excel:hover { background: var(--primary-dark); }
 
 /* ── Sub-header bar ── */
 .header {
@@ -560,12 +561,12 @@ td textarea:focus { outline: 2px solid var(--primary); background: var(--surface
   min-height: 36px;
   padding: 8px 12px;
   margin: 0;
-  background: var(--accent);
+  background: var(--primary);
   color: #fff;
   box-sizing: border-box;
   white-space: nowrap;
 }
-.add-button:hover { background: var(--accent-hover); }
+.add-button:hover { background: var(--primary-dark); }
 
 .delete-header {
    border-top-right-radius: var(--radius);
@@ -580,7 +581,7 @@ td textarea:focus { outline: 2px solid var(--primary); background: var(--surface
   background: transparent; border: none; cursor: pointer;
   color: #c0ccc5; font-size: 15px; padding: 4px;
 }
-.complete-btn:hover { color: var(--accent); }
+.complete-btn:hover { color: var(--primary); }
 .complete-btn[disabled] { opacity: 0.35; cursor: not-allowed; }
 .complete-btn-label { display: none; }  /* desktop: icon-only */
 /* The card collapse arrow is a mobile-card affordance only — hidden on desktop
@@ -727,7 +728,7 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td:has(> .
 .add-option-btn {
   flex-shrink: 0; /* never shrink — always fully visible */
   padding: 4px 10px;
-  background: var(--accent);
+  background: var(--primary);
   color: #fff;
   border: none;
   border-radius: 4px;
@@ -736,7 +737,7 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td:has(> .
   font-weight: 600;
   white-space: nowrap;
 }
-.add-option-btn:hover { background: var(--accent-hover); }
+.add-option-btn:hover { background: var(--primary-dark); }
 
 .remove-option-btn {
   background: none;
@@ -896,7 +897,7 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td:has(> .
 }
 .row-type-option + .row-type-option { border-left: 1px solid var(--border); }
 .row-type-option.selected {
-  background: var(--accent);
+  background: var(--primary);
   color: #fff;
 }
 
@@ -961,7 +962,7 @@ Upload csv button
 }
 
 #upload-csv-btn {
-  background: var(--accent);
+  background: var(--primary);
   color: #fff;
   padding: 7px 16px;
   border-radius: 6px;
@@ -969,18 +970,19 @@ Upload csv button
   font-size: 13px;
   border: none;
   transition: background 0.15s, opacity 0.15s;
-  
+
 }
+#upload-csv-btn:hover { background: var(--primary-dark); }
 
 .add-log-button {
   width: 100%;
-  background: var(--accent);
+  background: var(--primary);
   color: #fff;
   padding: 7px 16px;
   border-radius: 6px;
   font-weight: 600;
 }
-.add-log-button:hover { background: var(--accent-hover); }
+.add-log-button:hover { background: var(--primary-dark); }
 
 .delete-log-icon {
   background: none;
@@ -996,7 +998,7 @@ textarea::placeholder { display: none; }
 .print-only { display: none; }
 
 .save-status { display: inline-block; padding: 2px 6px; text-align: center; }
-.save-status.saving { color: var(--accent); font-style: italic; }
+.save-status.saving { color: var(--text-muted); font-style: italic; }
 .save-status.saved   { color: var(--primary); }
 .save-status.error   { color: red; }
 
@@ -1343,7 +1345,7 @@ textarea::placeholder { display: none; }
     white-space: pre;
   }
 
-  /* Complete = full-width primary (pink) action */
+  /* Complete = full-width primary (brand green) action */
   .sortable tr:not(.title-row):not(.add-row) td.complete-cell::before { display: none; }
   .sortable tr:not(.title-row):not(.add-row) td.complete-cell { padding-top: 2px; }
   .complete-btn {
@@ -1352,7 +1354,7 @@ textarea::placeholder { display: none; }
     padding: 12px 14px;
     font-size: 16px;
     color: #fff;
-    background: var(--accent);
+    background: var(--primary);
     border: none;
     border-radius: var(--radius);
     display: inline-flex;
@@ -1360,7 +1362,7 @@ textarea::placeholder { display: none; }
     justify-content: center;
     gap: 8px;
   }
-  .complete-btn:hover { background: var(--accent-hover); color: #fff; }
+  .complete-btn:hover { background: var(--primary-dark); color: #fff; }
   .complete-btn[disabled] { opacity: 0.4; }
   .complete-btn-label { display: inline; }
 
