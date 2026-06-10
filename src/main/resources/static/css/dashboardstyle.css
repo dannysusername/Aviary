@@ -268,17 +268,19 @@ input[type="checkbox"]:focus-visible {
   display: flex;
   flex-direction: row;
 }
-.aircraft-info-table tr:last-child,
-.hours-table tr:last-child { border-bottom: 1px solid var(--border); }
+.aircraft-info-table tr + tr,
+.hours-table tr + tr { border-top: 1px solid var(--border); }
 
+/* Spec-sheet layout: one white surface, narrow label column + flexible value
+   column (not two 50% slabs in different colors). */
 .aircraft-info-table tr td,
-.hours-table tr td { flex: 0 0 50%; }
+.hours-table tr td { background: var(--surface); }
 
 /* Label cells */
 .aircraft-info-table tr td:first-child,
 .hours-table tr td:first-child {
-  background: var(--primary-light);
-  color: var(--primary-dark);
+  flex: 0 0 200px;
+  color: var(--text-muted);
   font-weight: 600;
   font-size: 12px;
   text-transform: uppercase;
@@ -291,7 +293,8 @@ input[type="checkbox"]:focus-visible {
 /* Value cells */
 .aircraft-info-table tr td:nth-child(2),
 .hours-table tr td:nth-child(2) {
-  background: var(--surface);
+  flex: 1;
+  min-width: 0;
   padding: 6px 10px;
 }
 
@@ -1049,6 +1052,14 @@ textarea::placeholder { display: none; }
     display: block;
     padding: 8px 10px;
     border: none;
+  }
+
+  /* Narrow screens: shrink the label column so values keep room */
+  .aircraft-info-table tr td:first-child,
+  .hours-table tr td:first-child {
+    flex: 0 0 132px;
+    display: flex;
+    align-items: center;
   }
 
 
