@@ -585,13 +585,14 @@ td textarea:focus { outline: 2px solid var(--primary); background: var(--surface
 }
 
 .delete-header, .delete-cell { text-align: center; }
-.delete-icon { cursor: pointer; color: #c0ccc5; font-size: 15px; }
+.delete-icon { cursor: pointer; color: #c0ccc5; font-size: 15px; padding: 8px; }
 .delete-icon:hover { color: var(--accent); }
 
 .complete-header, .complete-cell { text-align: center; }
 .complete-btn {
   background: transparent; border: none; cursor: pointer;
-  color: #c0ccc5; font-size: 15px; padding: 4px;
+  color: #c0ccc5; font-size: 15px; padding: 8px;
+  min-width: 32px; min-height: 32px;
 }
 .complete-btn:hover { color: var(--primary); }
 .complete-btn[disabled] { opacity: 0.35; cursor: not-allowed; }
@@ -630,7 +631,8 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td:has(> .
   flex: 0 1 56px;
   width: 56px;
   min-width: 44px;
-  padding: 2px 4px;
+  min-height: 26px;
+  padding: 4px;
   font-size: 12px;
   box-sizing: border-box;
   border: 1px solid transparent;   /* borderless: grid cell is the outline */
@@ -651,7 +653,8 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td:has(> .
   min-width: 0;
   width: 100%;
   max-width: 110px;
-  padding: 2px 4px;
+  min-height: 26px;
+  padding: 4px;
   font-size: 12px;
   box-sizing: border-box;
   border: 1px solid transparent;   /* borderless to match the grid */
