@@ -145,9 +145,9 @@ function autoSave(input) {
         const dateInput = container.querySelector('input[type="date"]'); //get the 'date' input 
         const textInput = container.querySelector('input[type="text"].extra-input'); //get the 'text' input 
         let value = '';
-        if (dateInput) value += dateInput.value; //if date input then append to value
-        if (textInput) value += value ? ` ${textInput.value}` : textInput.value; //if text input append to value 
-        data[field] = value.trim(); // set data[field] to the value trimmed
+        data[`${field}Cal`] = dateInput ? dateInput.value.trim() : null;
+        data[`${field}Hrs`] = textInput ? textInput.value.trim() : null;
+
     });
 
     const timeLeftSpan = row.querySelector('td:nth-child(7) .time-left');
@@ -499,6 +499,9 @@ function updateDropdownWidths() {
 }
 
 function calculateTimeLeft(dueDateStr, currentTachHours) {
+    //Change to dueDateCal and dueDatehrs
+
+
     if (!dueDateStr) return 'N/A';
 
     const now = new Date();
@@ -709,10 +712,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
         } else if (event.target.classList.contains('add-type')) {
-            const button = event.target;
-            const type = button.getAttribute('data-type');
-            const container = button.closest('.input-with-dropdown');
-            const tr = button.closest('tr');
+            const button = event.target; //Save button
+            const type = button.getAttribute('data-type'); //Calendar or Clock
+            const container = button.closest('.input-with-dropdown'); //Grabs the lastDone container
+            const tr = button.closest('tr'); //Grabs the closest table row
             const isAddMode = button.textContent === '+';
     
             const existingDate = container.querySelector('input[type="date"]');
@@ -1604,10 +1607,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = {
             fromAirport: document.getElementById('fromAirport').value,
             toAirport: document.getElementById('toAirport').value,
-            hobbsIn:  numOrNull(rawHobbsIn),
             hobbsOut: numOrNull(rawHobbsOut),
+            hobbsIn:  numOrNull(rawHobbsIn),
+            tachOut:  numOrNull(rawTachOut),
             tachIn:   numOrNull(rawTachIn),
-            tachOut:  numOrNull(rawTachOut)
         };
     
         const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');

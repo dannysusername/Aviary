@@ -55,6 +55,19 @@ public class ServiceTimeline {
     // Constructors
     public ServiceTimeline() {}
 
+    public ServiceTimeline(String item, boolean isTitle, String description, String cycleCalendarUnit, Integer cycleCalendarValue, Double cycleHours, String lastDone, String dueDate, String timeLeft, User user) {
+        this.item = item;
+        this.isTitle = isTitle;
+        this.description = description;
+        this.cycleCalendarUnit = cycleCalendarUnit;
+        this.cycleCalendarValue = cycleCalendarValue;
+        this.cycleHours = cycleHours;
+        this.lastDone = lastDone;
+        this.dueDate = dueDate;
+        this.timeLeft = timeLeft;
+        this.user = user;
+    }
+
     public ServiceTimeline(String item, boolean isTitle, String description, String cycle, String lastDone, String dueDate, String timeLeft, User user) {
         this.item = item;
         this.isTitle = isTitle;
