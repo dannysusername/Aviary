@@ -76,9 +76,6 @@ class UserControllerTest {
                 timeline.setIsTitle(false);
                 timeline.setTimelineOrder(j);
                 timeline.setDescription("Test Description");
-                timeline.setCycle("Weekly");
-                timeline.setLastDone("2025-10-01");
-                timeline.setDueDate("2025-10-08");
                 timeline.setTimeLeft("7 days");
                 serviceTimelineRepository.save(timeline);
             }

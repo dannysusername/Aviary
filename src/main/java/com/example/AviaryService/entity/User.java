@@ -80,6 +80,18 @@ public class User {
 
     }
 
+    public User(String username, String password, double hobbsHours, double tachHours){
+        this.username = username;
+        this.password = password;
+        this.hobbsHours = hobbsHours;
+        this.tachHours = tachHours;
+        this.makeModel = ""; 
+        this.tailNumber = "";
+        this.ownerName = "";
+        this.makeModelSN = "";
+
+    }
+
     public long getId() {
         return Id;
     }

@@ -97,7 +97,7 @@
             </table>
 
             <!-- Existing first table follows here -->
-            <table>
+            <table id="sortable-info-table">
                 <thead class = "sortable-head">
                     <tr>
                         <th class = "grip-column no-print"></th> <!-- Grip column hidden in print -->
@@ -126,7 +126,7 @@
                             <td class="delete-cell"><span class="delete-icon no-print" onclick="deleteRow(this)"><i class="fa-solid fa-trash-can fa-xl"></i></span></td>
                         </tr>
                         <!-- Regular item row -->
-                        <tr th:unless="${timeline.isTitle}" th:data-id="${timeline.id}" th:data-lastDone="${timeline.lastDone}" th:data-dueDate="${timeline.dueDate}" th:data-cycle="${timeline.cycle}" class="auto-save-row">                           
+                        <tr th:unless="${timeline.isTitle}" th:data-id="${timeline.id}" th:data-lastDoneDate="${timeline.lastDoneDate}" th:data-lastDoneHours="${timeline.lastDoneHours}" th:data-dueDateDate="${timeline.dueDateDate}" th:data-dueDateHours="${timeline.dueDateHours}" class="auto-save-row">                           
                             <td class = "grip-cell"><span class="grip-icon no-print"><i class="fa-solid fa-grip-vertical"></i></span></td>
                             <td data-label="Item"><textarea name="item" rows="1" th:text="${timeline.item}" oninput="autoSave(this)" class="no-print"></textarea><i class="fa-solid fa-chevron-down card-caret no-print"></i>
                                 <span class="print-only" th:text="${timeline.item}"></span></td>
@@ -191,7 +191,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                <span class="print-only" th:text="${timeline.lastDone}"></span>
+                                <span class="print-only" th:text="${timeline.lastDoneDate != null ? timeline.lastDoneDate : (timeline.lastDoneHours != null ? timeline.lastDoneHours + ' hrs' : '')}"></span>
                             </td>
                             <td data-label="Due Date">
                                 <div class="input-with-dropdown no-print">
@@ -207,7 +207,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                <span class="print-only" th:text="${timeline.dueDate}"></span>
+                                <span class="print-only" th:text="${timeline.dueDateDate != null ? timeline.dueDateDate : (timeline.dueDateHours != null ? timeline.dueDateHours + ' hrs' : '')}"></span>
                             </td>
                             <td data-label="Time Left"><div class="time-left" th:text="${timeline.timeLeft != null ? timeline.timeLeft : ''}"></div></td>
                             <!--<td class="status-cell"><span class="save-status no-print">✓</span></td>-->

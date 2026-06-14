@@ -317,11 +317,9 @@ input[type="checkbox"]:focus-visible {
 }
 
 /* ── Service timeline table ── */
-table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) {
-  width: 100%;
+#sortable-info-table {
   table-layout: auto;
   border-collapse: collapse;
-  overflow: visible;
   margin: 0;
 }
 
@@ -523,7 +521,7 @@ td textarea {
   /* One line of 13px text + 4px top/bottom padding ≈ 22px. Lets the
      textarea start at one-line height; JS auto-grow expands it as the
      user types (see setTextareaMinHeight in dashboard.js). */
-  min-height: 22px;
+  min-height: 50px;
   max-height: 120px;
   min-width: 0;
   box-sizing: border-box;
@@ -1044,12 +1042,6 @@ textarea::placeholder { display: none; }
   .tabs   { padding: 16px 12px 0; }
 
   textarea::placeholder { display: inline; color: #999; }
-
-  /* aircraft-info-table: keep label-left | value-right row layout */
-  .aircraft-info-table, .hours-table {
-    overflow: visible; /* stop border-radius from clipping cell content */
-  }
-  .aircraft-info-table tbody, .hours-table tbody { display: block; }
 
   /* tr stays as a flex row so label and value remain side-by-side */
   .aircraft-info-table tr, .hours-table tr {
