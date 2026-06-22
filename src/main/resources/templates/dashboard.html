@@ -14,7 +14,20 @@
         <div class="header-left">
             <h1 class="no-print">Aviary</h1>
         </div>
+
         <div class="header-right">
+            <div class="header-share">
+                <div class="share-menu">
+                    <button class="share-btn">Share <i class="fa-solid fa-share-from-square"></i></button>
+                    <div class="share-dropdown" style="display: none;">
+                        <button>Print</button>
+                        <button>Download PDF</button>
+                        <button>Email</button>
+                        <button>Text</button>
+                    </div>
+                </div>
+            </div>
+
             <form method="post" th:action="@{/logout}" class="no-print">
                 <button type="submit" class="logout-btn">Logout</button>
             </form>
@@ -169,7 +182,7 @@
                                     </div>
                                     <div class="cycle-row">
                                         <input type="number" min="0.1" step="0.1" name="cycleHours"
-                                            class="cycle-num" placeholder="#"
+                                            class="cycle-num-hours" placeholder="#"
                                             th:value="${timeline.cycleHours}"
                                             oninput="autoSave(this)">
                                         <span class="cycle-unit-label">hrs</span>
@@ -224,7 +237,7 @@
                     </th:block>
                 </tbody>
                     
-                <tbody>
+                <tbody #add-row>
                     <tr class="add-row no-print"> <!-- Add row -->
                         <td class="grip-column"></td>
                         <td data-label="Item">
@@ -275,7 +288,7 @@
                                     </select>
                                 </div>
                                 <div class="cycle-row">
-                                    <input type="number" min="0.1" step="0.1" name="cycleHours" class="cycle-num" placeholder="#">
+                                    <input type="number" min="0.1" step="0.1" name="cycleHours" class="cycle-num-hours" placeholder="#">
                                     <span class="cycle-unit-label">hrs</span>
                                 </div>
                             </div>

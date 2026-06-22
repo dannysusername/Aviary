@@ -784,6 +784,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('add-hobbs-time').value = '';
             const editSection = document.querySelector('.edit-hours-section');
             editSection.style.display = editSection.style.display === 'flex' ? 'none' : 'flex';
+        } else if (event.target.classList.contains('.share-menu')) {
+            
         }
     });
     
