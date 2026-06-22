@@ -27,6 +27,13 @@ public class DataSeeder implements CommandLineRunner {
     @Override
     public void run(String... args) throws Exception {
 
+        // Idempotent: only seed once. Re-running (a second test context in the
+        // same JVM, or an app restart against a persistent DB) would otherwise
+        // try to insert DanielIbarra again and hit the username unique constraint.
+        if (userRepository.findByUsername("DanielIbarra") != null) {
+            return;
+        }
+
         User Daniel = new User("DanielIbarra", passwordEncoder.encode("DI"), 3000, 2500);
         User Tomas  = new User("TomasIbarra",  passwordEncoder.encode("TI"), 3000, 2500);
 
