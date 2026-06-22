@@ -142,20 +142,20 @@ function autoSave(input) {
 
     ['lastDone', 'dueDate'].forEach((field, index) => { //loops through lastDone and dueDate fields
         const container = row.querySelector(`td:nth-child(${index === 0 ? 5 : 6}) .input-with-dropdown`); //grab .input-with-dropdown in td child n
-        const dateInput = container.querySelector('input[type="date"]'); //get the 'date' input 
-        const textInput = container.querySelector('input[type="text"].extra-input'); //get the 'text' input 
-        let value = '';
-        if (dateInput) value += dateInput.value; //if date input then append to value
-        if (textInput) value += value ? ` ${textInput.value}` : textInput.value; //if text input append to value 
-        data[field] = value.trim(); // set data[field] to the value trimmed
+        const dateInput = container.querySelector('input[type="date"]'); //get the 'date' input
+        const textInput = container.querySelector('input[type="text"].extra-input'); //get the 'text' input
+        data[`${field}Date`]  = dateInput ? (dateInput.value.trim() || null) : null;
+        data[`${field}Hours`] = textInput ? (textInput.value.trim() || null) : null;
+
     });
 
     const timeLeftSpan = row.querySelector('td:nth-child(7) .time-left');
     if (timeLeftSpan) {
         const currentTachHoursInput = document.getElementById('current-tach');
         const currentTachHours = currentTachHoursInput ? parseFloat(currentTachHoursInput.value) || 0 : 0;
-        const dueDate = data.dueDate || '';
-        setTimeLeftText(timeLeftSpan, calculateTimeLeft(dueDate, currentTachHours));
+        const dueDateCal = data.dueDateDate || '';
+        const dueDateHrs = data.dueDateHours || '';
+        setTimeLeftText(timeLeftSpan, calculateTimeLeft(dueDateCal, dueDateHrs, currentTachHours));
         data.timeLeft = timeLeftSpan.textContent;
     }
 
@@ -306,8 +306,12 @@ async function completeMaintenance(button) {
         const { lastDone, dueDate, timeLeft } = response.data;
         repaintDateHoursCell(row, 'lastDone', lastDone);
         repaintDateHoursCell(row, 'dueDate',  dueDate);
-        row.setAttribute('data-lastDone', lastDone || '');
-        row.setAttribute('data-dueDate',  dueDate  || '');
+        const parseSplit = (s) => { const [d, ...h] = (s || '').split(' '); return { date: d || '', hours: h.join(' ') }; };
+        const ld = parseSplit(lastDone), dd = parseSplit(dueDate);
+        row.setAttribute('data-lastDoneDate',  ld.date);
+        row.setAttribute('data-lastDoneHours', ld.hours);
+        row.setAttribute('data-dueDateDate',   dd.date);
+        row.setAttribute('data-dueDateHours',  dd.hours);
         const tl = row.querySelector('td:nth-child(7) .time-left');
         if (tl) setTimeLeftText(tl, timeLeft || 'N/A');
         showToast('Maintenance completed. Due Date rolled forward.', 'success');
@@ -498,29 +502,28 @@ function updateDropdownWidths() {
     });
 }
 
-function calculateTimeLeft(dueDateStr, currentTachHours) {
-    if (!dueDateStr) return 'N/A';
+function calculateTimeLeft(dueDateCal, dueDateHrs, currentTachHours) {
+    //Change to dueDateCal and dueDatehrs
+
+    if (!dueDateCal && !dueDateHrs) return 'N/A';
 
     const now = new Date();
     let output = '';
-
-    // Parse dueDateStr
-    const dueDateParts = dueDateStr.split(' ');
-    const dueDateDate = dueDateParts[0]?.match(/^\d{4}-\d{2}-\d{2}$/) ? dueDateParts[0] : null;
-    // Hours part: whole or decimal (e.g. "100" or "100.5" or ".5"). Exclude the date part if present.
-    const dueDateTime = dueDateParts.find(part => part !== dueDateDate && /^\d*\.?\d+$/.test(part)) || null;
+    
+    const dueDateCalValue = dueDateCal;
+    const dueDateTimeValue = dueDateHrs;
 
     // Calculate days if dueDate has a calendar date
-    if (dueDateDate) {
-        const dueDate = new Date(dueDateDate + 'T00:00:00');
+    if (dueDateCalValue) {
+        const dueDate = new Date(dueDateCalValue + 'T00:00:00');
         const timeDiff = dueDate - now;
         const daysLeft = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
         output += daysLeft < 0 ? `${Math.abs(daysLeft)} days overdue` : `${daysLeft} days left`;
     }
 
     // Calculate hours if dueDate has a clock value
-    if (dueDateTime) {
-        const dueDateHours = parseFloat(dueDateTime);
+    if (dueDateTimeValue) {
+        const dueDateHours = parseFloat(dueDateTimeValue);
         if (!isNaN(dueDateHours) && !isNaN(currentTachHours)) {
             const hoursLeft = Math.round((dueDateHours - currentTachHours) * 10) / 10;
             const hoursText = hoursLeft < 0 ? `${Math.abs(hoursLeft)} hours overdue` : `${hoursLeft} hours left`;
@@ -549,12 +552,9 @@ function updateAllTimeLeft() {
         if (timeLeftCell) {
             const dueDateDate = dueDateContainer.querySelector('input[type="date"]');
             const dueDateText = dueDateContainer.querySelector('input[type="text"].extra-input');
-            let dueDateStr = '';
-            if (dueDateDate) dueDateStr += dueDateDate.value;
-            if (dueDateText) dueDateStr += dueDateStr ? ` ${dueDateText.value}` : dueDateText.value;
-            console.log('Due Date String:', dueDateStr);
-            const timeLeftText = calculateTimeLeft(dueDateStr, currentTachHours);
-            console.log('Calculated Time Left:', timeLeftText);
+            const dueDateCal = dueDateDate ? dueDateDate.value : '';
+            const dueDateHrs = dueDateText ? dueDateText.value : '';
+            const timeLeftText = calculateTimeLeft(dueDateCal, dueDateHrs, currentTachHours);
             setTimeLeftText(timeLeftCell, timeLeftText);
         }
         
@@ -571,11 +571,10 @@ function updateAddRowTimeLeft() {
     if (timeLeftCell) {
         const dueDateDate = dueDateContainer.querySelector('input[type="date"]');
         const dueDateText = dueDateContainer.querySelector('input[type="text"].extra-input');
-        let dueDateStr = '';
-        if (dueDateDate) dueDateStr += dueDateDate.value;
-        if (dueDateText) dueDateStr += dueDateStr ? ` ${dueDateText.value}` : dueDateText.value;
+        const dueDateCal = dueDateDate ? dueDateDate.value : '';
+        const dueDateHrs = dueDateText ? dueDateText.value : '';
 
-        setTimeLeftText(timeLeftCell, calculateTimeLeft(dueDateStr, currentTachHours));
+        setTimeLeftText(timeLeftCell, calculateTimeLeft(dueDateCal, dueDateHrs, currentTachHours));
     }
 }
 
@@ -709,10 +708,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
         } else if (event.target.classList.contains('add-type')) {
-            const button = event.target;
-            const type = button.getAttribute('data-type');
-            const container = button.closest('.input-with-dropdown');
-            const tr = button.closest('tr');
+            const button = event.target; //Save button
+            const type = button.getAttribute('data-type'); //Calendar or Clock
+            const container = button.closest('.input-with-dropdown'); //Grabs the lastDone container
+            const tr = button.closest('tr'); //Grabs the closest table row
             const isAddMode = button.textContent === '+';
     
             const existingDate = container.querySelector('input[type="date"]');
@@ -785,6 +784,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('add-hobbs-time').value = '';
             const editSection = document.querySelector('.edit-hours-section');
             editSection.style.display = editSection.style.display === 'flex' ? 'none' : 'flex';
+        } else if (event.target.classList.contains('.share-menu')) {
+            
         }
     });
     
@@ -803,6 +804,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (dropdown.closest('.auto-save-row')) autoSave(hiddenInput);
     }
 
+    /*
     document.querySelectorAll('.auto-save-row textarea[name="item"]').forEach(textarea => {
         setTimeout(() => {
             setTextareaMinHeight(textarea);
@@ -817,12 +819,30 @@ document.addEventListener('DOMContentLoaded', () => {
             setTextareaMinHeight(textarea);
         });
     });
+    */
 
     // Initialize Sortable.js
     const tbody = document.querySelector('.sortable');
     Sortable.create(tbody, {
-        handle: '.grip-icon', //Restricts dragging to grip-icon 
+        handle: '.grip-icon', //Restricts dragging to grip-icon
         animation: 150, // 150ms animation for smooth dragging
+        // The list is ALWAYS a vertical stack (desktop table rows and mobile
+        // cards alike). On mobile each row is `display:grid` with two columns,
+        // which makes SortableJS auto-detect the list as HORIZONTAL and use
+        // X-axis math for swaps — every card shares the same full-width X span,
+        // so upward drags land on the wrong neighbour (or jump to the top).
+        // Pinning direction to 'vertical' forces Y-axis swap math. Desktop rows
+        // already detect as vertical, so this leaves desktop behaviour identical.
+        direction: 'vertical',
+        // Native HTML5 drag-and-drop does not fire on touchscreens, so the grip
+        // would be dead on mobile. forceFallback makes SortableJS drive the drag
+        // with its own pointer/touch handling, which works on touch devices (and
+        // is consistent on desktop). touchStartThreshold avoids hijacking taps.
+        forceFallback: true,
+        fallbackOnBody: true,
+        fallbackTolerance: 4,
+        touchStartThreshold: 4,
+        swapThreshold: 0.65,
         onEnd: function (evt) {
             updateOrderOnServer(); //After calls this function
         }
@@ -953,7 +973,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 500);
         });
     }
-
     if (currentTachHoursInput) {
         previousTachHours = currentTachHoursInput.value || 0;
         currentTachHoursInput.addEventListener('input', function() {
@@ -998,43 +1017,30 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.auto-save-row').forEach(row => {
         ['lastDone', 'dueDate'].forEach((field, index) => {
             const container = row.querySelector(`td:nth-child(${index === 0 ? 5 : 6}) .input-with-dropdown`);
-            const savedValue = row.getAttribute(`data-${field}`) || '';
-            if (savedValue) {
-                const parts = savedValue.split(' ');
-                let datePart = null;
-                let textPart = null;
+            const datePart = row.getAttribute(`data-${field}Date`) || '';
+            const textPart = row.getAttribute(`data-${field}Hours`) || '';
 
-                if (parts[0] && parts[0].match(/^\d{4}-\d{2}-\d{2}$/)) {
-                    datePart = parts[0];
-                    if (parts.length > 1) {
-                        textPart = parts.slice(1).join(' ');
-                    }
-                } else {
-                    textPart = savedValue;
-                }
+            if (datePart) {
+                const dateInput = document.createElement('input');
+                dateInput.type = 'date';
+                dateInput.name = `${field}_date`;
+                dateInput.className = 'extra-input';
+                dateInput.value = datePart;
+                dateInput.oninput = () => autoSave(dateInput);
+                container.insertBefore(dateInput, container.querySelector('.trigger-dropdown'));
+                container.querySelector('.add-type[data-type="calendar"]').textContent = '-';
+            }
 
-                if (datePart) {
-                    const dateInput = document.createElement('input');
-                    dateInput.type = 'date';
-                    dateInput.name = `${field}_date`;
-                    dateInput.className = 'extra-input';
-                    dateInput.value = datePart;
-                    dateInput.oninput = () => autoSave(dateInput);
-                    container.insertBefore(dateInput, container.querySelector('.trigger-dropdown'));
-                    container.querySelector('.add-type[data-type="calendar"]').textContent = '-';
-                }
-
-                if (textPart) {
-                    const textInput = document.createElement('input');
-                    textInput.type = 'text';
-                    textInput.name = `${field}_text`;
-                    textInput.className = 'extra-input';
-                    textInput.placeholder = 'Enter hours';
-                    textInput.value = textPart;
-                    textInput.oninput = () => autoSave(textInput);
-                    container.insertBefore(textInput, container.querySelector('.trigger-dropdown'));
-                    container.querySelector('.add-type[data-type="clock"]').textContent = '-';
-                }
+            if (textPart) {
+                const textInput = document.createElement('input');
+                textInput.type = 'text';
+                textInput.name = `${field}_text`;
+                textInput.className = 'extra-input';
+                textInput.placeholder = 'Enter hours';
+                textInput.value = textPart;
+                textInput.oninput = () => autoSave(textInput);
+                container.insertBefore(textInput, container.querySelector('.trigger-dropdown'));
+                container.querySelector('.add-type[data-type="clock"]').textContent = '-';
             }
         });
     });
@@ -1471,7 +1477,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 // Compute initial Time Left for display (using your function)
-                const initialTimeLeft = calculateTimeLeft(dueDate, currentTachHours);
+                const [dueDateCalPart, dueDateHrsPart] = dueDate.split(' ');
+                const initialTimeLeft = calculateTimeLeft(dueDateCalPart || '', dueDateHrsPart || '', currentTachHours);
 
                 aoa.push([item, desc, cycle, lastDone, dueDate, initialTimeLeft]);
                 dataRowIndices.push(aoa.length - 1); // Track for formula
@@ -1519,7 +1526,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update My Hours print-only span
         const currentTachHours = document.getElementById('current-tach').value || '0';
-        
+        const currentHobbsHours = document.getElementById('current-hobbs').value || '0';
 
         // Update print-only spans in table rows with current values
         document.querySelectorAll('.sortable tr:not(.title-row)').forEach(row => {
@@ -1575,24 +1582,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-
     // NEW: Add log row via AJAX
     document.getElementById('add-log-button').addEventListener('click', async () => {  // Note: made async for await if needed
         // Read raw strings first so an empty input stays null (not 0), letting
         // the server enforce the "complete pair" rule cleanly.
-        const rawHobbsIn  = document.getElementById('hobbsIn').value.trim();
-        const rawHobbsOut = document.getElementById('hobbsOut').value.trim();
-        const rawTachIn   = document.getElementById('tachIn').value.trim();
-        const rawTachOut  = document.getElementById('tachOut').value.trim();
+        const rawHobbsIn  = parseFloat(parseFloat(document.getElementById('hobbsIn').value.trim()).toFixed(2));
+        const rawHobbsOut = parseFloat(parseFloat(document.getElementById('hobbsOut').value.trim()).toFixed(2));
+        const rawTachIn   = parseFloat(parseFloat(document.getElementById('tachIn').value.trim()).toFixed(2));
+        const rawTachOut  = parseFloat(parseFloat(document.getElementById('tachOut').value.trim()).toFixed(2));
         const numOrNull = (s) => (s === '' || isNaN(parseFloat(s))) ? null : parseFloat(s);
 
         const data = {
             fromAirport: document.getElementById('fromAirport').value,
             toAirport: document.getElementById('toAirport').value,
-            hobbsIn:  numOrNull(rawHobbsIn),
             hobbsOut: numOrNull(rawHobbsOut),
+            hobbsIn:  numOrNull(rawHobbsIn),
+            tachOut:  numOrNull(rawTachOut),
             tachIn:   numOrNull(rawTachIn),
-            tachOut:  numOrNull(rawTachOut)
         };
     
         const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
@@ -1730,3 +1736,58 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
+
+    
+
+    document.getElementById('upload-csv-btn').addEventListener('click', function() {
+        document.getElementById('csv-file-input').click();
+    });
+
+    document.getElementById('csv-file-input').addEventListener('change', uploadCSV);
+
+    function uploadCSV() {
+        const csvfile = document.getElementById('csv-file-input').files[0];
+        const formData = new FormData();
+        formData.append('csvfile', csvfile)
+
+        const csrfToken = document.querySelector('meta[name="_csrf"]').content;
+        const csrfHeader = document.querySelector('meta[name="_csrf_header"]').content;
+
+        showToast('Uploading CSV...', 'info');
+
+        axios.post('/logbook/upload-csv', formData, {
+            headers: {
+                [csrfHeader]: csrfToken
+            }
+        }).then(response => {
+            document.getElementById('csv-file-input').value = '';
+
+            const data = response.data;
+            showToast("CSV parsed successfully", 'info');
+
+            document.getElementById("hobbsOut").value = data.hobbsOut ?? '';
+            document.getElementById("hobbsIn").value = data.hobbsIn ?? '';
+            document.getElementById("tachOut").value = data.tachOut ?? '';
+            document.getElementById("tachIn").value = data.tachIn ?? '';
+
+            if (data.warning) {
+                showToast(data.warning, 'error');
+            } else {
+                showToast('Flight log prefilled', 'info');
+            }
+
+        }).catch(error => {
+            const errorData = error.response?.data;
+            const errorMessage = error.response?.data?.error || 'Upload failed';
+            showToast(errorMessage, 'error');
+
+            console.log(errorData?.error);        // "Could not detect airtime or block time"
+            console.log(errorData?.blockStart);   // "10:30:00" (LocalTime serializes as string)
+            console.log(errorData?.blockEnd);
+            console.log(errorData?.airborneStart);
+            console.log(errorData?.airborneEnd);
+
+            document.getElementById('csv-file-input').value = '';
+        });
+
+    }

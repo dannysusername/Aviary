@@ -31,6 +31,14 @@ body {
   padding: 24px 16px;
 }
 
+/* Keyboard focus: brand-colored ring instead of the browser-default blue. */
+button:focus-visible,
+a:focus-visible,
+input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 /* ── Card ── */
 .register-form {
   background: var(--surface);
@@ -45,14 +53,32 @@ body {
   gap: 20px;
 }
 
-/* ── Title ── */
+/* ── Title ──
+   Brand-first: "Aviary" is the page identity (injected via ::before, matching
+   this stylesheet's pseudo-content idiom); the existing "Register" text
+   becomes a small caps label beneath it. Screen readers announce
+   "Aviary Register". */
 .register-title {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
   text-align: center;
-  letter-spacing: -0.3px;
-  margin-bottom: 4px;
+  margin-bottom: 14px;
+}
+
+.register-title::before {
+  content: "Aviary";
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--primary-dark);
+  text-transform: none;
+  letter-spacing: -0.5px;
+  margin-bottom: 2px;
 }
 
 /* ── Field group ── */

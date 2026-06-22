@@ -33,6 +33,15 @@ body {
   line-height: 1.5;
 }
 
+/* Keyboard focus: brand-colored ring instead of the browser-default blue. */
+button:focus-visible,
+a:focus-visible,
+select:focus-visible,
+input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 /* ── Fixed header ── */
 .fixed-header {
   position: fixed;
@@ -54,8 +63,22 @@ body {
   letter-spacing: -0.3px;
 }
 
+.fixed-header .header-right {
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+}
+
+.fixed-header .share-dropdown {
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
 /* ── Shared button base ── */
 .fixed-header .header-right .logout-btn,
+.fixed-header .share-btn,
 .edit-hours-btn,
 .back-to-full-list-button,
 #add-hobbs-btn,
@@ -73,39 +96,57 @@ body {
   transition: background 0.15s, opacity 0.15s;
 }
 
-.fixed-header .header-right .logout-btn {
+.fixed-header .header-right .logout-btn, 
+.fixed-header .share-btn {
   background: rgba(255,255,255,0.2);
   color: #fff;
   padding: 8px 16px;
 }
-.fixed-header .header-right .logout-btn:hover { background: rgba(255,255,255,0.3); }
+.fixed-header .header-right .logout-btn:hover, .fixed-header .share-btn:hover  { background: rgba(255,255,255,0.3); }
 
 .edit-hours-btn,
 .back-to-full-list-button {
-  background: var(--accent);
-  color: #fff;
+  background: var(--surface);
+  color: var(--primary-dark);
+  border: 1px solid var(--border);
   padding: 7px 14px;
   margin-left: 8px;
 }
+
+.share-menu {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.share-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+}
+
 .edit-hours-btn:hover,
-.back-to-full-list-button:hover { background: var(--accent-hover); }
+.back-to-full-list-button:hover { background: var(--primary-light); border-color: var(--primary); }
 
 #add-hobbs-btn,
 #add-tach-btn {
-  background: var(--accent);
+  background: var(--primary);
   color: #fff;
   padding: 5px 10px;
 }
-#add-hobbs-btn:hover, #add-tach-btn:hover { background: var(--accent-hover); }
+#add-hobbs-btn:hover, #add-tach-btn:hover { background: var(--primary-dark); }
 
+/* Utility actions — quiet outline style so they don't compete with the
+   page's real work (the timeline and log book). */
 #print-dashboard,
 #export-excel {
-  background: var(--accent);
-  color: #fff;
+  background: var(--surface);
+  color: var(--primary-dark);
+  border: 1px solid var(--border);
   padding: 8px 16px;
   margin: 16px 0;
 }
-#print-dashboard:hover, #export-excel:hover { background: var(--accent-hover); }
+#print-dashboard:hover, #export-excel:hover { background: var(--primary-light); border-color: var(--primary); }
 
 /* ── Sub-header bar ── */
 .header {
@@ -222,7 +263,7 @@ body {
   font-size: 13px;
   font-family: inherit;
   border-radius: 20px;
-  transition: all 0.15s;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
 }
 .tab-button:hover { background: var(--primary-light); color: var(--primary); }
 .tab-button.active {
@@ -254,19 +295,20 @@ body {
 .hours-table tr {
   display: flex;
   flex-direction: row;
-  border-bottom: 1px solid var(--border);
 }
-.aircraft-info-table tr:last-child,
-.hours-table tr:last-child { border-bottom: none; }
+.aircraft-info-table tr + tr,
+.hours-table tr + tr { border-top: 1px solid var(--border); }
 
+/* Spec-sheet layout: one white surface, narrow label column + flexible value
+   column (not two 50% slabs in different colors). */
 .aircraft-info-table tr td,
-.hours-table tr td { flex: 0 0 50%; }
+.hours-table tr td { background: var(--surface); }
 
 /* Label cells */
 .aircraft-info-table tr td:first-child,
 .hours-table tr td:first-child {
-  background: var(--primary-light);
-  color: var(--primary-dark);
+  flex: 0 0 200px;
+  color: var(--text-muted);
   font-weight: 600;
   font-size: 12px;
   text-transform: uppercase;
@@ -279,7 +321,8 @@ body {
 /* Value cells */
 .aircraft-info-table tr td:nth-child(2),
 .hours-table tr td:nth-child(2) {
-  background: var(--surface);
+  flex: 1;
+  min-width: 0;
   padding: 6px 10px;
 }
 
@@ -302,14 +345,15 @@ body {
 }
 
 /* ── Service timeline table ── */
-table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) {
-  width: 100%;
+#sortable-info-table {
   table-layout: auto;
   border-collapse: collapse;
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-  overflow: visible;
   margin: 0;
+}
+
+#add-row {
+  display: block;
+  padding: 10px 0px;
 }
 
 /* Column widths — auto layout. Percentages are preferred widths; the
@@ -321,12 +365,7 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) {
    neighbor — on a too-narrow window the table grows past the viewport
    (page scrolls) instead. Time Left has no width hint so it sizes to its
    content (header "TIME LEFT" or longest data line). */
-table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) th:nth-child(1) { width: 28px; }
-table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) th:nth-child(2) { width: 18%; }
-table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) th:nth-child(3) { width: 18%; }
-table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) th:nth-child(4) { width: 14%; }
-table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) th:nth-child(5) { width: 20%; min-width: 150px; }
-table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) th:nth-child(6) { width: 20%; min-width: 150px; }
+
 /* width:1% + nowrap = shrink-to-content. The 1% preferred width is below the
    column's min-content (the "TIME LEFT" header / widest data line), so the
    column collapses to exactly its content; the leftover table width then
@@ -364,6 +403,7 @@ td {
    control needs its own box. */
 table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td {
   border-top: 1px solid var(--border);
+  overflow-wrap: break-word;
 }
 table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td + td {
   border-left: 1px solid var(--border);
@@ -506,10 +546,8 @@ td input:focus {
 
 td textarea {
   width: 100%;
-  /* One line of 13px text + 4px top/bottom padding ≈ 22px. Lets the
-     textarea start at one-line height; JS auto-grow expands it as the
-     user types (see setTextareaMinHeight in dashboard.js). */
-  min-height: 22px;
+  field-sizing: content;
+  min-height: 50px;
   max-height: 120px;
   min-width: 0;
   box-sizing: border-box;
@@ -562,27 +600,28 @@ td textarea:focus { outline: 2px solid var(--primary); background: var(--surface
   min-height: 36px;
   padding: 8px 12px;
   margin: 0;
-  background: var(--accent);
+  background: var(--primary);
   color: #fff;
   box-sizing: border-box;
   white-space: nowrap;
 }
-.add-button:hover { background: var(--accent-hover); }
+.add-button:hover { background: var(--primary-dark); }
 
 .delete-header {
    border-top-right-radius: var(--radius);
 }
 
 .delete-header, .delete-cell { text-align: center; }
-.delete-icon { cursor: pointer; color: #c0ccc5; font-size: 15px; }
+.delete-icon { cursor: pointer; color: #c0ccc5; font-size: 15px; padding: 8px; }
 .delete-icon:hover { color: var(--accent); }
 
 .complete-header, .complete-cell { text-align: center; }
 .complete-btn {
   background: transparent; border: none; cursor: pointer;
-  color: #c0ccc5; font-size: 15px; padding: 4px;
+  color: #c0ccc5; font-size: 15px; padding: 8px;
+  min-width: 32px; min-height: 32px;
 }
-.complete-btn:hover { color: var(--accent); }
+.complete-btn:hover { color: var(--primary); }
 .complete-btn[disabled] { opacity: 0.35; cursor: not-allowed; }
 .complete-btn-label { display: none; }  /* desktop: icon-only */
 /* The card collapse arrow is a mobile-card affordance only — hidden on desktop
@@ -612,14 +651,13 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td:has(> .
   border-bottom: 1px solid var(--border);
 }
 .cycle-row:last-child { border-bottom: none; }
-.cycle-row > * { min-width: 0; }
-/* Number input — fits values like "100.0". Hide the native spinner arrows
-   so the field's whole width is usable for digits. */
-.cycle-num {
-  flex: 0 1 56px;
-  width: 56px;
-  min-width: 44px;
-  padding: 2px 4px;
+
+.cycle-num-hours { width: 10ch; }
+
+.cycle-num, .cycle-num-hours{
+  width: 6ch;
+  min-height: 26px;
+  padding: 4px;
   font-size: 12px;
   box-sizing: border-box;
   border: 1px solid transparent;   /* borderless: grid cell is the outline */
@@ -628,6 +666,7 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td:has(> .
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
 .cycle-num::-webkit-outer-spin-button,
 .cycle-num::-webkit-inner-spin-button {
   -webkit-appearance: none;
@@ -636,11 +675,10 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td:has(> .
 /* Unit dropdown — no min-width floor so it always fits its parent. When the
    column gets too narrow, the browser truncates the displayed option text. */
 .cycle-unit {
-  flex: 1 1 auto;
   min-width: 0;
-  width: 100%;
   max-width: 110px;
-  padding: 2px 4px;
+  min-height: 26px;
+  padding: 4px;
   font-size: 12px;
   box-sizing: border-box;
   border: 1px solid transparent;   /* borderless to match the grid */
@@ -729,7 +767,7 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td:has(> .
 .add-option-btn {
   flex-shrink: 0; /* never shrink — always fully visible */
   padding: 4px 10px;
-  background: var(--accent);
+  background: var(--primary);
   color: #fff;
   border: none;
   border-radius: 4px;
@@ -738,7 +776,7 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td:has(> .
   font-weight: 600;
   white-space: nowrap;
 }
-.add-option-btn:hover { background: var(--accent-hover); }
+.add-option-btn:hover { background: var(--primary-dark); }
 
 .remove-option-btn {
   background: none;
@@ -790,7 +828,7 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td:has(> .
    min-width floors keep each field wide enough to stay fully readable — a
    native date field needs room for "mm/dd/yyyy" + its picker icon — so the
    column can't shrink them small enough to overflow the cell and hide. */
-.input-with-dropdown input[type="date"].extra-input { order: 1; min-width: 118px; }
+.input-with-dropdown input[type="date"].extra-input { order: 1; }
 .input-with-dropdown input[type="text"].extra-input { order: 2; min-width: 72px; }
 
 /* Empty Last Done / Due Date cell: show a hint that fills the cell, so there's
@@ -898,7 +936,7 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td:has(> .
 }
 .row-type-option + .row-type-option { border-left: 1px solid var(--border); }
 .row-type-option.selected {
-  background: var(--accent);
+  background: var(--primary);
   color: #fff;
 }
 
@@ -906,7 +944,7 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td:has(> .
    \n and never mid-line. In the auto-layout table this makes the column grow
    to fit the longest data line rather than wrapping, so the column is exactly
    as wide as its content (header or data, whichever is wider). */
-.time-left { white-space: pre; font-size: 12px; }
+.time-left { font-size: 12px; }
 
 /* ── Logbook table ── */
 .logbook-table {
@@ -955,15 +993,46 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td:has(> .
   border-color: transparent;
 }
 
+/*
+Upload csv button
+*/
+.upload-csv {
+  padding: 16px 24px;
+
+}
+
+#upload-csv-btn {
+  background: var(--primary);
+  color: #fff;
+  padding: 7px 16px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  border: none;
+  transition: background 0.15s, opacity 0.15s;
+
+}
+#upload-csv-btn:hover { background: var(--primary-dark); }
+
 .add-log-button {
   width: 100%;
-  background: var(--accent);
+  background: var(--primary);
   color: #fff;
   padding: 7px 16px;
   border-radius: 6px;
   font-weight: 600;
 }
-.add-log-button:hover { background: var(--accent-hover); }
+.add-log-button:hover { background: var(--primary-dark); }
+
+/* Empty state — shown only while the log book has no entries. Hiding is
+   CSS-reactive (:has), so rows added/removed by JS toggle it automatically. */
+.empty-log-row td {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 20px 12px;
+}
+#logbook-body:has(.log-row) .empty-log-row { display: none; }
 
 .delete-log-icon {
   background: none;
@@ -979,7 +1048,7 @@ textarea::placeholder { display: none; }
 .print-only { display: none; }
 
 .save-status { display: inline-block; padding: 2px 6px; text-align: center; }
-.save-status.saving { color: var(--accent); font-style: italic; }
+.save-status.saving { color: var(--text-muted); font-style: italic; }
 .save-status.saved   { color: var(--primary); }
 .save-status.error   { color: red; }
 
@@ -998,16 +1067,9 @@ textarea::placeholder { display: none; }
 
   textarea::placeholder { display: inline; color: #999; }
 
-  /* aircraft-info-table: keep label-left | value-right row layout */
-  .aircraft-info-table, .hours-table {
-    overflow: visible; /* stop border-radius from clipping cell content */
-  }
-  .aircraft-info-table tbody, .hours-table tbody { display: block; }
-
   /* tr stays as a flex row so label and value remain side-by-side */
   .aircraft-info-table tr, .hours-table tr {
     display: flex;
-    border-bottom: 1px solid var(--border);
   }
   .aircraft-info-table tr:last-child,
   .hours-table tr:last-child { border-bottom: none; }
@@ -1016,6 +1078,14 @@ textarea::placeholder { display: none; }
     display: block;
     padding: 8px 10px;
     border: none;
+  }
+
+  /* Narrow screens: shrink the label column so values keep room */
+  .aircraft-info-table tr td:first-child,
+  .hours-table tr td:first-child {
+    flex: 0 0 132px;
+    display: flex;
+    align-items: center;
   }
 
 
@@ -1116,8 +1186,35 @@ textarea::placeholder { display: none; }
   .sortable tr:not(.title-row):not(.add-row) td[data-label="Time Left"]   { grid-column: 1 / -1; grid-row: 4; }
   .sortable tr:not(.title-row):not(.add-row) td.complete-cell             { grid-column: 1 / -1; grid-row: 5; }
   .sortable tr:not(.title-row):not(.add-row) td.delete-cell               { grid-column: 1 / -1; grid-row: 6; }
-  /* Drag handle is a desktop affordance — hide inside cards */
-  .sortable tr:not(.add-row) td.grip-cell { display: none; }
+  /* Drag handle — top-left of the card header, mirroring the desktop grip
+     (which is the leftmost column). The grip-cell overlays row 1 (the Item
+     headline) but is pointer-transparent, so only the dots themselves are
+     interactive: taps elsewhere on the header still collapse/expand the card,
+     and SortableJS (handle: .grip-icon) drives the drag. Title-row grips stay
+     hidden (handled below). */
+  .sortable tr:not(.add-row):not(.title-row) td.grip-cell {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    grid-column: 1 / -1;
+    grid-row: 1;
+    padding: 0;
+    border: none;
+    background: transparent;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .sortable tr:not(.add-row):not(.title-row) td.grip-cell .grip-icon {
+    display: inline-flex;
+    height: auto;
+    margin: 0;                     /* reset desktop's `margin: 0 auto` so the dots pin left */
+    padding: 10px 8px;             /* roomy tap target, distinct from desktop sizing */
+    font-size: 18px;               /* larger dots than the 13px desktop grip */
+    color: #aec5b8;                /* same dot color as desktop */
+    pointer-events: auto;
+    cursor: grab;
+    touch-action: none;            /* let SortableJS own the drag gesture on touch */
+  }
 
   /* Collapsed card → show only the Item headline (tap to re-expand).
      The :not()s match the base rules' specificity so these overrides win. */
@@ -1139,8 +1236,18 @@ textarea::placeholder { display: none; }
      right (the same chevron the fields use, just larger). */
   .sortable tr:not(.title-row):not(.add-row) td[data-label="Item"] {
     position: relative;
+    display: flex;                 /* center the headline text vertically…       */
+    align-items: center;           /* …so it lines up with the grip burger (which */
+    min-height: 44px;              /*    is centred in this same header row)       */
     padding-right: 44px;
+    padding-left: 40px;            /* clear the drag grip overlaid at top-left */
     cursor: pointer;
+  }
+  /* Drop the 32px min-height floor here so the headline textarea hugs its text;
+     centred in the flex cell, its vertical midline then matches the grip's. */
+  .sortable tr:not(.title-row):not(.add-row) td[data-label="Item"] textarea {
+    field-sizing: content;
+    min-height: 0;
   }
   .sortable tr:not(.title-row):not(.add-row) td[data-label="Item"]::before { display: none; }
   .sortable tr:not(.title-row):not(.add-row) td[data-label="Item"] .card-caret {
@@ -1249,13 +1356,16 @@ textarea::placeholder { display: none; }
   .add-row .cycle-num { max-width: 90px; }
   .add-row .cycle-unit { max-width: 110px; }
 
-  /* Last Done / Due Date = flat, borderless date + hrs + chevron. */
+  /* Last Done / Due Date = flat, borderless date + hrs + chevron. The wider
+     column-gap keeps the native date field's built-in calendar picker icon
+     (which sits flush at the field's right edge) clear of the custom chevron,
+     so a tap on the chevron no longer lands on the calendar picker. */
   .sortable td .input-with-dropdown {
     width: 100%;
     border: none;
     background: transparent;
     padding: 0;
-    column-gap: 4px;
+    column-gap: 12px;
     row-gap: 4px;
   }
   .sortable td .input-with-dropdown input.extra-input {
@@ -1264,8 +1374,12 @@ textarea::placeholder { display: none; }
     padding: 4px 0;
   }
   /* In the half-width right column a native date field must be free to shrink
-     so it (and its chevron) never overflow the cell. */
-  .sortable td .input-with-dropdown input[type="date"].extra-input { min-width: 0; }
+     so it (and its chevron) never overflow the cell. The wider column-gap above
+     (not field padding) is what keeps the native calendar picker clear of the
+     chevron, so the field keeps its full width for the mm/dd/yyyy value. */
+  .sortable td .input-with-dropdown input[type="date"].extra-input {
+    min-width: 0;
+  }
   .sortable td .input-with-dropdown:not(:has(input.extra-input))::before {
     font-size: 14px;
     padding: 8px 0;
@@ -1284,7 +1398,7 @@ textarea::placeholder { display: none; }
     white-space: pre;
   }
 
-  /* Complete = full-width primary (pink) action */
+  /* Complete = full-width primary (brand green) action */
   .sortable tr:not(.title-row):not(.add-row) td.complete-cell::before { display: none; }
   .sortable tr:not(.title-row):not(.add-row) td.complete-cell { padding-top: 2px; }
   .complete-btn {
@@ -1293,7 +1407,7 @@ textarea::placeholder { display: none; }
     padding: 12px 14px;
     font-size: 16px;
     color: #fff;
-    background: var(--accent);
+    background: var(--primary);
     border: none;
     border-radius: var(--radius);
     display: inline-flex;
@@ -1301,8 +1415,16 @@ textarea::placeholder { display: none; }
     justify-content: center;
     gap: 8px;
   }
-  .complete-btn:hover { background: var(--accent-hover); color: #fff; }
-  .complete-btn[disabled] { opacity: 0.4; }
+  .complete-btn:hover { background: var(--primary-dark); color: #fff; }
+  /* Disabled reads as unmistakably inactive (gray, muted) rather than a
+     washed-out version of the live button. */
+  .complete-btn[disabled] {
+    opacity: 1;
+    background: var(--bg);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+  .complete-btn[disabled]:hover { background: var(--bg); color: var(--text-muted); }
   .complete-btn-label { display: inline; }
 
   /* Delete = centered trash, comfortable tap target */
@@ -1445,6 +1567,15 @@ textarea::placeholder { display: none; }
     box-sizing: border-box;
   }
 
+  .logbook-table tr.empty-log-row {
+    display: block;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  .logbook-table tr.empty-log-row td { display: block; }
+  .logbook-table tr.empty-log-row td::before { display: none; }
+
   .logbook-table td.delete-cell,
   .logbook-table td.add-cell {
     grid-column: 1 / -1;
@@ -1463,36 +1594,70 @@ textarea::placeholder { display: none; }
   .my-hours { width: 100%; margin: 8px 0; }
 }
 
-/* ── Tablet (961–1024px) — desktop table shows here (it fits above ~903px) ── */
-@media screen and (min-width: 961px) and (max-width: 1024px) {
-  table { font-size: 13px; }
-  th, td { padding: 7px 8px; }
-  .grip-column { min-width: 20px; }
+/* ── Narrow phones (≤480px) ──
+   In the half-width card column a native date field at 15px can't show the
+   full mm/dd/yyyy value ("02/01/202…"). Slightly smaller tabular digits and a
+   tighter chevron gap keep the whole date visible. ── */
+@media screen and (max-width: 480px) {
+  .sortable td .input-with-dropdown { column-gap: 4px; }
+  .sortable td .input-with-dropdown input.extra-input {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .custom-dropdown .trigger-dropdown,
+  .input-with-dropdown .trigger-dropdown { min-width: 28px; padding: 6px 4px; }
 }
 
 /* ── Print ── */
 @media print {
-  .fixed-header { display: none; }
-  main { padding-top: 0; }
+
+  .main { 
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    margin: 0;
+    padding-top: 0; 
+  }
 
   .no-print, .status-cell, .delete-cell, .status-header,
-  .delete-header, .print-remove, .grip-cell { display: none !important; }
+  .delete-header, .grip-cell, .fixed-header { display: none !important; }
 
   .print-only { display: inline !important; visibility: visible; }
 
-  body { padding-top: 0; font-size: 12pt; line-height: 1.4; color: black; background: white; }
+  body { 
+    padding-top: 0;
+    line-height: 1.4; 
+    color: black; 
+    background: white; 
+  }
 
-  .header { position: relative; width: 100%; text-align: center; }
+  .header { 
+    position: relative; 
+    width: 100%; 
+    text-align: center; 
+    background: none;
+  }
 
-  table { border-collapse: collapse; page-break-inside: auto; }
-  th, td { border: 1px solid black !important; padding: 8px; }
+  #service-tab {
+    padding: 16px 24px 0;
+  }
+
+  table { page-break-inside: auto; }
+  th, td { 
+          padding: 8px; 
+        }
   th { background: #2C9B6F !important; -webkit-print-color-adjust: exact; }
 
   th.grip-column, td.grip-column, .title-grip-icon-cell { display: none; }
 
   .time-left { white-space: pre-line; font-weight: bold; }
   .aircraft-info-table td, .hours-table td { text-align: left; }
+
   .my-hours h3, #print-current-hours { visibility: visible; }
+  .hours-display-and-editbutton-container {
+    justify-content: space-evenly;
+  }
 
   tr { page-break-inside: avoid; page-break-after: auto; }
   .title-row td { font-weight: bold; font-size: 14pt; background: #2C9B6F !important; color: white !important; }
@@ -1500,9 +1665,13 @@ textarea::placeholder { display: none; }
   .tab-print-title {
     display: block !important;
     text-align: center;
-    font-size: 18pt;
+    /*visibility: visible;*/
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
     margin: 10px 0 20px 0;
-    visibility: visible;
+    color: var(--text-muted);
   }
 
   /* Never print transient UI */

@@ -9,13 +9,25 @@
     
 </head>
 <body>
-
     
     <header class="fixed-header">
         <div class="header-left">
-            <h1 class="print-remove">Aviary</h1>
+            <h1 class="no-print">Aviary</h1>
         </div>
+
         <div class="header-right">
+            <div class="header-share">
+                <div class="share-menu">
+                    <button class="share-btn">Share <i class="fa-solid fa-share-from-square"></i></button>
+                    <div class="share-dropdown" style="display: none;">
+                        <button>Print</button>
+                        <button>Download PDF</button>
+                        <button>Email</button>
+                        <button>Text</button>
+                    </div>
+                </div>
+            </div>
+
             <form method="post" th:action="@{/logout}" class="no-print">
                 <button type="submit" class="logout-btn">Logout</button>
             </form>
@@ -73,31 +85,32 @@
     <!-- New aircraft info table -->
 
     <div id="service-tab" class="tab-content">
-        <h2 class="print-only tab-print-title">Service Timeline</h2>
         <div class = "main">
+            <h2 class="print-only tab-print-title">Service Timeline</h2>
+
             <table class="aircraft-info-table">
                 <tbody>
                     <tr>
                         <td class = "make-model-tag">Make/Model:</td>
-                        <td><input type="text" name="makeModel" autocomplete="makeModel" class="user-info-input no-print" th:value="${makeModel}" placeholder="Make/Model "><span class="print-only" th:text="${makeModel}"></span></td>
+                        <td><input type="text" name="makeModel" autocomplete="makeModel" class="user-info-input no-print" th:value="${makeModel}" placeholder="e.g. Cessna 172S"><span class="print-only" th:text="${makeModel}"></span></td>
                     </tr>
                     <tr>
                         <td class = "tail-number-tag">Tail Number:</td>
-                        <td><input type="text" name="tailNumber" autocomplete="tail-number-tag" class="user-info-input no-print" th:value="${tailNumber}" placeholder="Tail Number"><span class="print-only" th:text="${tailNumber}"></span></td>
+                        <td><input type="text" name="tailNumber" autocomplete="tail-number-tag" class="user-info-input no-print" th:value="${tailNumber}" placeholder="e.g. N12345"><span class="print-only" th:text="${tailNumber}"></span></td>
                     </tr>
                     <tr>
                         <td class = "owner-tag">Owner:</td>
-                        <td><input type="text" name="ownerName" autocomplete="ownerName" class="user-info-input no-print" th:value="${ownerName}" placeholder="Owner "><span class="print-only" th:text="${ownerName}"></span></td>
+                        <td><input type="text" name="ownerName" autocomplete="ownerName" class="user-info-input no-print" th:value="${ownerName}" placeholder="e.g. Jane Doe"><span class="print-only" th:text="${ownerName}"></span></td>
                     </tr>
                     <tr>
                         <td class = "make-model-sn-tag">Make/model S/N:</td>
-                        <td><input type="text" name="makeModelSN" autocomplete="off" class="user-info-input no-print" th:value="${makeModelSN}" placeholder="Make/Model S/N"><span class="print-only" th:text="${makeModelSN}"></span></td>
+                        <td><input type="text" name="makeModelSN" autocomplete="off" class="user-info-input no-print" th:value="${makeModelSN}" placeholder="e.g. 172S-10468"><span class="print-only" th:text="${makeModelSN}"></span></td>
                     </tr>
                 </tbody>
             </table>
 
             <!-- Existing first table follows here -->
-            <table>
+            <table id="sortable-info-table">
                 <thead class = "sortable-head">
                     <tr>
                         <th class = "grip-column no-print"></th> <!-- Grip column hidden in print -->
@@ -126,7 +139,7 @@
                             <td class="delete-cell"><span class="delete-icon no-print" onclick="deleteRow(this)"><i class="fa-solid fa-trash-can fa-xl"></i></span></td>
                         </tr>
                         <!-- Regular item row -->
-                        <tr th:unless="${timeline.isTitle}" th:data-id="${timeline.id}" th:data-lastDone="${timeline.lastDone}" th:data-dueDate="${timeline.dueDate}" th:data-cycle="${timeline.cycle}" class="auto-save-row">                           
+                        <tr th:unless="${timeline.isTitle}" th:data-id="${timeline.id}" th:data-lastDoneDate="${timeline.lastDoneDate}" th:data-lastDoneHours="${timeline.lastDoneHours}" th:data-dueDateDate="${timeline.dueDateDate}" th:data-dueDateHours="${timeline.dueDateHours}" class="auto-save-row">                           
                             <td class = "grip-cell"><span class="grip-icon no-print"><i class="fa-solid fa-grip-vertical"></i></span></td>
                             <td data-label="Item"><textarea name="item" rows="1" th:text="${timeline.item}" oninput="autoSave(this)" class="no-print"></textarea><i class="fa-solid fa-chevron-down card-caret no-print"></i>
                                 <span class="print-only" th:text="${timeline.item}"></span></td>
@@ -169,7 +182,7 @@
                                     </div>
                                     <div class="cycle-row">
                                         <input type="number" min="0.1" step="0.1" name="cycleHours"
-                                            class="cycle-num" placeholder="#"
+                                            class="cycle-num-hours" placeholder="#"
                                             th:value="${timeline.cycleHours}"
                                             oninput="autoSave(this)">
                                         <span class="cycle-unit-label">hrs</span>
@@ -191,7 +204,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                <span class="print-only" th:text="${timeline.lastDone}"></span>
+                                <span class="print-only" th:text="${timeline.lastDoneDate != null ? timeline.lastDoneDate : (timeline.lastDoneHours != null ? timeline.lastDoneHours + ' hrs' : '')}"></span>
                             </td>
                             <td data-label="Due Date">
                                 <div class="input-with-dropdown no-print">
@@ -207,7 +220,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                <span class="print-only" th:text="${timeline.dueDate}"></span>
+                                <span class="print-only" th:text="${timeline.dueDateDate != null ? timeline.dueDateDate : (timeline.dueDateHours != null ? timeline.dueDateHours + ' hrs' : '')}"></span>
                             </td>
                             <td data-label="Time Left"><div class="time-left" th:text="${timeline.timeLeft != null ? timeline.timeLeft : ''}"></div></td>
                             <!--<td class="status-cell"><span class="save-status no-print">✓</span></td>-->
@@ -224,7 +237,7 @@
                     </th:block>
                 </tbody>
                     
-                <tbody>
+                <tbody #add-row>
                     <tr class="add-row no-print"> <!-- Add row -->
                         <td class="grip-column"></td>
                         <td data-label="Item">
@@ -275,7 +288,7 @@
                                     </select>
                                 </div>
                                 <div class="cycle-row">
-                                    <input type="number" min="0.1" step="0.1" name="cycleHours" class="cycle-num" placeholder="#">
+                                    <input type="number" min="0.1" step="0.1" name="cycleHours" class="cycle-num-hours" placeholder="#">
                                     <span class="cycle-unit-label">hrs</span>
                                 </div>
                             </div>
@@ -325,6 +338,12 @@
     
     <div id="logbook-tab" class="tab-content">
         <h2 class="print-only tab-print-title">Flight Logs</h2>
+
+        <div class = "upload-csv no-print">
+            <input type="file" id="csv-file-input" accept=".csv" style="display: none;">
+            <button id="upload-csv-btn">Upload GARMIN CSV File</button>
+        </div>
+
         <div class="main">
             <table class="logbook-table">
                 <thead>
@@ -368,14 +387,19 @@
                             <button class="delete-log-icon"><i class="fa-solid fa-trash-can fa-xl"></i></button>
                         </td>
                     </tr>
+                    <!-- Empty state: visible only while there are no log rows
+                         (CSS :has() hides it the moment a .log-row exists). -->
+                    <tr class="empty-log-row no-print">
+                        <td colspan="7">No flights logged yet — add your first flight below.</td>
+                    </tr>
                     <!-- NEW: Add row for new log -->
                     <tr class="add-log-row no-print">
                         <td data-label="From"><input type="text" id="fromAirport" name="fromAirport" autocomplete="fromAirport" placeholder="From Airport"></td>
                         <td data-label="To"><input type="text" id="toAirport" name="toAirport" autocomplete="toAirport" placeholder="To Airport"></td>
-                        <td data-label="Hobbs Out"><input type="number" id="hobbsOut" name="hobbsOut" autocomplete="hobbsOut" placeholder="Hobbs Out" step="0.1"></td>
-                        <td data-label="Hobbs In"><input type="number" id="hobbsIn" name="hobbsIn" autocomplete="hobbsIn" placeholder="Hobbs In" step="0.1"></td>
-                        <td data-label="Tach Out"><input type="number" id="tachOut" name="tachOut" autocomplete="tachOut" placeholder="Tach Out" step="0.1"></td>
-                        <td data-label="Tach In"><input type="number" id="tachIn" name="tachIn" autocomplete="tachIn" placeholder="Tach In" step="0.1"></td>
+                        <td data-label="Hobbs Out"><input type="number" id="hobbsOut" name="hobbsOut" autocomplete="hobbsOut" placeholder="Hobbs Out" step="0.01"></td>
+                        <td data-label="Hobbs In"><input type="number" id="hobbsIn" name="hobbsIn" autocomplete="hobbsIn" placeholder="Hobbs In" step="0.01"></td>
+                        <td data-label="Tach Out"><input type="number" id="tachOut" name="tachOut" autocomplete="tachOut" placeholder="Tach Out" step="0.01"></td>
+                        <td data-label="Tach In"><input type="number" id="tachIn" name="tachIn" autocomplete="tachIn" placeholder="Tach In" step="0.01"></td>
                         <td class="add-cell" data-label="">
                             <button id="add-log-button" class="add-log-button">Add</button>
                         </td>

@@ -20,13 +20,16 @@ public class ServiceTimeline {
     private String description;
 
     @Column
-    private String cycle;
+    private String lastDoneDate;
 
     @Column
-    private String lastDone;
+    private String lastDoneHours;
 
     @Column
-    private String dueDate;
+    private String dueDateDate;
+
+    @Column
+    private String dueDateHours;
 
     @Column
     private String timeLeft;
@@ -55,18 +58,54 @@ public class ServiceTimeline {
     // Constructors
     public ServiceTimeline() {}
 
-    public ServiceTimeline(String item, boolean isTitle, String description, String cycle, String lastDone, String dueDate, String timeLeft, User user) {
+
+    public ServiceTimeline(String item, boolean isTitle, String description, String cycleCalendarUnit, Integer cycleCalendarValue, Double cycleHours, String lastDoneDate, String lastDoneHours, String dueDateDate, String dueDateHours, String timeLeft, User user) {
         this.item = item;
         this.isTitle = isTitle;
         this.description = description;
-        this.cycle = cycle;
-        this.lastDone = lastDone;
-        this.dueDate = dueDate;
+        this.cycleCalendarUnit = cycleCalendarUnit;
+        this.cycleCalendarValue = cycleCalendarValue;
+        this.cycleHours = cycleHours;
+        this.lastDoneDate = lastDoneDate;
+        this.lastDoneHours = lastDoneHours;
+        this.dueDateDate = dueDateDate;
+        this.dueDateHours = dueDateHours;
         this.timeLeft = timeLeft;
         this.user = user;
     }
 
-    // Getters and Setters
+    public String getLastDoneDate() {
+        return lastDoneDate;
+    }
+
+    public void setLastDoneDate(String lastDoneDate) {
+        this.lastDoneDate = lastDoneDate;
+    }
+
+    public String getLastDoneHours() {
+        return lastDoneHours;
+    }
+
+    public void setLastDoneHours(String lastDoneHours) {
+        this.lastDoneHours = lastDoneHours;
+    }
+
+    public String getDueDateDate() {
+        return dueDateDate;
+    }
+
+    public void setDueDateDate(String dueDateDate) {
+        this.dueDateDate = dueDateDate;
+    }
+
+    public String getDueDateHours() {
+        return dueDateHours;
+    }
+
+    public void setDueDateHours(String dueDateHours) {
+        this.dueDateHours = dueDateHours;
+    }
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -78,15 +117,6 @@ public class ServiceTimeline {
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
-
-    public String getCycle() { return cycle; }
-    public void setCycle(String cycle) { this.cycle = cycle; }
-
-    public String getLastDone() { return lastDone; }
-    public void setLastDone(String lastDone) { this.lastDone = lastDone; }
-
-    public String getDueDate() { return dueDate; }
-    public void setDueDate(String dueDate) { this.dueDate = dueDate; }
 
     public String getTimeLeft() { return timeLeft; }
     public void setTimeLeft(String timeLeft) { this.timeLeft = timeLeft; }

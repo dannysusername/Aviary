@@ -9,6 +9,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
 import com.example.AviaryService.entity.DescriptionOption;
 import com.example.AviaryService.entity.FlightLog;
 import com.example.AviaryService.entity.ServiceTimeline;
@@ -19,14 +21,21 @@ import com.example.AviaryService.repositories.FlightLogRepository;
 import com.example.AviaryService.repositories.ServiceTimelineRepository;
 import com.example.AviaryService.repositories.UserRepository;
 
+//import org.checkerframework.checker.units.qual.Speed;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+//import org.slf4j.LoggerFactory;
 import jakarta.transaction.Transactional;
 
+//import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.net.URI;
+import java.time.Duration;
+import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
+import java.util.Set;
 
 @Controller
 public class UserController {
@@ -110,186 +119,145 @@ public class UserController {
         model.addAttribute("hobbsUpdatedSource", user.getHobbsUpdatedSource());
         model.addAttribute("tachUpdatedSource", user.getTachUpdatedSource());
 
-            return "dashboard";
+        return "dashboard";
     }
 
     @PostMapping("/dashboard")
     public ResponseEntity<?> addTimeline(
-        @RequestBody Map<String, String> data,
-        Authentication authentication) {
-    String item = data.get("item");
-    if (item == null || item.isEmpty()) {
-        return ResponseEntity.badRequest().body("Item is required");
-    }
-
-    String isTitle = data.getOrDefault("isTitle", "false");
-    String description = data.get("description");
-    String cycle = data.get("cycle");
-    String lastDone = data.get("lastDone");
-    String dueDate = data.get("dueDate");
-    String timeLeft = data.get("timeLeft"); 
-    String ajax = data.getOrDefault("ajax", "false");
-
-    User user = userRepository.findByUsername(authentication.getName());
-    ServiceTimeline timeline = new ServiceTimeline();
-    timeline.setItem(item);
-    boolean isTitleRow = "true".equals(isTitle);
-    timeline.setIsTitle(isTitleRow);
-    if (!isTitleRow) {
-        if (description != null) { /* 
-            String[] defaults = {"inspect", "test", "replace", "overhaul"};
-            if (java.util.Arrays.asList(defaults).contains(description.toLowerCase())) {
-                description = description.substring(0, 1).toUpperCase() + description.substring(1).toLowerCase();
-            }*/
-            timeline.setDescription(description);
-            saveCustomDescriptionOption(description, user);
-            
+            @RequestBody Map<String, String> data,
+            Authentication authentication) {
+        String item = data.get("item");
+        if (item == null || item.isEmpty()) {
+            return ResponseEntity.badRequest().body("Item is required");
         }
-        timeline.setCycle(cycle);
-        timeline.setCycleCalendarValue(parseIntOrNull(data.get("cycleCalendarValue")));
-        timeline.setCycleCalendarUnit(normalizeCalendarUnit(data.get("cycleCalendarUnit")));
-        timeline.setCycleHours(parseDoubleOrNull(data.get("cycleHours")));
-        timeline.setLastDone(lastDone);
-        timeline.setDueDate(dueDate);
-        timeline.setTimeLeft(timeLeft);  // POSSIBLY REMOVE THIS !!!
-        // Automatically calculate timeLeft based on dueDate and user's hours
 
+        String isTitle = data.getOrDefault("isTitle", "false");
+        String description = data.get("description");
+        String cycle = data.get("cycle");
+        String lastDone = data.get("lastDone");
+        String dueDate = data.get("dueDate");
+        String timeLeft = data.get("timeLeft");
+        String ajax = data.getOrDefault("ajax", "false");
 
-        /* 
-        if (dueDate != null) {
-            try {
-                String[] parts = dueDate.split(" ");
-                String datePart = parts[0];
-                String hoursPart = parts.length > 1 ? parts[1] : null;
-                StringBuilder timeLeftStr = new StringBuilder();
-
-                // Calculate days
-                LocalDate today = LocalDate.now();
-                LocalDate due = LocalDate.parse(datePart);
-                long daysLeft = ChronoUnit.DAYS.between(today, due);
-                timeLeftStr.append(daysLeft < 0 ? Math.abs(daysLeft) + " days overdue" : daysLeft + " days left");
-
-                // Calculate hours if present
-                if (hoursPart != null && hoursPart.matches("\\d+")) {
-                    int dueHours = Integer.parseInt(hoursPart);
-                    int currentHours = user.getHours();
-                    int hoursLeft = dueHours - currentHours;
-                    timeLeftStr.append("\n")
-                            .append(hoursLeft < 0 ? Math.abs(hoursLeft) + " hours overdue" : hoursLeft + " hours left");
-                }
-
-                timeline.setTimeLeft(timeLeftStr.toString());
-            } catch (Exception e) {
-                timeline.setTimeLeft("N/A");
-            }
-        }*/
-    }
-    timeline.setUser(user);
-
-    Integer maxOrder = serviceTimelineRepository.findMaxTimelineOrderByUser(user);
-    int newOrder = (maxOrder != null) ? maxOrder + 1 : 0;
-    timeline.setTimelineOrder(newOrder);
-
-    serviceTimelineRepository.save(timeline);
-
-    if ("true".equals(ajax)) {
-        Map<String, Object> response = new HashMap<>();
-        response.put("id", timeline.getId());
-        response.put("item", timeline.getItem());
-        response.put("description", timeline.getDescription());
-        response.put("cycle", timeline.getCycle());
-        response.put("cycleCalendarValue", timeline.getCycleCalendarValue());
-        response.put("cycleCalendarUnit", timeline.getCycleCalendarUnit());
-        response.put("cycleHours", timeline.getCycleHours());
-        response.put("lastDone", timeline.getLastDone());
-        response.put("dueDate", timeline.getDueDate());
-        response.put("timeLeft", timeline.getTimeLeft());
-        response.put("isTitle", timeline.getIsTitle());
-        return ResponseEntity.ok(response);
-    } else {
-        return ResponseEntity.status(HttpStatus.FOUND).location(URI.create("/dashboard")).build();
-    }
-}
-
-@PostMapping("/updateHours")
-@ResponseBody
-public ResponseEntity<Map<String, String>> updateHours(
-        @RequestParam(required = false) Double hobbsTimeToAdd,
-        @RequestParam(required = false) Double tachTimeToAdd,
-        @RequestParam(required = false) Double newHobbsTime,
-        @RequestParam(required = false) Double newTachTime,
-        Authentication authentication) {
-    try {
         User user = userRepository.findByUsername(authentication.getName());
-        if (user == null) {
-            throw new IllegalArgumentException("User not found");
+        ServiceTimeline timeline = new ServiceTimeline();
+        timeline.setItem(item);
+        boolean isTitleRow = "true".equals(isTitle);
+        timeline.setIsTitle(isTitleRow);
+        if (!isTitleRow) {
+            if (description != null) {
+                timeline.setDescription(description);
+                saveCustomDescriptionOption(description, user);
+            }
+            timeline.setCycleCalendarValue(parseIntOrNull(data.get("cycleCalendarValue")));
+            timeline.setCycleCalendarUnit(normalizeCalendarUnit(data.get("cycleCalendarUnit")));
+            timeline.setCycleHours(parseDoubleOrNull(data.get("cycleHours")));
+            timeline.setTimeLeft(timeLeft);
         }
+        timeline.setUser(user);
 
-        boolean updated = false;
+        Integer maxOrder = serviceTimelineRepository.findMaxTimelineOrderByUser(user);
+        int newOrder = (maxOrder != null) ? maxOrder + 1 : 0;
+        timeline.setTimelineOrder(newOrder);
 
-        if (newHobbsTime != null) {
-            user.setHobbsHours(newHobbsTime);
-            // Manual edit also sets the floor — logs can raise this, never lower it.
-            user.setHobbsManualBaseline(newHobbsTime);
-            System.out.println("Setting Hobbs time to: " + newHobbsTime);
-            updated = true;
-        } else if (hobbsTimeToAdd != null) {
-            double currentHobbs = user.getHobbsHours();
-            double newHobbs = currentHobbs + hobbsTimeToAdd;
-            user.setHobbsHours(newHobbs);
-            user.setHobbsManualBaseline(newHobbs);
-            System.out.println("Adding " + hobbsTimeToAdd + " to current Hobbs: " + currentHobbs);
-            updated = true;
+        serviceTimelineRepository.save(timeline);
+
+        if ("true".equals(ajax)) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("id", timeline.getId());
+            response.put("item", timeline.getItem());
+            response.put("description", timeline.getDescription());
+            response.put("cycleCalendarValue", timeline.getCycleCalendarValue());
+            response.put("cycleCalendarUnit", timeline.getCycleCalendarUnit());
+            response.put("cycleHours", timeline.getCycleHours());
+            response.put("timeLeft", timeline.getTimeLeft());
+            response.put("isTitle", timeline.getIsTitle());
+            return ResponseEntity.ok(response);
+        } else {
+            return ResponseEntity.status(HttpStatus.FOUND).location(URI.create("/dashboard")).build();
         }
-
-        double finalHobbs = user.getHobbsHours();
-        System.out.println("Current hobbs: " + finalHobbs);
-
-        if (newTachTime != null) {
-            user.setTachHours(newTachTime);
-            user.setTachManualBaseline(newTachTime);
-            System.out.println("Setting Tach time to: " + newTachTime);
-            updated = true;
-        } else if (tachTimeToAdd != null) {
-            double currentTach = user.getTachHours();
-            double newTach = currentTach + tachTimeToAdd;
-            user.setTachHours(newTach);
-            user.setTachManualBaseline(newTach);
-            System.out.println("Adding " + tachTimeToAdd + " to current Tach: " + currentTach);
-            updated = true;
-        }
-
-        double finalTach = user.getTachHours();
-        System.out.println("Current Tach: " + finalTach);
-
-        if (!updated) {
-            throw new IllegalArgumentException("At least one update parameter must be provided");
-        }
-
-        java.time.Instant now = java.time.Instant.now();
-        if (newHobbsTime != null || hobbsTimeToAdd != null) {
-            user.setHobbsUpdatedAt(now);
-            user.setHobbsUpdatedSource("manual");
-        }
-        if (newTachTime != null || tachTimeToAdd != null) {
-            user.setTachUpdatedAt(now);
-            user.setTachUpdatedSource("manual");
-        }
-
-        userRepository.save(user);
-        Map<String, String> response = new HashMap<>();
-        response.put("status", "success");
-        response.put("newHobbs", String.valueOf(user.getHobbsHours()));
-        response.put("newTach", String.valueOf(user.getTachHours()));
-        return ResponseEntity.ok(response);
-    } catch (Exception e) {
-        Map<String, String> errorResponse = new HashMap<>();
-        errorResponse.put("status", "error");
-        errorResponse.put("message", e.getMessage());
-        System.out.println("Error updating hours: " + e.getMessage());
-        return ResponseEntity.badRequest().body(errorResponse);
     }
-}
+    
+
+    @PostMapping("/updateHours")
+    @ResponseBody
+    public ResponseEntity<Map<String, String>> updateHours(
+            @RequestParam(required = false) Double hobbsTimeToAdd,
+            @RequestParam(required = false) Double tachTimeToAdd,
+            @RequestParam(required = false) Double newHobbsTime,
+            @RequestParam(required = false) Double newTachTime,
+            Authentication authentication) {
+        try {
+            User user = userRepository.findByUsername(authentication.getName());
+            if (user == null) {
+                throw new IllegalArgumentException("User not found");
+            }
+
+            boolean updated = false;
+
+            if (newHobbsTime != null) {
+                user.setHobbsHours(newHobbsTime);
+                // Manual edit also sets the floor — logs can raise this, never lower it.
+                user.setHobbsManualBaseline(newHobbsTime);
+                System.out.println("Setting Hobbs time to: " + newHobbsTime);
+                updated = true;
+            } else if (hobbsTimeToAdd != null) {
+                double currentHobbs = user.getHobbsHours();
+                double newHobbs = currentHobbs + hobbsTimeToAdd;
+                user.setHobbsHours(newHobbs);
+                user.setHobbsManualBaseline(newHobbs);
+                System.out.println("Adding " + hobbsTimeToAdd + " to current Hobbs: " + currentHobbs);
+                updated = true;
+            }
+
+            double finalHobbs = user.getHobbsHours();
+            System.out.println("Current hobbs: " + finalHobbs);
+
+            if (newTachTime != null) {
+                user.setTachHours(newTachTime);
+                user.setTachManualBaseline(newTachTime);
+                System.out.println("Setting Tach time to: " + newTachTime);
+                updated = true;
+            } else if (tachTimeToAdd != null) {
+                double currentTach = user.getTachHours();
+                double newTach = currentTach + tachTimeToAdd;
+                user.setTachHours(newTach);
+                user.setTachManualBaseline(newTach);
+                System.out.println("Adding " + tachTimeToAdd + " to current Tach: " + currentTach);
+                updated = true;
+            }
+
+            double finalTach = user.getTachHours();
+            System.out.println("Current Tach: " + finalTach);
+
+            if (!updated) {
+                throw new IllegalArgumentException("At least one update parameter must be provided");
+            }
+
+            java.time.Instant now = java.time.Instant.now();
+            if (newHobbsTime != null || hobbsTimeToAdd != null) {
+                user.setHobbsUpdatedAt(now);
+                user.setHobbsUpdatedSource("manual");
+            }
+            if (newTachTime != null || tachTimeToAdd != null) {
+                user.setTachUpdatedAt(now);
+                user.setTachUpdatedSource("manual");
+            }
+
+            userRepository.save(user);
+            Map<String, String> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("newHobbs", String.valueOf(user.getHobbsHours()));
+            response.put("newTach", String.valueOf(user.getTachHours()));
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", e.getMessage());
+            System.out.println("Error updating hours: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+    }
 
 
     @PostMapping("/update/{id}")
@@ -311,8 +279,8 @@ public ResponseEntity<Map<String, String>> updateHours(
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(forbidden);
             }
 
-                    System.out.println("Received updateDTO: item=" + updateDTO.getItem() + ", cycle=" + updateDTO.getCycle() +
-                    ", description=" + updateDTO.getDescription() + ", lastDone=" + updateDTO.getLastDone() + 
+            System.out.println("Received updateDTO: item=" + updateDTO.getItem() + ", cycle=" + updateDTO.getCycle() +
+                    ", description=" + updateDTO.getDescription() + ", lastDone=" + updateDTO.getLastDone() +
                     ", dueDate=" + updateDTO.getDueDate() + ", timeLeft=" + updateDTO.getTimeLeft());
 
             if (updateDTO.getItem() != null) timeline.setItem(updateDTO.getItem());
@@ -325,21 +293,20 @@ public ResponseEntity<Map<String, String>> updateHours(
                 timeline.setDescription(description);
                 saveCustomDescriptionOption(description, userRepository.findByUsername(authentication.getName()));
             }
-            if (updateDTO.getCycle() != null) timeline.setCycle(updateDTO.getCycle());
             // Structured cycle fields. The client sends them on every save so
             // null actually means "clear it" here — distinguish empty/null on
             // the client if you ever want partial updates.
             timeline.setCycleCalendarValue(updateDTO.getCycleCalendarValue());
             timeline.setCycleCalendarUnit(normalizeCalendarUnit(updateDTO.getCycleCalendarUnit()));
             timeline.setCycleHours(updateDTO.getCycleHours());
-            if (updateDTO.getLastDone() != null) timeline.setLastDone(updateDTO.getLastDone());
-            if (updateDTO.getDueDate() != null) {
-                timeline.setDueDate(updateDTO.getDueDate());
-                timeline.setTimeLeft(updateDTO.getTimeLeft()); // Use timeLeft from client if provided
-            }
+            timeline.setLastDoneDate(updateDTO.getLastDoneDate());
+            timeline.setLastDoneHours(updateDTO.getLastDoneHours());
+            timeline.setDueDateDate(updateDTO.getDueDateDate());
+            timeline.setDueDateHours(updateDTO.getDueDateHours());
+            timeline.setTimeLeft(updateDTO.getTimeLeft());
             
             ServiceTimeline savedTimeline = serviceTimelineRepository.save(timeline);
-            System.out.println("Saved timeline with item: " +savedTimeline.getItem() + ", " + savedTimeline.getCycle() + ", " + savedTimeline.getDescription() + ", " + savedTimeline.getLastDone() + ", " + savedTimeline.getDueDate() + ", " + savedTimeline.getTimeLeft());
+            System.out.println("Saved timeline with item: " + savedTimeline.getItem() + ", " + savedTimeline.getDescription() + ", " + savedTimeline.getLastDoneHours() + ", " + savedTimeline.getLastDoneDate() + ", "+ savedTimeline.getDueDateHours() + ", "+ savedTimeline.getDueDateDate() + ", " + savedTimeline.getTimeLeft());
 
             Map<String, String> response = new HashMap<>();
             response.put("status", "success");
@@ -493,6 +460,188 @@ public ResponseEntity<Map<String, String>> updateHours(
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping(value="/logbook/upload-csv", consumes="multipart/form-data")
+    @ResponseBody
+    public ResponseEntity<Map<String,Object>> uploadCsv(@RequestParam("csvfile") MultipartFile file, Authentication authentication) {
+        User user = userRepository.findByUsername(authentication.getName());
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
+        }
+
+        log.info("Received file: name={}, size={} bytes", file.getOriginalFilename(), file.getSize());
+
+        return parseGarminCsv(file, user);
+    }
+
+    public static ResponseEntity<Map<String,Object>> parseGarminCsv(MultipartFile file, User user) {
+
+        // Block time: first → last row where oil pressure > 15 psi.
+        // Mirrors the physical Hobbs meter on the Cirrus, which is oil-pressure activated.
+        LocalTime blockStart = null;
+        LocalTime blockEnd   = null;
+
+        // Flight (airborne) time: GndSpd > 35 kt sustained for 3+ consecutive seconds.
+        // Falls back to IAS when GndSpd is empty (no GPS fix yet).
+        LocalTime airborneStart     = null;
+        LocalTime airborneEnd       = null;
+        int       airborneConsec    = 0;
+        LocalTime airborneCandidate = null;
+
+        try(Scanner scanner = new Scanner(file.getInputStream())) {
+            int lineNumber = 0;
+            HashMap<String, Integer> headerIndexMap = new HashMap<>();
+
+            while(scanner.hasNextLine()) {
+                String line = scanner.nextLine();
+                lineNumber++;
+
+                if(lineNumber == 3) {
+                    String[] headers = line.split(",");
+                    for(int i = 0; i < headers.length; i++) {
+                        headerIndexMap.put(headers[i].trim(), i);
+                    }
+
+                    Set<String> expected = java.util.Set.of(
+                        "Lcl Date", "Lcl Time", "UTCOfst", "AtvWpt", "Latitude", "Longitude",
+                        "AltInd", "BaroA", "AltMSL", "OAT", "IAS", "GndSpd", "VSpd", "Pitch",
+                        "Roll", "LatAc", "NormAc", "HDG", "TRK", "volt1", "volt2", "amp1",
+                        "FQtyL", "FQtyR", "E1 FFlow", "E1 OilT", "E1 OilP", "E1 MAP", "E1 RPM",
+                        "E1 %Pwr", "E1 CHT1", "E1 CHT2", "E1 CHT3", "E1 CHT4", "E1 CHT5", "E1 CHT6",
+                        "E1 EGT1", "E1 EGT2", "E1 EGT3", "E1 EGT4", "E1 EGT5", "E1 EGT6",
+                        "E1 TIT1", "E1 TIT2", "E1 Torq", "E1 NG", "E1 ITT", "E2 FFlow", "E2 MAP",
+                        "E2 RPM", "E2 Torq", "E2 NG", "E2 ITT", "AltGPS", "TAS", "HSIS", "CRS",
+                        "NAV1", "NAV2", "COM1", "COM2", "HCDI", "VCDI", "WndSpd", "WndDr",
+                        "WptDst", "WptBrg", "MagVar", "AfcsOn", "RollM", "PitchM", "RollC",
+                        "PichC", "VSpdG", "GPSfix", "HAL", "VAL", "HPLwas", "HPLfd", "VPLwas"
+                    );
+                    if(!headerIndexMap.keySet().containsAll(expected)) {
+                        return ResponseEntity.badRequest().body(Map.of("error", "Not a Garmin CSV file — headers do not match expected format"));
+                    }
+
+                    continue;
+                }
+
+                if(lineNumber <= 3) continue;
+
+                String[] cols = line.split(",", -1);
+                for(int i = 0; i < cols.length; i++) cols[i] = cols[i].trim();
+
+                //If Lcl Time does not exist in this row
+                Integer timeIdx = headerIndexMap.get("Lcl Time");
+                if(timeIdx == null || cols.length <= timeIdx || cols[timeIdx].isEmpty()) continue;
+
+                //Puts the time into a Local time object
+                LocalTime rowTime;
+                try { rowTime = LocalTime.parse(cols[timeIdx]); }
+                catch(Exception e) { continue; }
+
+                // ── Block time via oil pressure ──────────────────────────────────
+                Integer oilPIdx = headerIndexMap.get("E1 OilP");
+                if(oilPIdx != null && cols.length > oilPIdx && !cols[oilPIdx].isEmpty()) {
+                    try {
+                        if(Double.parseDouble(cols[oilPIdx]) > 15.0) {
+                            if(blockStart == null) blockStart = rowTime;
+                            blockEnd = rowTime;
+                        }
+                    } catch(NumberFormatException ignored) {}
+                }
+
+                // ── Airborne time via groundspeed (IAS fallback) ─────────────────
+                double speed = Double.NaN;
+                Integer gndSpdIdx = headerIndexMap.get("GndSpd");
+                if(gndSpdIdx != null && cols.length > gndSpdIdx && !cols[gndSpdIdx].isEmpty()) {
+                    try { speed = Double.parseDouble(cols[gndSpdIdx]); } catch(NumberFormatException ignored) {}
+                }
+                if(Double.isNaN(speed)) {
+                    Integer iasIdx = headerIndexMap.get("IAS");
+                    if(iasIdx != null && cols.length > iasIdx && !cols[iasIdx].isEmpty()) {
+                        try { speed = Double.parseDouble(cols[iasIdx]); } catch(NumberFormatException ignored) {}
+                    }
+                }
+
+                if(!Double.isNaN(speed) && speed > 35.0) {
+                    airborneConsec++;
+                    if(airborneConsec == 1) airborneCandidate = rowTime;
+                    if(airborneConsec >= 3 && airborneStart == null) airborneStart = airborneCandidate;
+                    if(airborneStart != null) airborneEnd = rowTime;
+                } else {
+                    airborneConsec    = 0;
+                    airborneCandidate = null;
+                }
+            }
+
+            if(blockStart == null && airborneStart == null) {
+                return ResponseEntity.badRequest().body(
+                    csvValues("Could not detect airtime or block time", blockStart, blockEnd, airborneStart, airborneEnd));
+            }
+            
+            if(blockStart == null || blockEnd == null) {
+                return ResponseEntity.badRequest().body(
+                    csvValues("Could not detect engine run — Oil pressure does not go up by 15psi", blockStart, blockEnd, airborneStart, airborneEnd));
+            }
+            
+
+            /* 
+            if(airborneStart == null || airborneEnd == null) {
+                return ResponseEntity.badRequest().body(
+                    csvValues("Could not detect air time — Speed does not go above 35kts", blockStart, blockEnd, airborneStart, airborneEnd));
+            }
+
+            */
+
+            //Calculate Block duration
+            //Create Block String H: M: S: 
+            Duration blockDuration = Duration.between(blockStart, blockEnd);
+            String blockStr = "H:" + blockDuration.toHoursPart() + " M:" + blockDuration.toMinutesPart() + " S:" + blockDuration.toSecondsPart();
+
+
+            String airStr = "N/A";
+            Duration airDuration = null;
+            if(airborneStart != null && airborneEnd != null) {
+                airDuration = Duration.between(airborneStart, airborneEnd);
+                airStr = "H:" + airDuration.toHoursPart() + " M:" + airDuration.toMinutesPart() + " S:" + airDuration.toSecondsPart();
+            }
+
+            double hobbsOut = user.getHobbsHours();
+            double hobbsIn  = Math.round((hobbsOut + blockDuration.toSeconds() / 3600.0) * 100.0) / 100.0;
+            double tachOut  = user.getTachHours();
+            Double tachIn   = airDuration != null
+                ? Math.round((tachOut + airDuration.toSeconds() / 3600.0) * 100.0) / 100.0
+                : null;
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("message",        "CSV parse completed");
+            result.put("flightDuration", blockStr);
+            result.put("airDuration",    airStr);
+            result.put("hobbsOut",       hobbsOut);
+            result.put("hobbsIn",        hobbsIn);
+            result.put("tachOut",        tachIn != null ? tachOut : null);
+            result.put("tachIn",         tachIn);
+
+            if(airDuration == null) {
+                result.put("warning", "Air time not detected — Tach fields were not populated");
+            }
+
+            return ResponseEntity.ok(result);
+
+        } catch (IOException e) {
+            log.error("Failed to read CSV file: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", "Could not read the uploaded file"));
+        }
+
+    }
+
+    private static Map<String, Object> csvValues(String error, LocalTime blockStart, LocalTime blockEnd, LocalTime airborneStart, LocalTime airborneEnd) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("error", error);
+        map.put("blockStart", blockStart);
+        map.put("blockEnd", blockEnd);
+        map.put("airborneStart", airborneStart);
+        map.put("airborneEnd", airborneEnd);
+
+        return map;
+    }
+
     private static Map<String, Object> errorBody(String message) {
         Map<String, Object> body = new HashMap<>();
         body.put("status", "error");
@@ -533,10 +682,6 @@ public ResponseEntity<Map<String, String>> updateHours(
         java.time.LocalDate today = java.time.LocalDate.now();
         double currentTach = user.getTachHours();
 
-        String lastDoneStr = buildDateHoursString(
-            hasCalendar ? today : null,
-            hasHours    ? currentTach : null);
-
         java.time.LocalDate dueDateLd = null;
         if (hasCalendar) {
             switch (calUnit) {
@@ -548,14 +693,28 @@ public ResponseEntity<Map<String, String>> updateHours(
             }
         }
         Double dueHours = hasHours ? (currentTach + hrsCycle) : null;
-        String dueDateStr = buildDateHoursString(dueDateLd, dueHours);
 
         String timeLeftStr = computeTimeLeftString(dueDateLd, dueHours, today, currentTach);
-
-        timeline.setLastDone(lastDoneStr);
-        timeline.setDueDate(dueDateStr);
         timeline.setTimeLeft(timeLeftStr);
+
+        // Only update fields that belong to the active cycle type — leave the other type's
+        // fields untouched so they stay visible in the UI after repaint.
+        if (hasCalendar) {
+            timeline.setLastDoneDate(today.toString());
+            timeline.setDueDateDate(dueDateLd != null ? dueDateLd.toString() : null);
+        }
+        if (hasHours) {
+            timeline.setLastDoneHours(formatHours(currentTach));
+            timeline.setDueDateHours(dueHours != null ? formatHours(dueHours) : null);
+        }
         serviceTimelineRepository.save(timeline);
+
+        // Build response strings from the actual saved state so repaintDateHoursCell
+        // receives both the date and hours parts.
+        String lastDoneStr = java.util.stream.Stream.of(timeline.getLastDoneDate(), timeline.getLastDoneHours())
+            .filter(s -> s != null && !s.isEmpty()).collect(java.util.stream.Collectors.joining(" "));
+        String dueDateStr = java.util.stream.Stream.of(timeline.getDueDateDate(), timeline.getDueDateHours())
+            .filter(s -> s != null && !s.isEmpty()).collect(java.util.stream.Collectors.joining(" "));
 
         Map<String, Object> resp = new HashMap<>();
         resp.put("status", "ok");
@@ -585,6 +744,12 @@ public ResponseEntity<Map<String, String>> updateHours(
 
     // Stored format matches the existing "YYYY-MM-DD <hours>" convention that
     // the rest of the app already parses (see calculateTimeLeft in dashboard.js).
+    private static String formatHours(double hours) {
+        return hours == Math.floor(hours)
+            ? Long.toString((long) hours)
+            : Double.toString(hours);
+    }
+
     private static String buildDateHoursString(java.time.LocalDate date, Double hours) {
         StringBuilder sb = new StringBuilder();
         if (date != null) sb.append(date.toString());
