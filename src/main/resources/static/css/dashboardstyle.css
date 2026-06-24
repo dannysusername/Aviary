@@ -63,6 +63,12 @@ input[type="checkbox"]:focus-visible {
   letter-spacing: -0.3px;
 }
 
+.fixed-header .header-left .brand-logo {
+  display: block;
+  height: 44px;
+  width: 44px;
+}
+
 .fixed-header .header-right {
   display: flex;
   flex-direction: row;
