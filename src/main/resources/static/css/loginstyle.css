@@ -70,14 +70,11 @@ input[type="checkbox"]:focus-visible {
   margin-bottom: 14px;
 }
 
-.login-title::before {
-  content: "Aviary";
-  font-size: 30px;
-  font-weight: 700;
-  color: var(--primary-dark);
-  text-transform: none;
-  letter-spacing: -0.5px;
-  margin-bottom: 2px;
+.login-logo {
+  display: block;
+  width: 104px;
+  height: 104px;
+  margin: 0 auto 12px;
 }
 
 /* ── Field group ── */
