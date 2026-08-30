@@ -1,0 +1,10 @@
+Subscription.java is an entity class which represents information about a users subscription. The subscription information 
+includes an id of type long, a User object, a tailNumber of type string, a boolean active variable, a status variable
+of type String, a lastCheckedAt variable of type Instant, a lastSeenAt varible of type instant. 
+
+This class has a @Entity and @Table(name = "subscriptions") annotation which represents it is an Entity and Table in a database.
+Spring should configure this class as an object using dependency injection and create the table in the database. The id variable 
+has a @Id and @GeneratedValue annotation. The @Id annotation tells Spring to set the id variable as the primary key for the table which
+is required for each table. The @GeneratedValue annotation tells the database to set the Id value automatically.
+
+The User object in Subscription.java cannot be stored 

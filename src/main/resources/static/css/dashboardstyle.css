@@ -85,6 +85,7 @@ input[type="checkbox"]:focus-visible {
 /* ── Shared button base ── */
 .fixed-header .header-right .logout-btn,
 .fixed-header .share-btn,
+.fixed-header #subscribe,
 .edit-hours-btn,
 .back-to-full-list-button,
 #add-hobbs-btn,
@@ -103,12 +104,15 @@ input[type="checkbox"]:focus-visible {
 }
 
 .fixed-header .header-right .logout-btn, 
-.fixed-header .share-btn {
+.fixed-header .share-btn,
+.fixed-header #subscribe {
   background: rgba(255,255,255,0.2);
   color: #fff;
   padding: 8px 16px;
 }
-.fixed-header .header-right .logout-btn:hover, .fixed-header .share-btn:hover  { background: rgba(255,255,255,0.3); }
+.fixed-header .header-right .logout-btn:hover,
+.fixed-header .share-btn:hover,
+.fixed-header #subscribe:hover  { background: rgba(255,255,255,0.3); }
 
 .edit-hours-btn,
 .back-to-full-list-button {
@@ -1712,6 +1716,7 @@ textarea::placeholder { display: none; }
 .toast.show { opacity: 1; transform: translateX(0); }
 .toast.error { border-left-color: var(--accent); }
 .toast.success { border-left-color: var(--primary); }
+.toast.info    { border-left-color: var(--text-muted); }
 
 /* ── Confirm dialog ── */
 .confirm-overlay {

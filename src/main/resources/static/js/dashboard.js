@@ -1563,6 +1563,47 @@ document.addEventListener('DOMContentLoaded', () => {
         window.print();
     }
 
+    const subBtn = document.getElementById('subscribe');
+    if(subBtn) {
+        subBtn.addEventListener('click', subscriptionToggle);
+    }
+
+    async function subscriptionToggle() {
+        const tailNumber = document.querySelector('input[name="tailNumber"]').value.trim();
+        const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
+        const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
+
+        try {
+            if(!tailNumber) {
+                showToast('Enter your tail number first.', 'error');
+                return;
+            } 
+
+            const response = await axios.post(
+                '/subscription/toggle',
+                {tailNumber},
+                {headers: { [csrfHeader]: csrfToken, 'Content-Type': 'application/json'}}
+            );
+            const active = response.data.active;
+            console.log('Subscription toggled:', response.data);
+            subBtn.textContent = active ? 'Unsubscribe' : 'Subscribe';
+            showToast(active ? 'Flight sync turned on.' : 'Flight sync turned off.', active ? 'success' : 'info');
+
+        } catch (error){
+            if(!error.response) {
+                showToast('Could not reach the server. Check your connection.', 'error');
+            } else if (error.response.status === 401) {
+                showToast('Your session expired. Please log in again.', 'error');
+            } else if (error.response.status === 400) {
+                showToast(error.response.data?.error || 'That tail number was rejected.', 'error');
+            } else {
+                showToast('Something went wrong. Try again.', 'error');
+            }
+            console.error('Subscription toggle failed:', error.response?.data || error.message);
+        }
+
+    }
+
     const activeButton = document.querySelector('.tab-button.active');
     if (activeButton) {
         const initialTabId = activeButton.dataset.tab;

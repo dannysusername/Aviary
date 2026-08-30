@@ -3,6 +3,7 @@ package com.example.AviaryService.controllers;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,13 +15,18 @@ import org.springframework.web.multipart.MultipartFile;
 import com.example.AviaryService.entity.DescriptionOption;
 import com.example.AviaryService.entity.FlightLog;
 import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.Subscription;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.entity.DTO.TimelineUpdateDTO;
 import com.example.AviaryService.repositories.DescriptionOptionRepository;
 import com.example.AviaryService.repositories.FlightLogRepository;
 import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.SubscriptionRepository;
 import com.example.AviaryService.repositories.UserRepository;
+import com.example.AviaryService.services.SubscriptionService;
+import com.example.AviaryService.services.UserService;
 
+import org.apache.catalina.connector.Response;
 //import org.checkerframework.checker.units.qual.Speed;
 import org.slf4j.Logger;
 //import org.slf4j.LoggerFactory;
@@ -39,13 +45,29 @@ import java.util.Set;
 
 @Controller
 public class UserController {
-    @Autowired private UserRepository userRepository;
-    @Autowired private ServiceTimelineRepository serviceTimelineRepository;
-    @Autowired private PasswordEncoder passwordEncoder;
-    @Autowired private DescriptionOptionRepository descriptionOptionRepository;
-    @Autowired private FlightLogRepository flightLogRepository;
-
+    private final UserRepository userRepository;
+    private final ServiceTimelineRepository serviceTimelineRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final DescriptionOptionRepository descriptionOptionRepository;
+    private final SubscriptionService subscriptionService;
+    private final FlightLogRepository flightLogRepository;
     private static final Logger log = LoggerFactory.getLogger(UserController.class);
+
+    private final UserService userService;
+    
+    public UserController(UserRepository userRepository, ServiceTimelineRepository serviceTimelineRepository,
+            PasswordEncoder passwordEncoder, DescriptionOptionRepository descriptionOptionRepository, 
+            FlightLogRepository flightLogRepository, SubscriptionService subscriptionService, UserService userService) {
+
+        this.userRepository = userRepository;
+        this.serviceTimelineRepository = serviceTimelineRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.descriptionOptionRepository = descriptionOptionRepository;
+        this.flightLogRepository = flightLogRepository;
+        
+        this.subscriptionService = subscriptionService;
+        this.userService = userService;
+    }
 
     @GetMapping("/register")
     public String showRegisterForm() {
@@ -54,13 +76,7 @@ public class UserController {
 
     @PostMapping("/register")
     public String registerUser(@RequestParam String username, @RequestParam String password, Model model) {
-        if (userRepository.findByUsername(username) != null) { //If username exists
-            model.addAttribute("error", "Username already exists");
-            return "register";
-        }
-        User user = new User(username, passwordEncoder.encode(password));
-        userRepository.save(user);
-        return "redirect:/login";
+       return userService.registerUser(username, password, model);
     }
 
     @GetMapping("/login")
@@ -71,31 +87,14 @@ public class UserController {
     @PostMapping("/updateUserInfo")
     @ResponseBody
     public ResponseEntity<Map<String, String>> updateUserInfo(
-            @RequestBody Map<String, String> data,
-            Authentication authentication) {
-        try {
-            User user = userRepository.findByUsername(authentication.getName());
-            if (user == null) {
-                throw new IllegalArgumentException("User not found");
+        @RequestBody Map<String, String> data,
+        Authentication authentication) {
+            try {
+                userService.updateUserInfo(data, authentication);
+                return ResponseEntity.ok(Map.of("status", "success"));
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
             }
-
-            // Update fields if provided in the request
-            if (data.containsKey("makeModel")) user.setMakeModel(data.get("makeModel"));
-            if (data.containsKey("tailNumber")) user.setTailNumber(data.get("tailNumber"));
-            if (data.containsKey("ownerName")) user.setOwnerName(data.get("ownerName"));
-            if (data.containsKey("makeModelSN")) user.setMakeModelSN(data.get("makeModelSN"));
-
-            userRepository.save(user);
-
-            Map<String, String> response = new HashMap<>();
-            response.put("status", "success");
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("status", "error");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
-        }
     }
 
     @GetMapping("/dashboard")
@@ -126,6 +125,7 @@ public class UserController {
     public ResponseEntity<?> addTimeline(
             @RequestBody Map<String, String> data,
             Authentication authentication) {
+                
         String item = data.get("item");
         if (item == null || item.isEmpty()) {
             return ResponseEntity.badRequest().body("Item is required");
@@ -177,7 +177,30 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.FOUND).location(URI.create("/dashboard")).build();
         }
     }
-    
+
+    @PostMapping("/subscription/toggle")
+    @ResponseBody 
+    public ResponseEntity <Map<String,Object>> subscribe(@RequestBody Map<String, String> data, Authentication authentication) {
+        String tailNumber = data.get("tailNumber");
+        String name = authentication.getName();
+        User user = userRepository.findByUsername(name);
+
+        if(tailNumber == null || tailNumber.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "tailNumber is required"));
+        }
+        tailNumber = tailNumber.trim().toUpperCase();
+
+        if(user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
+        }
+
+        boolean active = subscriptionService.toggle(user, tailNumber);
+       
+        return ResponseEntity.ok(Map.of(
+            "tailNumber", tailNumber,
+            "active", active
+        ));
+    } 
 
     @PostMapping("/updateHours")
     @ResponseBody

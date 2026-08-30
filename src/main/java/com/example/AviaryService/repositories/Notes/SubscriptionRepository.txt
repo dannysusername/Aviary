@@ -1,0 +1,46 @@
+A regular Java class contains methods that complete actions. An example includes 
+
+public class Dog {
+    public String bark() {
+        return "woof";
+    }
+}
+
+An interface is a list of methods that must exist which explains what exists instead of what they should do. 
+Example: 
+
+public interface Dog {
+    String bark();
+}
+
+Extends is a keyword used when a class wants to inherit the methods from another class. For example, in this particular 
+case if I want to create a SubscriptionRepository i need to extend JpaRepository because it has a list of many methods.
+JpaRepository class is a class Spring already wrote that contains all standard database operations. 
+
+save(entity)
+findById(id)
+findAll()
+delete(entity)
+count()
+existsById(id)
+
+The finished class looks like this: 
+public interface SubscriptionRepository extends JpaRepository<Subscription, Long> {
+
+    Subscription findByUserAndTailNumber(User user, String tailNumber);
+
+    List<Subscription> findByUser(User user);
+
+    List<Subscription> findByActiveTrue();
+}
+
+The <Subscription, Long> part tells Spring the table we want to search through the Long represents the data type of the
+id. For example, now save() method knows its saving a Subscription.
+
+So right now I have an SubscriptionRepository.java interface class that extends JpaRepository<Subscription, Long>. Right 
+now there is no implementation or code that executes so how does this work?
+
+Spring writes the implementation for you at startup. It scans my project, looks for classes extending JpaRepository, reads 
+each method name, generates a real class with SQL inside and creates an instance. This instance lands inside
+
+@Autowiried private SubscriptionRepository subscriptionRepository which is an example of field injection.
