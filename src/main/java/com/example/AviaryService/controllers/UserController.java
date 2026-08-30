@@ -24,7 +24,10 @@ import com.example.AviaryService.repositories.ServiceTimelineRepository;
 import com.example.AviaryService.repositories.SubscriptionRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.services.SubscriptionService;
+import com.example.AviaryService.services.TimelineService;
 import com.example.AviaryService.services.UserService;
+import com.example.AviaryService.util.Formatting;
+import com.example.AviaryService.util.Parsing;
 
 import org.apache.catalina.connector.Response;
 //import org.checkerframework.checker.units.qual.Speed;
@@ -49,15 +52,16 @@ public class UserController {
     private final ServiceTimelineRepository serviceTimelineRepository;
     private final PasswordEncoder passwordEncoder;
     private final DescriptionOptionRepository descriptionOptionRepository;
-    private final SubscriptionService subscriptionService;
     private final FlightLogRepository flightLogRepository;
     private static final Logger log = LoggerFactory.getLogger(UserController.class);
 
+    private final SubscriptionService subscriptionService;
     private final UserService userService;
+    private final TimelineService timelineService;
     
     public UserController(UserRepository userRepository, ServiceTimelineRepository serviceTimelineRepository,
             PasswordEncoder passwordEncoder, DescriptionOptionRepository descriptionOptionRepository, 
-            FlightLogRepository flightLogRepository, SubscriptionService subscriptionService, UserService userService) {
+            FlightLogRepository flightLogRepository, SubscriptionService subscriptionService, UserService userService, TimelineService timelineService) {
 
         this.userRepository = userRepository;
         this.serviceTimelineRepository = serviceTimelineRepository;
@@ -67,6 +71,7 @@ public class UserController {
         
         this.subscriptionService = subscriptionService;
         this.userService = userService;
+        this.timelineService = timelineService;
     }
 
     @GetMapping("/register")
@@ -131,36 +136,9 @@ public class UserController {
             return ResponseEntity.badRequest().body("Item is required");
         }
 
-        String isTitle = data.getOrDefault("isTitle", "false");
-        String description = data.get("description");
-        String cycle = data.get("cycle");
-        String lastDone = data.get("lastDone");
-        String dueDate = data.get("dueDate");
-        String timeLeft = data.get("timeLeft");
         String ajax = data.getOrDefault("ajax", "false");
-
         User user = userRepository.findByUsername(authentication.getName());
-        ServiceTimeline timeline = new ServiceTimeline();
-        timeline.setItem(item);
-        boolean isTitleRow = "true".equals(isTitle);
-        timeline.setIsTitle(isTitleRow);
-        if (!isTitleRow) {
-            if (description != null) {
-                timeline.setDescription(description);
-                saveCustomDescriptionOption(description, user);
-            }
-            timeline.setCycleCalendarValue(parseIntOrNull(data.get("cycleCalendarValue")));
-            timeline.setCycleCalendarUnit(normalizeCalendarUnit(data.get("cycleCalendarUnit")));
-            timeline.setCycleHours(parseDoubleOrNull(data.get("cycleHours")));
-            timeline.setTimeLeft(timeLeft);
-        }
-        timeline.setUser(user);
-
-        Integer maxOrder = serviceTimelineRepository.findMaxTimelineOrderByUser(user);
-        int newOrder = (maxOrder != null) ? maxOrder + 1 : 0;
-        timeline.setTimelineOrder(newOrder);
-
-        serviceTimelineRepository.save(timeline);
+        ServiceTimeline timeline = timelineService.addTimeline(data, user);
 
         if ("true".equals(ajax)) {
             Map<String, Object> response = new HashMap<>();
@@ -320,7 +298,7 @@ public class UserController {
             // null actually means "clear it" here — distinguish empty/null on
             // the client if you ever want partial updates.
             timeline.setCycleCalendarValue(updateDTO.getCycleCalendarValue());
-            timeline.setCycleCalendarUnit(normalizeCalendarUnit(updateDTO.getCycleCalendarUnit()));
+            timeline.setCycleCalendarUnit(Parsing.normalizeCalendarUnit(updateDTO.getCycleCalendarUnit()));
             timeline.setCycleHours(updateDTO.getCycleHours());
             timeline.setLastDoneDate(updateDTO.getLastDoneDate());
             timeline.setLastDoneHours(updateDTO.getLastDoneHours());
@@ -693,7 +671,7 @@ public class UserController {
         }
 
         Integer calVal = timeline.getCycleCalendarValue();
-        String  calUnit = normalizeCalendarUnit(timeline.getCycleCalendarUnit());
+        String  calUnit = Parsing.normalizeCalendarUnit(timeline.getCycleCalendarUnit());
         Double  hrsCycle = timeline.getCycleHours();
         boolean hasCalendar = (calVal != null && calVal > 0 && calUnit != null);
         boolean hasHours    = (hrsCycle != null && hrsCycle > 0);
@@ -727,8 +705,8 @@ public class UserController {
             timeline.setDueDateDate(dueDateLd != null ? dueDateLd.toString() : null);
         }
         if (hasHours) {
-            timeline.setLastDoneHours(formatHours(currentTach));
-            timeline.setDueDateHours(dueHours != null ? formatHours(dueHours) : null);
+            timeline.setLastDoneHours(Formatting.formatHours(currentTach));
+            timeline.setDueDateHours(dueHours != null ? Formatting.formatHours(dueHours) : null);
         }
         serviceTimelineRepository.save(timeline);
 
@@ -747,44 +725,8 @@ public class UserController {
         return ResponseEntity.ok(resp);
     }
 
-    private static Integer parseIntOrNull(String s) {
-        if (s == null || s.trim().isEmpty()) return null;
-        try { return Integer.valueOf(s.trim()); } catch (NumberFormatException e) { return null; }
-    }
-
-    private static Double parseDoubleOrNull(String s) {
-        if (s == null || s.trim().isEmpty()) return null;
-        try { return Double.valueOf(s.trim()); } catch (NumberFormatException e) { return null; }
-    }
-
-    private static String normalizeCalendarUnit(String raw) {
-        if (raw == null) return null;
-        String u = raw.trim().toUpperCase();
-        if (u.isEmpty()) return null;
-        if (u.equals("DAYS") || u.equals("MONTHS") || u.equals("YEARS")) return u;
-        return null;
-    }
-
     // Stored format matches the existing "YYYY-MM-DD <hours>" convention that
     // the rest of the app already parses (see calculateTimeLeft in dashboard.js).
-    private static String formatHours(double hours) {
-        return hours == Math.floor(hours)
-            ? Long.toString((long) hours)
-            : Double.toString(hours);
-    }
-
-    private static String buildDateHoursString(java.time.LocalDate date, Double hours) {
-        StringBuilder sb = new StringBuilder();
-        if (date != null) sb.append(date.toString());
-        if (hours != null) {
-            if (sb.length() > 0) sb.append(' ');
-            // Trim trailing zeros: 100.0 -> "100", 100.5 -> "100.5"
-            sb.append(hours == Math.floor(hours)
-                ? Long.toString((long) (double) hours)
-                : Double.toString(hours));
-        }
-        return sb.toString();
-    }
 
     private static String computeTimeLeftString(java.time.LocalDate dueDate, Double dueHours,
                                                 java.time.LocalDate today, double currentTach) {
@@ -906,9 +848,6 @@ public class UserController {
         return anyReading ? Math.max(baseline, maxFromLogs) : baseline;
     }
 
-    private static final java.util.Set<String> DEFAULT_DESCRIPTION_OPTIONS =
-        java.util.Set.of("inspect", "test", "replace", "overhaul");
-
     // Drops blank entries and any custom option that duplicates a built-in
     // (case-insensitive). Self-heals legacy bad rows on first dashboard load
     // after this fix ships.
@@ -934,15 +873,5 @@ public class UserController {
         return kept;
     }
 
-    private void saveCustomDescriptionOption(String description, User user) {
-        if (description == null) return;
-        String trimmed = description.trim();
-        if (trimmed.isEmpty()) return;
-        if (DEFAULT_DESCRIPTION_OPTIONS.contains(trimmed.toLowerCase())) return;
-        boolean alreadyExists = descriptionOptionRepository.findByUser(user).stream()
-            .anyMatch(opt -> opt.getOption() != null && opt.getOption().equalsIgnoreCase(trimmed));
-        if (!alreadyExists) {
-            descriptionOptionRepository.save(new DescriptionOption(trimmed, user));
-        }
-    }
+    
 }
