@@ -2,7 +2,6 @@ console.log('dashboard.js loaded');
 
 let timeout;
 let userInfoTimeout;
-let hoursTimeout; // For debouncing hours updates
 let previousHobbsHours = document.getElementById('current-hobbs')?.value || 0;
 let previousTachHours = document.getElementById('current-tach')?.value || 0;
 
@@ -928,48 +927,86 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let previousHobbsHours = 0;
     let previousTachHours = 0;
-    let hoursTimeout;
+
+    // One timer per field. A single shared timer meant that typing in Tach
+    // within 500ms of typing in Hobbs cancelled the pending Hobbs save.
+    let hobbsTimeout;
+    let tachTimeout;
+
+    // The typed value still waiting out the 500ms debounce, or null if none.
+    let pendingHobbsSet = null;
+    let pendingTachSet = null;
 
     const currentHobbsHoursInput = document.getElementById('current-hobbs');
     const currentTachHoursInput = document.getElementById('current-tach');
+
+    function csrfHeaders() {
+        const token = document.querySelector('meta[name="_csrf"]').getAttribute('content');
+        const header = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
+        return { [header]: token };
+    }
+
+    // Sends "set hours to exactly this". Returns a promise so callers can wait
+    // for it to land before doing anything else.
+    async function sendSetHours(kind, value) {
+        const isHobbs = kind === 'hobbs';
+        const input = isHobbs ? currentHobbsHoursInput : currentTachHoursInput;
+        const displayId = isHobbs ? 'current-hobbs-display' : 'current-tach-display';
+        const label = isHobbs ? 'Hobbs' : 'Tach';
+        const previous = isHobbs ? previousHobbsHours : previousTachHours;
+
+        const params = new URLSearchParams();
+        params.append(isHobbs ? 'newHobbsTime' : 'newTachTime', parseFloat(value));
+
+        try {
+            const response = await axios.post('/updateHours', params, { headers: csrfHeaders() });
+            if (response.data.status === 'success') {
+                if (isHobbs) previousHobbsHours = value; else previousTachHours = value;
+                document.getElementById(displayId).textContent = `${label} Time: ${value}`;
+                markUpdatedNow(isHobbs ? 'hobbs-updated' : 'tach-updated', 'manual');
+                console.log(`${label} hours updated successfully:`,
+                    isHobbs ? response.data.newHobbs : response.data.newTach);
+                return true;
+            }
+            console.error(`Failed to update ${label} hours:`, response.data.message);
+        } catch (error) {
+            console.error('Error updating hours:', error.response ? error.response.data : error);
+        }
+        if (input) input.value = previous;
+        document.getElementById(displayId).textContent = `${label} Time: ${previous}`;
+        showToast(`Failed to update ${label} hours.`, 'error');
+        return false;
+    }
+
+    // Send anything still sitting in a debounce right now, and wait for it.
+    // Called before "add hours" so a delayed set can never land afterwards and
+    // overwrite the addition.
+    async function flushPendingHours() {
+        clearTimeout(hobbsTimeout);
+        clearTimeout(tachTimeout);
+        const hobbs = pendingHobbsSet;
+        const tach = pendingTachSet;
+        pendingHobbsSet = null;
+        pendingTachSet = null;
+        if (hobbs !== null) await sendSetHours('hobbs', hobbs);
+        if (tach !== null) await sendSetHours('tach', tach);
+    }
 
     if (currentHobbsHoursInput) {
         previousHobbsHours = currentHobbsHoursInput.value || 0;
         currentHobbsHoursInput.addEventListener('input', function() {
             updateAllTimeLeft();
             updateAddRowTimeLeft();
-            clearTimeout(hoursTimeout);
+            clearTimeout(hobbsTimeout);
             const newHobbsHours = this.value.trim();
             if (newHobbsHours === '' || isNaN(parseFloat(newHobbsHours))) {
+                pendingHobbsSet = null;
                 return;
             }
-            hoursTimeout = setTimeout(() => {
-                const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
-                const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
-                const params = new URLSearchParams();
-                params.append('newHobbsTime', parseFloat(newHobbsHours));
-                axios.post('/updateHours', params, {
-                    headers: { [csrfHeader]: csrfToken }
-                })
-                .then(response => {
-                    if (response.data.status === 'success') {
-                        previousHobbsHours = newHobbsHours;
-                        document.getElementById('current-hobbs-display').textContent = `Hobbs Time: ${newHobbsHours}`;
-                        markUpdatedNow('hobbs-updated', 'manual');
-                        console.log('Hobbs hours updated successfully:', response.data.newHobbs);
-                    } else {
-                        this.value = previousHobbsHours;
-                        document.getElementById('current-hobbs-display').textContent = `Hobbs Time: ${previousHobbsHours}`;
-                        console.error('Failed to update hobbs hours:', response.data.message);
-                        showToast('Failed to update Hobbs hours.', 'error');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error updating hours:', error.response ? error.response.data : error);
-                    this.value = previousHobbsHours;
-                    document.getElementById('current-hobbs-display').textContent = `Hobbs Time: ${previousHobbsHours}`;
-                    showToast('Failed to update Hobbs hours.', 'error');
-                });
+            pendingHobbsSet = newHobbsHours;
+            hobbsTimeout = setTimeout(() => {
+                pendingHobbsSet = null;
+                sendSetHours('hobbs', newHobbsHours);
             }, 500);
         });
     }
@@ -978,38 +1015,16 @@ document.addEventListener('DOMContentLoaded', () => {
         currentTachHoursInput.addEventListener('input', function() {
             updateAllTimeLeft();
             updateAddRowTimeLeft();
-            clearTimeout(hoursTimeout);
+            clearTimeout(tachTimeout);
             const newTachHours = this.value.trim();
             if (newTachHours === '' || isNaN(parseFloat(newTachHours))) {
+                pendingTachSet = null;
                 return;
             }
-            hoursTimeout = setTimeout(() => {
-                const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
-                const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
-                const params = new URLSearchParams();
-                params.append('newTachTime', parseFloat(newTachHours));
-                axios.post('/updateHours', params, {
-                    headers: { [csrfHeader]: csrfToken }
-                })
-                .then(response => {
-                    if (response.data.status === 'success') {
-                        previousTachHours = newTachHours;
-                        document.getElementById('current-tach-display').textContent = `Tach Time: ${newTachHours}`;
-                        markUpdatedNow('tach-updated', 'manual');
-                        console.log('Tach hours updated successfully:', response.data.newTach);
-                    } else {
-                        this.value = previousTachHours;
-                        document.getElementById('current-tach-display').textContent = `Tach Time: ${previousTachHours}`;
-                        console.error('Failed to update tach hours:', response.data.message);
-                        showToast('Failed to update Tach hours.', 'error');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error updating hours:', error.response ? error.response.data : error);
-                    this.value = previousTachHours;
-                    document.getElementById('current-tach-display').textContent = `Tach Time: ${previousTachHours}`;
-                    showToast('Failed to update Tach hours.', 'error');
-                });
+            pendingTachSet = newTachHours;
+            tachTimeout = setTimeout(() => {
+                pendingTachSet = null;
+                sendSetHours('tach', newTachHours);
             }, 500);
         });
     }
@@ -1366,6 +1381,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     async function addHobbsHours(hobbsTimeToAdd) {
         if (hobbsTimeToAdd && !isNaN(hobbsTimeToAdd)) {
+            await flushPendingHours();
             await updateHours({ hobbsTimeToAdd: parseFloat(hobbsTimeToAdd) });
         }
     }
@@ -1373,6 +1389,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Updated addTachHours (now uses updateHours)
     async function addTachHours(tachTimeToAdd) {
         if (tachTimeToAdd && !isNaN(tachTimeToAdd)) {
+            await flushPendingHours();
             await updateHours({ tachTimeToAdd: parseFloat(tachTimeToAdd) });
         }
     }

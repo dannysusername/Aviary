@@ -15,14 +15,14 @@ import org.springframework.web.multipart.MultipartFile;
 import com.example.AviaryService.entity.DescriptionOption;
 import com.example.AviaryService.entity.FlightLog;
 import com.example.AviaryService.entity.ServiceTimeline;
-import com.example.AviaryService.entity.Subscription;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.entity.DTO.TimelineUpdateDTO;
 import com.example.AviaryService.repositories.DescriptionOptionRepository;
 import com.example.AviaryService.repositories.FlightLogRepository;
 import com.example.AviaryService.repositories.ServiceTimelineRepository;
-import com.example.AviaryService.repositories.SubscriptionRepository;
 import com.example.AviaryService.repositories.UserRepository;
+import com.example.AviaryService.services.DescriptionOptionService;
+import com.example.AviaryService.services.HoursService;
 import com.example.AviaryService.services.SubscriptionService;
 import com.example.AviaryService.services.TimelineService;
 import com.example.AviaryService.services.UserService;
@@ -51,27 +51,30 @@ public class UserController {
     private final UserRepository userRepository;
     private final ServiceTimelineRepository serviceTimelineRepository;
     private final PasswordEncoder passwordEncoder;
-    private final DescriptionOptionRepository descriptionOptionRepository;
     private final FlightLogRepository flightLogRepository;
     private static final Logger log = LoggerFactory.getLogger(UserController.class);
 
     private final SubscriptionService subscriptionService;
     private final UserService userService;
     private final TimelineService timelineService;
+    private final DescriptionOptionService descriptionOptionService;
+    private final HoursService hoursService;
     
     public UserController(UserRepository userRepository, ServiceTimelineRepository serviceTimelineRepository,
             PasswordEncoder passwordEncoder, DescriptionOptionRepository descriptionOptionRepository, 
-            FlightLogRepository flightLogRepository, SubscriptionService subscriptionService, UserService userService, TimelineService timelineService) {
+            FlightLogRepository flightLogRepository, SubscriptionService subscriptionService, UserService userService, 
+            TimelineService timelineService, DescriptionOptionService descriptionOptionService, HoursService hoursService) {
 
         this.userRepository = userRepository;
         this.serviceTimelineRepository = serviceTimelineRepository;
         this.passwordEncoder = passwordEncoder;
-        this.descriptionOptionRepository = descriptionOptionRepository;
         this.flightLogRepository = flightLogRepository;
         
         this.subscriptionService = subscriptionService;
         this.userService = userService;
         this.timelineService = timelineService;
+        this.descriptionOptionService = descriptionOptionService;
+        this.hoursService = hoursService;
     }
 
     @GetMapping("/register")
@@ -103,13 +106,12 @@ public class UserController {
     }
 
     @GetMapping("/dashboard")
-    @Transactional
     public String showDashboard(Model model, Authentication authentication) {
         String username = authentication.getName();
         User user = userRepository.findByUsername(username);
         model.addAttribute("username", username);
         model.addAttribute("timelines", serviceTimelineRepository.findByUserOrderByTimelineOrderAsc(user));
-        model.addAttribute("descriptionOptions", cleanupAndLoadDescriptionOptions(user));
+        model.addAttribute("descriptionOptions", descriptionOptionService.cleanupAndLoadDescriptionOptions(user));
         model.addAttribute("hobbsHours", user.getHobbsHours());
         model.addAttribute("tachHours", user.getTachHours());
 
@@ -193,64 +195,13 @@ public class UserController {
             if (user == null) {
                 throw new IllegalArgumentException("User not found");
             }
-
-            boolean updated = false;
-
-            if (newHobbsTime != null) {
-                user.setHobbsHours(newHobbsTime);
-                // Manual edit also sets the floor — logs can raise this, never lower it.
-                user.setHobbsManualBaseline(newHobbsTime);
-                System.out.println("Setting Hobbs time to: " + newHobbsTime);
-                updated = true;
-            } else if (hobbsTimeToAdd != null) {
-                double currentHobbs = user.getHobbsHours();
-                double newHobbs = currentHobbs + hobbsTimeToAdd;
-                user.setHobbsHours(newHobbs);
-                user.setHobbsManualBaseline(newHobbs);
-                System.out.println("Adding " + hobbsTimeToAdd + " to current Hobbs: " + currentHobbs);
-                updated = true;
-            }
-
-            double finalHobbs = user.getHobbsHours();
-            System.out.println("Current hobbs: " + finalHobbs);
-
-            if (newTachTime != null) {
-                user.setTachHours(newTachTime);
-                user.setTachManualBaseline(newTachTime);
-                System.out.println("Setting Tach time to: " + newTachTime);
-                updated = true;
-            } else if (tachTimeToAdd != null) {
-                double currentTach = user.getTachHours();
-                double newTach = currentTach + tachTimeToAdd;
-                user.setTachHours(newTach);
-                user.setTachManualBaseline(newTach);
-                System.out.println("Adding " + tachTimeToAdd + " to current Tach: " + currentTach);
-                updated = true;
-            }
-
-            double finalTach = user.getTachHours();
-            System.out.println("Current Tach: " + finalTach);
-
-            if (!updated) {
-                throw new IllegalArgumentException("At least one update parameter must be provided");
-            }
-
-            java.time.Instant now = java.time.Instant.now();
-            if (newHobbsTime != null || hobbsTimeToAdd != null) {
-                user.setHobbsUpdatedAt(now);
-                user.setHobbsUpdatedSource("manual");
-            }
-            if (newTachTime != null || tachTimeToAdd != null) {
-                user.setTachUpdatedAt(now);
-                user.setTachUpdatedSource("manual");
-            }
-
-            userRepository.save(user);
+            hoursService.updateHours(hobbsTimeToAdd, tachTimeToAdd, newHobbsTime, newTachTime, user);
             Map<String, String> response = new HashMap<>();
             response.put("status", "success");
             response.put("newHobbs", String.valueOf(user.getHobbsHours()));
             response.put("newTach", String.valueOf(user.getTachHours()));
             return ResponseEntity.ok(response);
+            
         } catch (Exception e) {
             Map<String, String> errorResponse = new HashMap<>();
             errorResponse.put("status", "error");
@@ -292,7 +243,7 @@ public class UserController {
                     description = description.substring(0, 1).toUpperCase() + description.substring(1).toLowerCase();
                 }
                 timeline.setDescription(description);
-                saveCustomDescriptionOption(description, userRepository.findByUsername(authentication.getName()));
+                descriptionOptionService.saveCustomDescriptionOption(description, userRepository.findByUsername(authentication.getName()));
             }
             // Structured cycle fields. The client sends them on every save so
             // null actually means "clear it" here — distinguish empty/null on
@@ -336,29 +287,19 @@ public class UserController {
 
     @DeleteMapping("/deleteOption/{id}")
     @ResponseBody
-    @Transactional
     public ResponseEntity<String> deleteOption(@PathVariable Long id, Authentication authentication) {
+        User user = userRepository.findByUsername(authentication.getName());
+
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("User not authenticated");
+        }
         try {
-            log.info("Attempting to delete option with ID: {}", id);
-            User user = userRepository.findByUsername(authentication.getName());
-            if (user == null) {
-                log.error("User not found for username: {}", authentication.getName());
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("User not authenticated");
-            }
-            log.info("Authenticated user: {}", user.getUsername());
-            DescriptionOption option = descriptionOptionRepository.findById(id)
-                    .orElseThrow(() -> new IllegalArgumentException("Option not found"));
-            log.info("Found option: {} for user: {}", option.getOption(), option.getUser().getUsername());
-            if (!option.getUser().equals(user)) {
-                log.warn("User {} does not own option {}", user.getUsername(), option.getOption());
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("You do not own this option");
-            }
-            descriptionOptionRepository.delete(option);
-            log.info("Option {} deleted successfully", option.getOption());
+            descriptionOptionService.deleteOption(user, id);
             return ResponseEntity.ok("Option deleted");
-        } catch (Exception e) {
-            log.error("Error deleting option with ID: {}", id, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error deleting option: " + e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
         }
     }
 
@@ -758,24 +699,18 @@ public class UserController {
         if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorBody("User not authenticated"));
         }
-        String raw = body == null ? null : body.get("option");
-        if (raw == null) return ResponseEntity.badRequest().body(errorBody("Missing option"));
-        String trimmed = raw.trim();
-        if (trimmed.isEmpty()) return ResponseEntity.badRequest().body(errorBody("Option cannot be blank"));
-        if (DEFAULT_DESCRIPTION_OPTIONS.contains(trimmed.toLowerCase())) {
-            return ResponseEntity.badRequest().body(errorBody("That option already exists as a default"));
+
+        try {
+            DescriptionOption saved = descriptionOptionService.addOption(user, body == null ? null : body.get("option"));
+            Map<String, Object> resp = new HashMap<>();
+            resp.put("status", "ok");
+            resp.put("id", saved.getId());
+            resp.put("option", saved.getOption());
+            return ResponseEntity.ok(resp);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(errorBody(e.getMessage()));
         }
-        DescriptionOption existing = descriptionOptionRepository.findByUser(user).stream()
-            .filter(opt -> opt.getOption() != null && opt.getOption().equalsIgnoreCase(trimmed))
-            .findFirst().orElse(null);
-        DescriptionOption saved = (existing != null)
-            ? existing
-            : descriptionOptionRepository.save(new DescriptionOption(trimmed, user));
-        Map<String, Object> resp = new HashMap<>();
-        resp.put("status", "ok");
-        resp.put("id", saved.getId());
-        resp.put("option", saved.getOption());
-        return ResponseEntity.ok(resp);
+    
     }
 
     // DELETE flight log
@@ -851,27 +786,6 @@ public class UserController {
     // Drops blank entries and any custom option that duplicates a built-in
     // (case-insensitive). Self-heals legacy bad rows on first dashboard load
     // after this fix ships.
-    private List<DescriptionOption> cleanupAndLoadDescriptionOptions(User user) {
-        List<DescriptionOption> all = descriptionOptionRepository.findByUser(user);
-        java.util.Set<String> keptLower = new java.util.HashSet<>();
-        List<DescriptionOption> kept = new java.util.ArrayList<>();
-        List<DescriptionOption> toDelete = new java.util.ArrayList<>();
-        for (DescriptionOption opt : all) {
-            String value = opt.getOption();
-            String trimmed = value == null ? "" : value.trim();
-            String lower = trimmed.toLowerCase();
-            boolean isBlank = trimmed.isEmpty();
-            boolean isDefault = DEFAULT_DESCRIPTION_OPTIONS.contains(lower);
-            boolean isDup = !keptLower.add(lower);
-            if (isBlank || isDefault || isDup) {
-                toDelete.add(opt);
-            } else {
-                kept.add(opt);
-            }
-        }
-        if (!toDelete.isEmpty()) descriptionOptionRepository.deleteAll(toDelete);
-        return kept;
-    }
 
     
 }

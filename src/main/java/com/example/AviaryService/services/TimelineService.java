@@ -10,6 +10,8 @@ import com.example.AviaryService.repositories.ServiceTimelineRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.util.Parsing;
 
+import jakarta.transaction.Transactional;
+
 @Service
 public class TimelineService {
 
@@ -22,8 +24,8 @@ public class TimelineService {
         this.descriptionOptionService = descriptionOptionService;
     }
 
+    @Transactional
     public ServiceTimeline addTimeline(Map<String, String> data, User user) {
-
         String item = data.get("item");
         String isTitle = data.getOrDefault("isTitle", "false");
         String description = data.get("description");

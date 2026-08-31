@@ -12,6 +12,8 @@ import org.springframework.ui.Model;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.UserRepository;
 
+import jakarta.transaction.Transactional;
+
 @Service
 public class UserService {
     
@@ -23,6 +25,7 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
+    @Transactional
     public String registerUser(String username, String password, Model model) {
         if (userRepository.findByUsername(username) != null) { //If username exists
             model.addAttribute("error", "Username already exists");
@@ -33,6 +36,7 @@ public class UserService {
         return "redirect:/login";
     }
 
+    @Transactional
     public void updateUserInfo (Map<String, String> data,
         Authentication authentication) {
             User user = userRepository.findByUsername(authentication.getName());

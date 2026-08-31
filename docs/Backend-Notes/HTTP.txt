@@ -1,0 +1,8 @@
+What is HTTP article: https://www.cloudflare.com/learning/ddos/glossary/hypertext-transfer-protocol-http/
+
+HTTP stands for Hyper Text Transfer Protocol. HTTP is a protocol that is used to load web pages using hypertext links. HTTP
+is a protocol on the application layer that sends information between networked devices. The typical flow over HTTP is a client 
+sending a request to a server and getting a response in return.
+
+A HTTP request includes this information:
+Request URL, Request Method, Status Code, Request Headers & Request Body
