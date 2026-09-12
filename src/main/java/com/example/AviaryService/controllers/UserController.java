@@ -397,6 +397,10 @@ public class UserController {
             response.put("cycleCalendarValue", timeline.getCycleCalendarValue());
             response.put("cycleCalendarUnit", timeline.getCycleCalendarUnit());
             response.put("cycleHours", timeline.getCycleHours());
+            response.put("lastDoneDate", timeline.getLastDoneDate());
+            response.put("lastDoneHours", timeline.getLastDoneHours());
+            response.put("dueDateDate", timeline.getDueDateDate());
+            response.put("dueDateHours", timeline.getDueDateHours());
             response.put("timeLeft", timeline.getTimeLeft());
             response.put("isTitle", timeline.getIsTitle());
             return ResponseEntity.ok(response);

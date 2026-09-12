@@ -484,6 +484,23 @@ th {
   text-align: left;
 }
 
+/* Sticky column header (desktop only). The header cells pin just below the
+   64px .fixed-header while the table scrolls, and sticky positioning releases
+   them automatically once the table's bottom passes, so no JS is needed.
+   Sticky goes on the th cells (not thead) for cross-browser support. The
+   inset shadow replaces the thead border-bottom, which doesn't travel with
+   stuck cells under border-collapse. Mobile hides .sortable-head entirely;
+   `screen` keeps print layout untouched. Dropdowns (z-index 1500) and the
+   fixed header (2000) still layer above. */
+@media screen and (min-width: 961px) {
+  #sortable-info-table .sortable-head th {
+    position: sticky;
+    top: 64px;
+    z-index: 10;
+    box-shadow: inset 0 -2px 0 rgba(255, 255, 255, 0.2);
+  }
+}
+
 td {
   padding: 8px 10px;
   text-align: left;

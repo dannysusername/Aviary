@@ -30,8 +30,6 @@ public class TimelineService {
         String isTitle = data.getOrDefault("isTitle", "false");
         String description = data.get("description");
         String cycle = data.get("cycle");
-        String lastDone = data.get("lastDone");
-        String dueDate = data.get("dueDate");
         String timeLeft = data.get("timeLeft");
         String ajax = data.getOrDefault("ajax", "false");
 
@@ -48,6 +46,10 @@ public class TimelineService {
             timeline.setCycleCalendarValue(Parsing.parseIntOrNull(data.get("cycleCalendarValue")));
             timeline.setCycleCalendarUnit(Parsing.normalizeCalendarUnit(data.get("cycleCalendarUnit")));
             timeline.setCycleHours(Parsing.parseDoubleOrNull(data.get("cycleHours")));
+            timeline.setLastDoneDate(blankToNull(data.get("lastDoneDate")));
+            timeline.setLastDoneHours(blankToNull(data.get("lastDoneHours")));
+            timeline.setDueDateDate(blankToNull(data.get("dueDateDate")));
+            timeline.setDueDateHours(blankToNull(data.get("dueDateHours")));
             timeline.setTimeLeft(timeLeft);
         }
         timeline.setUser(user);
@@ -58,5 +60,10 @@ public class TimelineService {
 
         return serviceTimelineRepository.save(timeline);
 
+    }
+
+    // Store "" as null so an empty input matches a never-set field.
+    private static String blankToNull(String s) {
+        return (s == null || s.isBlank()) ? null : s.trim();
     }
 }
