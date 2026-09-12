@@ -845,7 +845,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (tr.classList.contains('auto-save-row')) {
                             autoSave(newInput);
                         } else {
-                            updateAddRowHiddenInputs();
                             updateAddRowTimeLeft();
                         }
                     };
@@ -865,7 +864,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (tr.classList.contains('auto-save-row')) {
                             autoSave(newInput);
                         } else {
-                            updateAddRowHiddenInputs();
                             updateAddRowTimeLeft();
                         }
                     };
@@ -880,7 +878,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (tr.classList.contains('auto-save-row')) {
                         autoSave(button); // Trigger save for sortable rows
                     } else {
-                        updateAddRowHiddenInputs();
                         updateAddRowTimeLeft();
                     }
                 } else if (type === 'clock' && existingText) {
@@ -889,7 +886,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (tr.classList.contains('auto-save-row')) {
                         autoSave(button); // Trigger save for sortable rows
                     } else {
-                        updateAddRowHiddenInputs();
                         updateAddRowTimeLeft();
                     }
                 }
@@ -1196,32 +1192,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function updateAddRowHiddenInputs() {
-        const lastDoneTd = document.getElementById('lastDoneHidden').parentElement;
-        const dueDateTd = document.getElementById('dueDateHidden').parentElement;
-
-        const lastDoneContainer = lastDoneTd.querySelector('.input-with-dropdown');
-        const dueDateContainer = dueDateTd.querySelector('.input-with-dropdown');
-
-        if (lastDoneContainer) {
-            const lastDoneDate = lastDoneContainer.querySelector('input[type="date"]');
-            const lastDoneText = lastDoneContainer.querySelector('input[type="text"].extra-input');
-            let lastDoneValue = '';
-            if (lastDoneDate) lastDoneValue += lastDoneDate.value;
-            if (lastDoneText) lastDoneValue += lastDoneValue ? ` ${lastDoneText.value}` : lastDoneText.value;
-            document.getElementById('lastDoneHidden').value = lastDoneValue.trim();
-        }
-
-        if (dueDateContainer) {
-            const dueDateDate = dueDateContainer.querySelector('input[type="date"]');
-            const dueDateText = dueDateContainer.querySelector('input[type="text"].extra-input');
-            let dueDateValue = '';
-            if (dueDateDate) dueDateValue += dueDateDate.value;
-            if (dueDateText) dueDateValue += dueDateValue ? ` ${dueDateText.value}` : dueDateText.value;
-            document.getElementById('dueDateHidden').value = dueDateValue.trim();
-        }
-    }
-
     const itemOption = document.querySelector('.row-type-option[data-type="item"]');
     if (itemOption) {
         selectRowType('item', itemOption);
@@ -1233,8 +1203,8 @@ document.addEventListener('DOMContentLoaded', () => {
         event.preventDefault();
 
         const isTitleHidden = document.getElementById('isTitleHidden');
-        const itemInput = document.getElementById('itemInput').querySelector('textarea');
-        const titleInput = document.getElementById('titleInput').querySelector('input');
+        const itemInput = document.getElementById('itemInput').querySelector('textarea'); //get item input
+        const titleInput = document.getElementById('titleInput').querySelector('input'); //get title input
         const isTitle = isTitleHidden.value === 'true';
         const item = isTitle ? titleInput.value : itemInput.value;
 
@@ -1244,8 +1214,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const description = document.querySelector('.add-row .custom-dropdown input[name="description"]').value;
-        const lastDone = document.getElementById('lastDoneHidden').value;
-        const dueDate = document.getElementById('dueDateHidden').value;
         const timeLeft = document.querySelector('.add-row .time-left').textContent;
         const addCalVal  = document.querySelector('.add-row input[name="cycleCalendarValue"]')?.value || '';
         const addCalUnit = document.querySelector('.add-row select[name="cycleCalendarUnit"]')?.value || '';
@@ -1261,11 +1229,19 @@ document.addEventListener('DOMContentLoaded', () => {
             cycleCalendarValue: addCalVal,
             cycleCalendarUnit: addCalUnit,
             cycleHours: addHrs,
-            lastDone: lastDone,
-            dueDate: dueDate,
             timeLeft: timeLeft,
             ajax: 'true'
         };
+
+        // Send date and hours as separate fields, matching autoSave and the entity.
+        ['lastDone', 'dueDate'].forEach(field => {
+            const label = field === 'lastDone' ? 'Last Done' : 'Due Date';
+            const container = document.querySelector(`.add-row td[data-label="${label}"] .input-with-dropdown`);
+            const dateInput = container.querySelector('input[type="date"]');
+            const textInput = container.querySelector('input[type="text"].extra-input');
+            data[`${field}Date`]  = dateInput ? dateInput.value.trim() : '';
+            data[`${field}Hours`] = textInput ? textInput.value.trim() : '';
+        });
 
         console.log("NEW Service timeline row, POST request -->: ", data);
 
@@ -1288,9 +1264,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             } else {
                 newRow.className = 'auto-save-row';
-                newRow.setAttribute('data-lastDone', newRowData.lastDone);
-                newRow.setAttribute('data-dueDate', newRowData.dueDate);
-                newRow.setAttribute('data-cycle', newRowData.cycle);
+                newRow.setAttribute('data-lastDoneDate',  newRowData.lastDoneDate  ?? '');
+                newRow.setAttribute('data-lastDoneHours', newRowData.lastDoneHours ?? '');
+                newRow.setAttribute('data-dueDateDate',   newRowData.dueDateDate   ?? '');
+                newRow.setAttribute('data-dueDateHours',  newRowData.dueDateHours  ?? '');
+                const lastDonePrint = [newRowData.lastDoneDate, newRowData.lastDoneHours].filter(Boolean).join(' ');
+                const dueDatePrint  = [newRowData.dueDateDate,  newRowData.dueDateHours].filter(Boolean).join(' ');
                 newRow.innerHTML = `
                 <td class="grip-cell"><span class="grip-icon no-print"><i class="fa-solid fa-grip-vertical"></i></span></td>
                 <td data-label="Item"><textarea name="item" class="no-print" oninput="autoSave(this)">${newRowData.item}</textarea><i class="fa-solid fa-chevron-down card-caret no-print"></i><span class="print-only">${newRowData.item}</span></td>
@@ -1340,7 +1319,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="type-option"><span>Clock</span><button class="add-type" data-type="clock">+</button></div>
                         </div>
                     </div>
-                    <span class="print-only">${newRowData.lastDone}</span>
+                    <span class="print-only">${lastDonePrint}</span>
                 </td>
                 <td data-label="Due Date">
                     <div class="input-with-dropdown no-print">
@@ -1350,7 +1329,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="type-option"><span>Clock</span><button class="add-type" data-type="clock">+</button></div>
                         </div>
                     </div>
-                    <span class="print-only">${newRowData.dueDate}</span>
+                    <span class="print-only">${dueDatePrint}</span>
                 </td>
                 <td data-label="Time Left"><div class="time-left">${newRowData.timeLeft ?? ''}</div></td>
                 <td class="complete-cell no-print" data-label="">
@@ -1363,43 +1342,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 </td>
                 <td class="delete-cell" data-label=""><span class="delete-icon no-print" onclick="deleteRow(this)"><i class="fa-solid fa-trash-can fa-xl"></i></span></td>
             `;
-                    // Handle lastDone and dueDate inputs (existing code)
+                    // Build the lastDone / dueDate inputs from the split fields
                     ['lastDone', 'dueDate'].forEach((field, index) => {
-                        const value = newRowData[field];
-                        if (value) {
-                            const container = newRow.querySelector(`td:nth-child(${index === 0 ? 5 : 6}) .input-with-dropdown`);
-                            const parts = value.split(' ');
-                            let datePart = null;
-                            let textPart = null;
+                        const container = newRow.querySelector(`td:nth-child(${index === 0 ? 5 : 6}) .input-with-dropdown`);
+                        const datePart = newRowData[`${field}Date`];
+                        const textPart = newRowData[`${field}Hours`];
 
-                            if (parts[0].match(/^\d{4}-\d{2}-\d{2}$/)) {
-                                datePart = parts[0];
-                                if (parts.length > 1) {
-                                    textPart = parts.slice(1).join(' ');
-                                }
-                            } else {
-                                textPart = value;
-                            }
+                        if (datePart) {
+                            const dateInput = document.createElement('input');
+                            dateInput.type = 'date';
+                            dateInput.name = `${field}_date`;
+                            dateInput.className = 'extra-input';
+                            dateInput.value = datePart;
+                            dateInput.oninput = () => autoSave(dateInput);
+                            container.insertBefore(dateInput, container.querySelector('.trigger-dropdown'));
+                            container.querySelector('.add-type[data-type="calendar"]').textContent = '-';
+                        }
 
-                            if (datePart) {
-                                const dateInput = document.createElement('input');
-                                dateInput.type = 'date';
-                                dateInput.className = 'extra-input';
-                                dateInput.value = datePart;
-                                dateInput.oninput = () => autoSave(dateInput);
-                                container.insertBefore(dateInput, container.querySelector('.trigger-dropdown'));
-                                container.querySelector('.add-type[data-type="calendar"]').textContent = '-';
-                            }
-
-                            if (textPart) {
-                                const textInput = document.createElement('input');
-                                textInput.type = 'text';
-                                textInput.className = 'extra-input';
-                                textInput.value = textPart;
-                                textInput.oninput = () => autoSave(textInput);
-                                container.insertBefore(textInput, container.querySelector('.trigger-dropdown'));
-                                container.querySelector('.add-type[data-type="clock"]').textContent = '-';
-                            }
+                        if (textPart) {
+                            const textInput = document.createElement('input');
+                            textInput.type = 'text';
+                            textInput.name = `${field}_text`;
+                            textInput.className = 'extra-input';
+                            textInput.placeholder = 'Enter hours';
+                            textInput.value = textPart;
+                            textInput.oninput = () => autoSave(textInput);
+                            container.insertBefore(textInput, container.querySelector('.trigger-dropdown'));
+                            container.querySelector('.add-type[data-type="clock"]').textContent = '-';
                         }
                     });
                     const dropdown = newRow.querySelector('.custom-dropdown');
@@ -1457,8 +1426,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.querySelectorAll('.add-row .input-with-dropdown input.extra-input').forEach(input => input.remove());
                 document.querySelectorAll('.add-row .add-type').forEach(btn => btn.textContent = '+');
                 document.querySelector('.add-row .time-left').textContent = '';
-                document.getElementById('lastDoneHidden').value = '';
-                document.getElementById('dueDateHidden').value = '';
 
                 selectRowType('item', document.querySelector('.row-type-option[data-type="item"]'));
 

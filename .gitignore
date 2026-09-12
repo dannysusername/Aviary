@@ -44,5 +44,6 @@ CLAUDE.md
 
 ### Local security notes — not committed by default (an open-findings list should not be public) ###
 docs/SECURITY.md
+docs/
 .gstack/
 sendgrid.env
