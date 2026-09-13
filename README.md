@@ -1,10 +1,10 @@
-# AviaryService
+# Aviary
 
-**AviaryService is live — just open it in your browser:**
+**Aviary is live — just open it in your browser:**
 
 ### 👉 https://aviarist-d300b0c36379.herokuapp.com/login
 
-No install, no setup, nothing to download. Register a username + password and you're in. Everything below is for people who want to *develop* AviaryService; if you just want to *use* it, the link above is all you need.
+No install, no setup, nothing to download. Register a username + password and you're in. Everything below is for people who want to *develop* Aviary; if you just want to *use* it, the link above is all you need.
 
 ---
 
@@ -25,17 +25,13 @@ Each account is fully isolated — its own aircraft, service timeline, flight lo
 2. **Fill in your aircraft info** — make/model, tail number, owner, serial.
 3. **Build your service timeline** — add maintenance items with a calendar or hours cycle. Rows are drag-reorderable, and you can insert title rows to group them.
 4. **Set your hours** — enter current Hobbs and Tach manually, or let the log book keep them current.
-5. **Log flights** — add entries by hand, or upload a Garmin CSV and AviaryService computes the times and updates your meters.
-
-## Tech stack
-
-Spring Boot 3.4.3 on Java 21, server-rendered with Thymeleaf, secured with Spring Security (BCrypt, form login). Data access is Spring Data JPA / Hibernate. **H2 in-memory** locally, **PostgreSQL** in production — selected by Spring profile. Built with Gradle.
+5. **Log flights** — add entries by hand, or upload a Garmin CSV and Aviary computes the times and updates your meters.
 
 ---
 
 ## Local development
 
-AviaryService is a single Spring Boot app. The active profile decides the database:
+Aviary is a single Spring Boot 3.4.3 app on Java 21: server-rendered with Thymeleaf, secured with Spring Security (BCrypt, form login), data access through Spring Data JPA / Hibernate, built with Gradle. The active profile decides the database — **H2 in-memory** locally, **PostgreSQL** in production:
 
 | Profile | Database | Use |
 |---|---|---|
