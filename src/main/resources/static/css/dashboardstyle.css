@@ -386,10 +386,10 @@ input[type="checkbox"]:focus-visible {
   flex: 0 0 200px;
   color: var(--text-muted);
   font-weight: 600;
-  font-size: 12px;
+  font-size: clamp(4px, 3vw, 12px);
   text-transform: uppercase;
   letter-spacing: 0.4px;
-  padding: 10px 14px;
+  padding: 10px clamp(5px, .8vw, 14px) 10px 14px;
   display: flex;
   align-items: center;
 }
@@ -399,17 +399,17 @@ input[type="checkbox"]:focus-visible {
 .hours-table tr td:nth-child(2),  .settings-table tr td:nth-child(2){
   flex: 1;
   min-width: 0;
-  padding: 6px 10px;
+  padding: 10px clamp(5px, .8vw, 14px) 10px 14px;
 }
 
 .aircraft-info-table input,
 .hours-table input, .settings-table input{
   width: 100%;
-  padding: 6px 10px;
+  padding: 6px 0px;
   border: 1px solid transparent;
   border-radius: 5px;
   font-family: inherit;
-  font-size: 14px;
+  font-size: clamp(2px, 3vw, 14px);
   color: var(--text);
   background: transparent;
 }
@@ -476,7 +476,7 @@ thead { border-bottom: 2px solid rgba(255, 255, 255, 0.2); }
 th {
   background: var(--primary);
   color: #fff;
-  font-size: 12px;
+  font-size: clamp(2px, 2vw, 12px);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -516,9 +516,6 @@ td {
 table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table):not(.settings-table) td {
   border-top: 1px solid var(--border);
   overflow-wrap: break-word;
-}
-table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table):not(.settings-table) td + td {
-  border-left: 1px solid var(--border);
 }
 
 /* Icon cells (grip handle, complete/update button, delete trash, Add button)
@@ -1063,9 +1060,8 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td:has(> .
   border: none;
   width: 100%;
   border-collapse: collapse;
-  background: var(--surface);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
+  /*box-shadow: var(--shadow-sm);*/
   overflow: hidden;
   table-layout: fixed;
 }
@@ -1394,7 +1390,6 @@ textarea::placeholder { display: none; }
     max-height: 160px;
     border: none;
     background: transparent;
-    padding: 0 0 2px;
     font-size: 19px;
     font-weight: 700;
     color: var(--text);
@@ -1655,18 +1650,20 @@ textarea::placeholder { display: none; }
   .logbook-table tr.log-row,
   .logbook-table tr.add-log-row {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 12px;
     padding: 14px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
     box-shadow: var(--shadow-sm);
     background: var(--primary-light);
-    margin-bottom: 4px;
   }
 
-  .logbook-table td {
-    display: block;
+  .logbook-table td:not(.delete-cell , .add-cell) {
+    grid-template-columns: minmax(0, 1fr);
+    display: grid;
+    grid-row: span 3;
+    grid-template-columns: subgrid;
     padding: 0;
     border: none;
     background: transparent;
@@ -1938,7 +1935,7 @@ textarea::placeholder { display: none; }
 }
 .all-suggestions-table th, .all-suggestions-table td {
   text-align: left;
-  padding: 6px 8px;
+  padding: 5px clamp(2px, .8vw, 6px);
   border-bottom: 1px solid var(--border);
 }
 .audit-add-btn, .audit-delete-btn {

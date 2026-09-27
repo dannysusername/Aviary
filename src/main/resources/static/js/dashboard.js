@@ -2118,16 +2118,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('dashboard-page').classList.add('active');
     });
 
-    // NEW: Tab switching
-    document.querySelectorAll('.tab-button').forEach(button => {
-        button.addEventListener('click', () => {
-            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.style.display = 'none');
-            button.classList.add('active');
-            document.getElementById(button.dataset.tab).style.display = 'block';
-        });
-    });
-
     // NEW: Add log row via AJAX
     // Wire up the delete listener for one flight-log row's delete button.
     function wireDeleteLogButton(button) {
