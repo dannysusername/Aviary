@@ -21,7 +21,11 @@ Each stylesheet defines the same CSS-variable palette (`--primary` green `#2C9B6
 - **AJAX:** `axios`, with the Spring CSRF token read from `<meta name="_csrf">` / `_csrf_header` and sent on every mutating call.
 - **Reorder:** SortableJS → `POST /updateOrder`.
 - **Time Left:** `calculateTimeLeft(dueDate, currentTach)` parses a due value that may hold a calendar date and/or an hours number (whole or decimal — e.g. `100`, `100.5`, `.5`); recomputed on hours change and at midnight. The Clock-input sanitizer accepts digits plus a single decimal point.
-- **Custom dropdowns + date/clock pickers** are hand-rolled (no library); open/close handled by a document click listener.
+- **Custom dropdowns + date/clock pickers** are hand-rolled (no library). The chevron toggles a menu; tapping the Description text or an empty Last Done / Due Date cell toggles it too. One persistent document listener closes any open menu on a click outside it (`isDropdownToggle` in `dashboard.js`).
+- **Last Done / Due Date menu** buttons read Add / Remove (state is the button text). Removing a field that has a value takes two taps: the first arms it as a red "Remove?" (`.confirm-remove`), the second removes it and auto-saves; reopening the menu disarms it (`disarmRemoveButton`). Empty fields remove on one tap.
+- **`[hidden]` always wins** (`[hidden] { display: none !important; }` at the top of `dashboardstyle.css`). Toggle visibility with `el.hidden`; rules like `.settings-table tr { display: flex }` used to override the attribute and show hidden rows.
+- **Mobile (≤960px) Settings**: each row stacks the label above a full-width, wrapping value area with 42px controls.
+- **Mobile (≤960px) Service Timeline** renders each row as a card (`dashboardstyle.css`, "Service Timeline cards"). Saved cards and the add card share the same rules via `#sortable-info-table :is(.sortable tr:not(.title-row), .add-row)`; spacing/tap size are CSS variables on `#sortable-info-table` (`--cell-px`, `--cell-py`, `--tap`) and are fluid down to ~300px. There are deliberately no breakpoints below 960px.
 - **Notifications:** `showToast()` / `showConfirm()` replaced native `alert()`/`confirm()`.
 - **Hours "last updated":** `formatUpdated(iso, source)` + `relativeTime()` render the My Hours freshness lines in the browser's local timezone (server stores UTC). `renderUpdatedFromData()` on load (reads `data-updated`/`data-source` attrs); `markUpdatedNow()` after a live change. Uses `textContent`, not `innerHTML`.
 - **Excel export:** `exportToExcel()` (SheetJS) is implemented but its button is commented out in `dashboard.html` (intentionally hidden).
@@ -31,7 +35,7 @@ Each stylesheet defines the same CSS-variable palette (`--primary` green `#2C9B6
 `/updateUserInfo`, `/dashboard` (add), `/update/{id}`, `/delete/{id}`, `/updateOrder`, `/deleteOption/{id}`, `/updateHours`, `/addflightlog`, `/deleteflightlog/{id}`. (See [BACKEND](BACKEND.md).)
 
 ## Gotchas
-- `dashboard.js` is a large single file; there are duplicate function defs (`closeTypeDropdowns`, `selectOption`).
+- `dashboard.js` is a large single file; there are duplicate function defs (`selectOption`).
 - Log Book rows are readonly — to fix a typo a user must delete + re-add (a known deferred improvement).
 - Login/register field + button labels are injected via CSS `::before` pseudo-elements, which is fragile and not screen-reader friendly.
 - No frontend tests exist.

@@ -422,7 +422,7 @@ function repaintDateHoursCell(row, field, value) {
     const container = row.querySelector(`td:nth-child(${tdIndex}) .input-with-dropdown`);
     if (!container) return;
     container.querySelectorAll('input.extra-input').forEach(i => i.remove());
-    container.querySelectorAll('.add-type').forEach(btn => btn.textContent = '+');
+    container.querySelectorAll('.add-type').forEach(btn => btn.textContent = 'Add');
     if (!value) return;
 
     const parts = value.split(' ');
@@ -444,7 +444,7 @@ function repaintDateHoursCell(row, field, value) {
         dateInput.oninput = () => autoSave(dateInput);
         container.insertBefore(dateInput, trigger);
         const calBtn = container.querySelector('.add-type[data-type="calendar"]');
-        if (calBtn) calBtn.textContent = '-';
+        if (calBtn) calBtn.textContent = 'Remove';
     }
     if (textPart) {
         const textInput = document.createElement('input');
@@ -456,7 +456,7 @@ function repaintDateHoursCell(row, field, value) {
         textInput.oninput = () => autoSave(textInput);
         container.insertBefore(textInput, trigger);
         const clkBtn = container.querySelector('.add-type[data-type="clock"]');
-        if (clkBtn) clkBtn.textContent = '-';
+        if (clkBtn) clkBtn.textContent = 'Remove';
     }
 }
 
@@ -488,9 +488,6 @@ document.addEventListener('click', function(event) {
         const dropdown = event.target.parentElement.querySelector('.dropdown-options');
         if (dropdown) {
             dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
-            if (dropdown.style.display === 'block') {
-                setTimeout(() => document.addEventListener('click', closeDropdownOutside, { once: true }), 0);
-            }
         } else {
             console.error('Dropdown options not found for:', event.target);
         }
@@ -498,11 +495,49 @@ document.addEventListener('click', function(event) {
 });
 
 
-function closeDropdownOutside(event) {
-    if (!event.target.closest('.custom-dropdown')) {
-        document.querySelectorAll('.dropdown-options').forEach(dropdown => dropdown.style.display = 'none');
-    }
+// Last Done / Due Date menu: put an armed "Remove?" button back to "Remove".
+function disarmRemoveButton(button) {
+    button.classList.remove('confirm-remove');
+    button.textContent = 'Remove';
 }
+
+// iOS Safari only applies :active styles (the trash's tap color) when the
+// page has a touchstart listener.
+document.addEventListener('touchstart', () => {}, { passive: true });
+
+// A dropdown's toggles: its chevron, the Description text, or an empty
+// Last Done / Due Date cell (the "Add date / hrs" hint).
+function isDropdownToggle(owner, target) {
+    if (target === owner && owner.matches('.input-with-dropdown')) return true;
+    const toggle = target.closest('.trigger-dropdown, .selected-option');
+    return !!toggle && owner.contains(toggle);
+}
+
+// Tapping the Description text or an empty date cell opens its menu, same as
+// the chevron (a much bigger tap target on phones).
+document.addEventListener('click', function(event) {
+    const target = event.target;
+    if (target.classList.contains('trigger-dropdown')) return;
+    const owner = target.closest('.custom-dropdown, .input-with-dropdown');
+    if (!owner || !isDropdownToggle(owner, target)) return;
+    if (owner.matches('.input-with-dropdown') && owner.querySelector('input.extra-input')) return;
+    owner.querySelector('.trigger-dropdown')?.click();
+});
+
+// Close any open Description / Last Done / Due Date menu when the user clicks
+// anywhere except inside that menu or on its own toggle. Stays registered for
+// the life of the page (no one-shot listeners that a click inside the menu
+// would use up).
+document.addEventListener('click', function(event) {
+    const target = event.target;
+    if (!target.isConnected) return;   // e.g. a custom option that was just removed
+    document.querySelectorAll('.dropdown-options, .type-dropdown').forEach(menu => {
+        if (menu.style.display !== 'block' || menu.contains(target)) return;
+        const owner = menu.closest('.custom-dropdown, .input-with-dropdown');
+        if (owner && isDropdownToggle(owner, target)) return;
+        menu.style.display = 'none';
+    });
+});
 
 function selectOption(option) {
     const dropdown = option.closest('.custom-dropdown');
@@ -631,7 +666,9 @@ function calculateTimeLeft(dueDateCal, dueDateHrs, currentTimeInServiceHours) {
 
 function setTimeLeftText(cell, text) {
     cell.textContent = text;
-    cell.style.color = text.includes('overdue') ? 'red' : 'black';
+    // Color comes from CSS (.time-left / .time-left.overdue) so it follows
+    // the light/dark theme; an inline color here would override both.
+    cell.classList.toggle('overdue', text.includes('overdue'));
 }
 
 // Function to update all Time Left cells in real-time
@@ -812,17 +849,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isOpen = sibling.style.display === 'block';
                 document.querySelectorAll('.type-dropdown').forEach(d => d.style.display = 'none');
                 if (!isOpen) {
+                    sibling.querySelectorAll('.add-type.confirm-remove').forEach(disarmRemoveButton);
                     sibling.style.display = 'block';
-                    setTimeout(() => document.addEventListener('click', closeTypeDropdowns, { once: true }), 0);
                 }
             } else if (sibling && sibling.classList.contains('dropdown-options')) {
                 // Description custom dropdown
                 const isOpen = sibling.style.display === 'block';
                 document.querySelectorAll('.dropdown-options').forEach(d => d.style.display = 'none');
-                if (!isOpen) {
-                    sibling.style.display = 'block';
-                    setTimeout(() => document.addEventListener('click', closeDropdownOutside, { once: true }), 0);
-                }
+                if (!isOpen) sibling.style.display = 'block';
             }
 
         } else if (event.target.classList.contains('add-type')) {
@@ -830,7 +864,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const type = button.getAttribute('data-type'); //Calendar or Clock
             const container = button.closest('.input-with-dropdown'); //Grabs the lastDone container
             const tr = button.closest('tr'); //Grabs the closest table row
-            const isAddMode = button.textContent === '+';
+            const isAddMode = button.textContent === 'Add';
     
             const existingDate = container.querySelector('input[type="date"]');
             const existingText = container.querySelector('input[type="text"].extra-input');
@@ -849,7 +883,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     };
                     container.insertBefore(newInput, container.querySelector('.trigger-dropdown'));
-                    button.textContent = '-';
+                    button.textContent = 'Remove';
                 } else if (type === 'clock' && !existingText) {
                     const newInput = document.createElement('input');
                     newInput.type = 'text';
@@ -868,13 +902,23 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     };
                     container.insertBefore(newInput, container.querySelector('.trigger-dropdown'));
-                    button.textContent = '-';
+                    button.textContent = 'Remove';
                 }
             } else {
-                // Removing an existing input
+                // Removing an existing input. If it holds a value, the first tap
+                // only arms the button ("Remove?"); a second tap removes it.
+                // Reopening the menu disarms it (see the chevron handler).
+                const target = type === 'calendar' ? existingDate : existingText;
+                if (target && target.value && !button.classList.contains('confirm-remove')) {
+                    button.closest('.type-dropdown').querySelectorAll('.add-type.confirm-remove').forEach(disarmRemoveButton);
+                    button.classList.add('confirm-remove');
+                    button.textContent = 'Remove?';
+                    return;
+                }
+                button.classList.remove('confirm-remove');
                 if (type === 'calendar' && existingDate) {
                     existingDate.remove();
-                    button.textContent = '+';
+                    button.textContent = 'Add';
                     if (tr.classList.contains('auto-save-row')) {
                         autoSave(button); // Trigger save for sortable rows
                     } else {
@@ -882,7 +926,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } else if (type === 'clock' && existingText) {
                     existingText.remove();
-                    button.textContent = '+';
+                    button.textContent = 'Add';
                     if (tr.classList.contains('auto-save-row')) {
                         autoSave(button); // Trigger save for sortable rows
                     } else {
@@ -951,7 +995,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // with its own pointer/touch handling, which works on touch devices (and
         // is consistent on desktop). touchStartThreshold avoids hijacking taps.
         forceFallback: true,
-        fallbackOnBody: true,
+        // Keep the floating drag copy inside tbody.sortable (not <body>) so the
+        // `.sortable tr ...` card styles still apply to it on mobile.
+        fallbackOnBody: false,
         fallbackTolerance: 4,
         touchStartThreshold: 4,
         swapThreshold: 0.65,
@@ -1156,7 +1202,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 dateInput.value = datePart;
                 dateInput.oninput = () => autoSave(dateInput);
                 container.insertBefore(dateInput, container.querySelector('.trigger-dropdown'));
-                container.querySelector('.add-type[data-type="calendar"]').textContent = '-';
+                container.querySelector('.add-type[data-type="calendar"]').textContent = 'Remove';
             }
 
             if (textPart) {
@@ -1168,21 +1214,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 textInput.value = textPart;
                 textInput.oninput = () => autoSave(textInput);
                 container.insertBefore(textInput, container.querySelector('.trigger-dropdown'));
-                container.querySelector('.add-type[data-type="clock"]').textContent = '-';
+                container.querySelector('.add-type[data-type="clock"]').textContent = 'Remove';
             }
         });
     });
 
     updateAllTimeLeft();
     refreshAllCompleteButtons();
-
-    function closeTypeDropdowns(event) {
-        if (!event.target.closest('.input-with-dropdown')) {
-            document.querySelectorAll('.type-dropdown').forEach(dropdown => {
-                dropdown.style.display = 'none';
-            });
-        }
-    }
 
     const addRowItemTextarea = document.querySelector('.add-row textarea[name="item"]');
     if (addRowItemTextarea) {
@@ -1315,8 +1353,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="input-with-dropdown no-print">
                         <i class="fa-solid fa-chevron-down trigger-dropdown"></i>
                         <div class="type-dropdown" style="display: none;">
-                            <div class="type-option"><span>Calendar</span><button class="add-type" data-type="calendar">+</button></div>
-                            <div class="type-option"><span>Clock</span><button class="add-type" data-type="clock">+</button></div>
+                            <div class="type-option"><span>Calendar</span><button class="add-type" data-type="calendar">Add</button></div>
+                            <div class="type-option"><span>Clock</span><button class="add-type" data-type="clock">Add</button></div>
                         </div>
                     </div>
                     <span class="print-only">${lastDonePrint}</span>
@@ -1325,8 +1363,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="input-with-dropdown no-print">
                         <i class="fa-solid fa-chevron-down trigger-dropdown"></i>
                         <div class="type-dropdown" style="display: none;">
-                            <div class="type-option"><span>Calendar</span><button class="add-type" data-type="calendar">+</button></div>
-                            <div class="type-option"><span>Clock</span><button class="add-type" data-type="clock">+</button></div>
+                            <div class="type-option"><span>Calendar</span><button class="add-type" data-type="calendar">Add</button></div>
+                            <div class="type-option"><span>Clock</span><button class="add-type" data-type="clock">Add</button></div>
                         </div>
                     </div>
                     <span class="print-only">${dueDatePrint}</span>
@@ -1356,7 +1394,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             dateInput.value = datePart;
                             dateInput.oninput = () => autoSave(dateInput);
                             container.insertBefore(dateInput, container.querySelector('.trigger-dropdown'));
-                            container.querySelector('.add-type[data-type="calendar"]').textContent = '-';
+                            container.querySelector('.add-type[data-type="calendar"]').textContent = 'Remove';
                         }
 
                         if (textPart) {
@@ -1368,7 +1406,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             textInput.value = textPart;
                             textInput.oninput = () => autoSave(textInput);
                             container.insertBefore(textInput, container.querySelector('.trigger-dropdown'));
-                            container.querySelector('.add-type[data-type="clock"]').textContent = '-';
+                            container.querySelector('.add-type[data-type="clock"]').textContent = 'Remove';
                         }
                     });
                     const dropdown = newRow.querySelector('.custom-dropdown');
@@ -1424,7 +1462,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.querySelector('.add-row .custom-dropdown input[name="description"]').value = '';
                 document.querySelector('.add-row .selected-option').textContent = '';
                 document.querySelectorAll('.add-row .input-with-dropdown input.extra-input').forEach(input => input.remove());
-                document.querySelectorAll('.add-row .add-type').forEach(btn => btn.textContent = '+');
+                document.querySelectorAll('.add-row .add-type').forEach(btn => btn.textContent = 'Add');
                 document.querySelector('.add-row .time-left').textContent = '';
 
                 selectRowType('item', document.querySelector('.row-type-option[data-type="item"]'));
@@ -1442,14 +1480,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // Function to update all Time Left cells in real-time
-
-    function closeTypeDropdowns(event) {
-        if (!event.target.closest('.input-with-dropdown')) {
-            document.querySelectorAll('.type-dropdown').forEach(dropdown => {
-                dropdown.style.display = 'none';
-            });
-        }
-    }
 
     document.addEventListener('click', function(event) {
         
@@ -1537,6 +1567,12 @@ document.addEventListener('DOMContentLoaded', () => {
             markUpdatedNow('time-in-service-updated', 'flightlog');
         }
     }
+
+    document.addEventListener('input', (e) => {
+        if (e.target.matches('.cycle-num, .cycle-num-hours') && e.target.value.length > 6) {
+            e.target.value = e.target.value.slice(0, 6);
+        }
+    }, true);
 
     // Audit list row actions: Add back to log book, or permanently delete.
     document.addEventListener('click', async function(event) {
