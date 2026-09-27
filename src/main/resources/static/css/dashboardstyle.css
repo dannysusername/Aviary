@@ -32,11 +32,24 @@
   --text:          #E8F0EA;
   --text-muted:    #93AC9E;
   --row-hover:     #1C3327;
-  --icon-muted:    #4E6B5C;
-  --icon-faint:    #3F5A4C;
+  --icon-muted:    #7A9788;
+  --icon-faint:    #6A8677;
   --shadow-sm:     0 1px 4px rgba(0,0,0,0.35);
   --shadow-md:     0 4px 16px rgba(0,0,0,0.45);
+  color-scheme: dark;              /* native inputs, selects, date pickers and scrollbars render dark */
 }
+
+/* Dark mode text: form controls default to black text and a few labels use
+   the dark brand green, both unreadable on the dark surfaces -- use the light
+   text color instead. */
+:root[data-theme="dark"] :is(input, select, textarea) { color: var(--text); }
+:root[data-theme="dark"] option { background: var(--surface); color: var(--text); }
+:root[data-theme="dark"] :is(#print-dashboard, .edit-hours-btn, .back-to-full-list-button,
+                             #check-now-btn, #clear-check-now-range, #change-api-key) { color: var(--text); }
+:root[data-theme="dark"] #sortable-info-table .time-left:not(.overdue) { color: var(--text); }
+/* Trash and grip on the green title bar: light icons instead of the faint gray. */
+:root[data-theme="dark"] .title-row :is(.delete-icon, .grip-icon) { color: rgba(255,255,255,0.8); }
+:root[data-theme="dark"] .title-row .delete-icon:is(:hover, :active) { color: var(--accent); }
 
 /* ── Reset ── */
 * {
@@ -44,6 +57,11 @@
   margin: 0;
   padding: 0;
 }
+
+/* `hidden` must always win: rules like `.settings-table tr { display: flex }`
+   (and Font Awesome's icon display) otherwise override the attribute, which
+   showed rows/icons the app had hidden (e.g. AeroAPI usage, sync schedule). */
+[hidden] { display: none !important; }
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -73,7 +91,8 @@ input[type="checkbox"]:focus-visible {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
+  gap: 8px;
+  padding: 0 clamp(8px, 3vw, 24px);   /* header sizes below shrink with the screen, full size on desktop */
   z-index: 2000;
   box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
@@ -101,23 +120,29 @@ input[type="checkbox"]:focus-visible {
 
 .fixed-header .header-left .brand-logo {
   display: block;
-  height: 44px;
-  width: 44px;
+  height: clamp(36px, 10vw, 44px);
+  width: clamp(36px, 10vw, 44px);
 }
 
 .fixed-header .header-right {
   display: flex;
   flex-direction: row;
-  gap: 20px;
+  align-items: center;
+  gap: clamp(6px, 2vw, 20px);
 }
 
 .fixed-header #settings {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
   background: none;
   border: none;
   padding: 0;
   color: #fff;
   cursor: pointer;
-  font-size: 22px;
+  font-size: clamp(19px, 5vw, 22px);
 }
 
 
@@ -160,9 +185,14 @@ input[type="checkbox"]:focus-visible {
 .fixed-header .header-right .logout-btn, 
 .fixed-header .share-btn,
 .fixed-header #subscribe {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  white-space: nowrap;                 /* "Share" + icon stay on one line */
   background: rgba(255,255,255,0.2);
   color: #fff;
-  padding: 8px 16px;
+  padding: 8px clamp(10px, 3vw, 16px);
 }
 .fixed-header .header-right .logout-btn:hover,
 .fixed-header .share-btn:hover,
@@ -383,7 +413,7 @@ input[type="checkbox"]:focus-visible {
 /* Label cells */
 .aircraft-info-table tr td:first-child,
 .hours-table tr td:first-child, .settings-table tr td:first-child{
-  flex: 0 0 200px;
+  flex: 1 1 0;
   color: var(--text-muted);
   font-weight: 600;
   font-size: clamp(4px, 3vw, 12px);
@@ -722,7 +752,8 @@ td textarea:focus { outline: 2px solid var(--primary); background: var(--surface
 
 .delete-header, .delete-cell { text-align: center; }
 .delete-icon { cursor: pointer; color: var(--icon-faint); font-size: 15px; padding: 8px; }
-.delete-icon:hover { color: var(--accent); }
+.delete-icon:hover,
+.delete-icon:active { color: var(--accent); }   /* :active = tap feedback on phones, which have no hover */
 
 .complete-header, .complete-cell { text-align: center; }
 .complete-btn {
@@ -764,7 +795,9 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td:has(> .
 .cycle-num-hours { width: 10ch; }
 
 .cycle-num, .cycle-num-hours{
-  width: 6ch;
+  max-width: 7ch;
+  min-width: 3ch;
+  field-sizing: content;
   min-height: 26px;
   padding: 4px;
   font-size: 12px;
@@ -922,10 +955,10 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td:has(> .
 .input-with-dropdown input.extra-input {
   grid-column: 1;
   width: 100%;
-  min-width: 0;
+  min-width: 14ch;
   box-sizing: border-box;
   padding: 4px 6px;
-  border: 1px solid transparent;  /* borderless: the grid cell is the outline */
+  border: 1px solid #00000017;  /* borderless: the grid cell is the outline */
   border-radius: 4px;
   font-family: inherit;
   font-size: 13px;
@@ -965,7 +998,9 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td:has(> .
   border-color: transparent;
 }
 
-.trigger-dropdown {
+/* `i.` prefix: the Font Awesome kit injects its CSS after this file, and its
+   `.fa-solid` display rule would otherwise win and un-center the icon. */
+i.trigger-dropdown {
   cursor: pointer;
   padding: 6px 10px;
   margin-left: auto;
@@ -1010,12 +1045,33 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td:has(> .
 
 .add-type {
   cursor: pointer;
+  min-width: 64px;
   color: var(--primary);
   background: none;
-  border: none;
-  padding: 0 4px;
-  font-size: 15px;
-  font-weight: 700;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+}
+.add-type:hover { background: var(--primary-light); }
+/* "Remove" (that field is present) reads as destructive. */
+.input-with-dropdown:has(> input[type="date"]) .add-type[data-type="calendar"],
+.input-with-dropdown:has(> input[type="text"].extra-input) .add-type[data-type="clock"] {
+  color: var(--accent);
+}
+.input-with-dropdown:has(> input[type="date"]) .add-type[data-type="calendar"]:hover,
+.input-with-dropdown:has(> input[type="text"].extra-input) .add-type[data-type="clock"]:hover {
+  background: #fdecef;
+}
+/* Armed "Remove?": solid red, the next tap removes the field and its value. */
+/* (The :has() matches the red "Remove" rule's specificity so this one wins.) */
+.input-with-dropdown:has(> input.extra-input) .add-type.confirm-remove,
+.input-with-dropdown:has(> input.extra-input) .add-type.confirm-remove:hover {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 /* Row type selector */
@@ -1054,6 +1110,8 @@ table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td:has(> .
    to fit the longest data line rather than wrapping, so the column is exactly
    as wide as its content (header or data, whichever is wider). */
 .time-left { font-size: 12px; }
+/* Set by setTimeLeftText() in dashboard.js. !important beats the mobile card's Time Left color. */
+.time-left.overdue { color: var(--accent) !important; }
 
 /* ── Logbook table ── */
 .logbook-table {
@@ -1163,7 +1221,8 @@ Upload csv button
   color: #c0ccc5;
   font-size: 14px;
 }
-.delete-log-icon:hover { color: var(--accent); }
+.delete-log-icon:hover,
+.delete-log-icon:active { color: var(--accent); }
 
 /* ── Misc ── */
 textarea::placeholder { display: none; }
@@ -1183,9 +1242,9 @@ textarea::placeholder { display: none; }
    sideways. So we switch to the stacked card layout at ≤960px (comfortably
    above 903) — the cards always fit, so the timeline never overflows. ── */
 @media screen and (max-width: 960px) {
-  .header { padding: 16px 24px 0; }
-  /*.main   { padding: 12px; }*/
-  .tabs   { padding: 16px 12px 0; }
+  .header { padding: 16px clamp(8px, 3vw, 24px) 0; }
+  .main   { padding: 12px clamp(8px, 3vw, 24px); }
+  .tabs   { padding: 16px clamp(8px, 3vw, 12px) 0; }
 
   textarea::placeholder { display: inline; color: var(--text-muted); }
 
@@ -1218,10 +1277,133 @@ textarea::placeholder { display: none; }
     min-width: 0;
   }
 
-  .sortable { display: flex; flex-direction: column; gap: 8px; margin: 0; }
-  .sortable-head { display: none; }
+  /* Aircraft info (Make/Model, Tail Number, Owner, S/N): label and value get
+     equal columns that shrink together; labels wrap onto a second line when
+     they run out of room, and both fonts scale with the screen. Tune the two
+     font sizes here. Subgrid keeps every row on the same two columns while
+     each row stays its own box for the row borders. */
+  .aircraft-info-table { display: block; }
+  .aircraft-info-table tbody {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .aircraft-info-table tr {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+  }
+  .aircraft-info-table tr td:first-child {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;             /* "MAKE/MODEL S/N:" can break at any point if it must */
+    line-height: 1.25;
+    font-size: clamp(11px, 3.4vw, 16px);
+    letter-spacing: 0;
+  }
+  .aircraft-info-table tr td:nth-child(2) { min-width: 0; padding-left: 4px; }
+  .aircraft-info-table input {
+    min-width: 0;
+    text-overflow: ellipsis;             /* a value too long to fit ends in "…" until tapped */
+    font-size: clamp(16px, 4.6vw, 20px);
+    font-weight: 600;
+  }
 
-  .sortable tr:not(.add-row) {
+  /* ── Settings (mobile): each setting is a label line above a full-width
+        value area. Controls are finger-sized (16px text also stops iPhones
+        zooming on focus) and wrap onto new lines as the screen narrows. ── */
+  #settings-page.active { padding: 12px clamp(8px, 3vw, 24px); }
+  .settings-table { display: block; }
+  .settings-table tbody { display: block; }
+  .settings-table tr { flex-direction: column; }
+  .settings-table tr td:first-child {
+    flex: none;
+    padding: 12px 12px 2px;
+    font-size: 11px;
+  }
+  .settings-table tr td:nth-child(2) {
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px 14px;
+    font-size: 16px;
+    line-height: 1.4;
+    color: var(--text);
+  }
+  /* Text fields and dropdowns: tall, readable, and they share a line fairly. */
+  .settings-table td input:not([type="checkbox"]):not([type="radio"]),
+  .settings-table td select {
+    flex: 1 1 140px;
+    min-width: 0;
+    min-height: 42px;
+    padding: 8px 10px;
+    font-size: 16px;
+  }
+  /* Single-purpose fields take the whole line. */
+  .settings-table #theme-select,
+  .settings-table #aeroApiKey { flex-basis: 100%; }
+  /* Small number boxes in the alert schedule sentence stay small. */
+  #settings-page .settings-table td input[type="number"] { flex: 0 0 5rem; width: 5rem; }
+  /* Buttons: full-size tap targets in the app's green / outline styles. */
+  .settings-table td button {
+    min-height: 42px;
+    padding: 0 16px;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 1px solid var(--primary);
+    background: var(--primary);
+    color: #fff;
+  }
+  .settings-table td #clear-check-now-range,
+  .settings-table td #check-now-btn {
+    background: var(--surface);
+    color: var(--primary-dark);
+  }
+  .settings-table #check-now-btn { flex: 1 1 auto; }
+  .settings-table #delete-subscription,
+  .settings-table .check-now-info {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    margin: 0;
+    font-size: 18px;
+  }
+  .settings-table #change-api-key { font-size: 15px; font-weight: 600; }
+  /* Full-width pieces: checkbox line, hints, the recipient form and list. */
+  .settings-table td > label,
+  .settings-table td > .settings-hint,
+  .settings-table td > div,
+  .settings-table td > ul { flex-basis: 100%; }
+  .settings-table td > label {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 16px;
+  }
+  .settings-table td > label input[type="checkbox"] {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    margin: 1px 0 0;
+  }
+  .settings-table .settings-hint { margin-top: 0; font-size: 13px; }
+  .settings-table #alerts-send-now-result:empty,
+  .settings-table #alert-recipient-error:empty { display: none; }
+  #alerts-recipients-row td > div.no-print {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  #alerts-recipients-row #alert-recipient-add { flex: 1 1 100%; }
+  .alert-recipient-list li { flex-wrap: wrap; font-size: 15px; }
+
+  .sortable tr.title-row {
     display: block;
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -1237,7 +1419,7 @@ textarea::placeholder { display: none; }
     position: relative;
     display: block;
     background: var(--primary);
-    padding: 14px 46px;
+    padding: 10px calc(var(--tap) + 4px);
     border-radius: var(--radius);
     text-align: center;
   }
@@ -1260,273 +1442,401 @@ textarea::placeholder { display: none; }
   .sortable tr.title-row td.delete-cell {
     position: absolute;
     top: 50%;
-    right: 12px;
+    right: 4px;
     transform: translateY(-50%);
     padding: 0;
   }
-
-  /* ── Service-timeline cards (mobile): flat, borderless fields that match the
-        desktop look, laid out 1 / 2-2 / 1 like the log book:
-          row 1  Item       (full-width headline, tap to collapse)
-          row 2  Description | Last Done
-          row 3  Cycle       | Due Date
-          row 4  Time Left   (full width)
-          row 5  Complete    (full-width action)
-          row 6  Delete
-        Cards are expanded by default; tapping the Item headline collapses the
-        card down to just its name (see .collapsed below + dashboard.js). ── */
-  .sortable tr:not(.title-row):not(.add-row) {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0;                         /* cells tile edge-to-edge; borders are the separators */
-    align-items: stretch;
+  .sortable tr.title-row .delete-icon {
+    width: var(--tap);
+    height: var(--tap);
     padding: 0;
-    overflow: hidden;               /* clip the cell gridlines to the card's rounded corners */
   }
-  .sortable tr:not(.title-row):not(.add-row) td:not(.grip-cell) {
+
+  /* ════ Service Timeline cards ════
+     Saved item cards and the add card share every rule below through
+     `#sortable-info-table :is(.sortable tr:not(.title-row), .add-row)`, so the
+     add card always matches the saved ones. The #id prefix also lets these
+     beat the desktop table rules without !important.
+     Sizes are fluid (clamp) so the cards hold from 960px down to ~300px with
+     no extra breakpoints. Card spacing and tap size live here: */
+  #sortable-info-table {
+    --cell-px: clamp(6px, 2.4vw, 12px);   /* cell side padding */
+    --cell-py: clamp(4px, 1.2vw, 8px);    /* cell top/bottom padding */
+    --tap: 40px;                           /* minimum touch target */
+    display: block;                        /* fill the width instead of sizing to content */
+    width: 100%;
+  }
+
+  .sortable { display: flex; flex-direction: column; gap: 8px; margin: 0; }
+  .sortable-head { display: none; }
+  /* The add card's own <tbody>: full width like the saved cards' list. */
+  #sortable-info-table > tbody:not(.sortable) { display: block; }
+
+  /* Card: 1 / 2-2 / 1 grid, laid out like the log book:
+       row 1  Item          (headline, tap to collapse)
+       row 2  Description | Last Done
+       row 3  Cycle       | Due Date
+       row 4  Time Left
+       row 5  Mark complete + trash  (saved)  /  Add  (add card) */
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0;                               /* cells tile edge-to-edge; borders are the separators */
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+  }
+  /* The add card keeps its "new item" look: green tint + dashed edge. */
+  #sortable-info-table .add-row {
+    margin-top: 8px;
+    border: 1px dashed var(--primary);
+    background: var(--primary-light);
+    box-shadow: none;
+  }
+
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) > td {
     display: block;
-    padding: 10px 14px;
+    min-width: 0;
+    padding: var(--cell-py) var(--cell-px);
     border: none;
-    border-bottom: 1px solid var(--border);   /* row separator */
+    border-bottom: 1px solid var(--border);
     background: transparent;
+    text-align: left;
   }
-  /* Vertical divider between the left and right columns (rows 2 & 3). */
-  .sortable tr:not(.title-row):not(.add-row) td[data-label="Description"],
-  .sortable tr:not(.title-row):not(.add-row) td[data-label="Cycle"] {
+  /* Vertical divider between the two columns (rows 2 & 3). */
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) > td:is([data-label="Description"], [data-label="Cycle"]) {
     border-right: 1px solid var(--border);
   }
-  /* No trailing separators below the action rows. */
-  .sortable tr:not(.title-row):not(.add-row) td.complete-cell,
-  .sortable tr:not(.title-row):not(.add-row) td.delete-cell { border-bottom: none; }
-  /* Explicit 1 / 2-2 / 1 placement — deterministic regardless of DOM order
-     or grid auto-flow quirks. */
-  .sortable tr:not(.title-row):not(.add-row) td[data-label="Item"]        { grid-column: 1 / -1; grid-row: 1; }
-  .sortable tr:not(.title-row):not(.add-row) td[data-label="Description"] { grid-column: 1;      grid-row: 2; }
-  .sortable tr:not(.title-row):not(.add-row) td[data-label="Last Done"]   { grid-column: 2;      grid-row: 2; }
-  .sortable tr:not(.title-row):not(.add-row) td[data-label="Cycle"]       { grid-column: 1;      grid-row: 3; }
-  .sortable tr:not(.title-row):not(.add-row) td[data-label="Due Date"]    { grid-column: 2;      grid-row: 3; }
-  .sortable tr:not(.title-row):not(.add-row) td[data-label="Time Left"]   { grid-column: 1 / -1; grid-row: 4; }
-  .sortable tr:not(.title-row):not(.add-row) td.complete-cell             { grid-column: 1 / -1; grid-row: 5; }
-  .sortable tr:not(.title-row):not(.add-row) td.delete-cell               { grid-column: 1 / -1; grid-row: 6; }
-  /* Drag handle — top-left of the card header, mirroring the desktop grip
-     (which is the leftmost column). The grip-cell overlays row 1 (the Item
-     headline) but is pointer-transparent, so only the dots themselves are
-     interactive: taps elsewhere on the header still collapse/expand the card,
-     and SortableJS (handle: .grip-icon) drives the drag. Title-row grips stay
-     hidden (handled below). */
-  .sortable tr:not(.add-row):not(.title-row) td.grip-cell {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    grid-column: 1 / -1;
-    grid-row: 1;
-    padding: 0;
-    border: none;
-    background: transparent;
-    pointer-events: none;
-    z-index: 2;
-  }
-  .sortable tr:not(.add-row):not(.title-row) td.grip-cell .grip-icon {
-    display: inline-flex;
-    height: auto;
-    margin: 0;                     /* reset desktop's `margin: 0 auto` so the dots pin left */
-    padding: 10px 8px;             /* roomy tap target, distinct from desktop sizing */
-    font-size: 18px;               /* larger dots than the 13px desktop grip */
-    color: var(--icon-muted);      /* same dot color as desktop */
-    pointer-events: auto;
-    cursor: grab;
-    touch-action: none;            /* let SortableJS own the drag gesture on touch */
-  }
 
-  /* Collapsed card → show only the Item headline (tap to re-expand).
-     The :not()s match the base rules' specificity so these overrides win. */
-  .sortable tr.collapsed td:not([data-label="Item"]):not(.grip-cell) { display: none; }
-  .sortable tr.collapsed:not(.title-row):not(.add-row) td[data-label="Item"] { border-bottom: none; }
-
-  /* Field labels: small caps above each control */
-  .sortable tr:not(.title-row):not(.add-row) td:not(.grip-cell)::before {
+  /* Field labels: small caps above each control. */
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) > td::before {
     content: attr(data-label);
     display: block;
-    margin-bottom: 5px;
+    margin-bottom: 2px;
     font-weight: 600;
-    font-size: 11px;
+    font-size: 10.5px;
+    letter-spacing: 0.02em;
     text-transform: uppercase;
     color: var(--text-muted);
   }
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) > td:is([data-label="Item"], [data-label=""], .grip-cell)::before {
+    display: none;
+  }
 
-  /* Item = bold card headline (no label) + a big FA collapse arrow on the
-     right (the same chevron the fields use, just larger). */
-  .sortable tr:not(.title-row):not(.add-row) td[data-label="Item"] {
+  /* Explicit placement, deterministic regardless of DOM order. */
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) > td[data-label="Item"]        { grid-column: 1 / -1; grid-row: 1; }
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) > td[data-label="Description"] { grid-column: 1;      grid-row: 2; }
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) > td[data-label="Last Done"]   { grid-column: 2;      grid-row: 2; }
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) > td[data-label="Cycle"]       { grid-column: 1;      grid-row: 3; }
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) > td[data-label="Due Date"]    { grid-column: 2;      grid-row: 3; }
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) > td[data-label="Time Left"]   { grid-column: 1 / -1; grid-row: 4; text-align: center; }
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) > td:is(.complete-cell, .add-cell) {
+    grid-column: 1 / -1;
+    grid-row: 5;
+    border-bottom: none;
+  }
+  #sortable-info-table .add-row > td.grip-column { display: none; }
+
+  /* Action row: "Mark complete" fills the row and the trash sits at its right
+     end in the same row (saves a whole row of height per card). */
+  #sortable-info-table .sortable tr:not(.title-row) > td.complete-cell {
+    padding-right: calc(var(--cell-px) + var(--tap) + 6px);
+  }
+  #sortable-info-table .sortable tr:not(.title-row) > td.delete-cell {
+    grid-column: 2;
+    grid-row: 5;
+    justify-self: end;
+    align-self: center;
+    padding: 0 var(--cell-px) 0 0;
+    border: none;
+  }
+  #sortable-info-table .sortable tr:not(.title-row) .delete-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--tap);
+    height: 44px;
+    padding: 0;
+    font-size: 16px;
+    border-radius: var(--radius);
+  }
+
+  /* Drag handle: overlays the left of the headline row. The cell ignores taps
+     so the rest of the header still collapses the card; only the dots are
+     interactive (SortableJS handle: .grip-icon). */
+  #sortable-info-table .sortable tr:not(.title-row) > td.grip-cell {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    display: flex;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: 0;
+    border: none;
+    pointer-events: none;
+    z-index: 2;
+  }
+  #sortable-info-table .sortable tr:not(.title-row) .grip-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--tap);
+    height: auto;
+    margin: 0;
+    padding: 0;
+    font-size: 18px;
+    color: var(--icon-muted);
+    pointer-events: auto;
+    cursor: grab;
+    touch-action: none;                   /* let SortableJS own the drag gesture on touch */
+  }
+  /* The floating drag copy lives inside .sortable, so its grip would otherwise
+     catch the pointer (via the pointer-events: auto above). SortableJS then
+     reads the copy (always the last row) as the drop target and every drag
+     lands at the end. Make the whole copy click-through. */
+  .sortable tr.sortable-fallback,
+  .sortable tr.sortable-fallback * { pointer-events: none !important; }
+
+  /* Collapsed card → only the Item headline (tap it to re-expand). */
+  #sortable-info-table .sortable tr.collapsed > td:not([data-label="Item"]):not(.grip-cell) { display: none; }
+  #sortable-info-table .sortable tr.collapsed > td[data-label="Item"] { border-bottom: none; }
+
+  /* Item headline (saved cards): bold name between the grip and the collapse
+     arrow; the whole row is the collapse tap target. */
+  #sortable-info-table .sortable tr:not(.title-row) > td[data-label="Item"] {
     position: relative;
-    display: flex;                 /* center the headline text vertically…       */
-    align-items: center;           /* …so it lines up with the grip burger (which */
-    min-height: 44px;              /*    is centred in this same header row)       */
-    padding-right: 44px;
-    padding-left: 40px;            /* clear the drag grip overlaid at top-left */
+    display: flex;
+    align-items: center;
+    min-height: 48px;
+    padding-left: var(--tap);
+    padding-right: var(--tap);
     cursor: pointer;
   }
-  /* Drop the 32px min-height floor here so the headline textarea hugs its text;
-     centred in the flex cell, its vertical midline then matches the grip's. */
-  .sortable tr:not(.title-row):not(.add-row) td[data-label="Item"] textarea {
+  #sortable-info-table .sortable td[data-label="Item"] textarea {
+    width: 100%;
     field-sizing: content;
     min-height: 0;
-  }
-  .sortable tr:not(.title-row):not(.add-row) td[data-label="Item"]::before { display: none; }
-  .sortable tr:not(.title-row):not(.add-row) td[data-label="Item"] .card-caret {
-    display: block !important;
-    position: absolute;
-    top: 50%;
-    right: 12px;
-    transform: translateY(-50%);
-    color: var(--text-muted);
-    font-size: 20px;               /* bigger than the 15px field chevrons */
-  }
-  .sortable tr.collapsed:not(.title-row):not(.add-row) td[data-label="Item"] .card-caret {
-    transform: translateY(-50%) rotate(-90deg);
-  }
-  .sortable td textarea {
-    width: 100%;
-    min-height: 32px;
     max-height: 160px;
+    padding: 2px 4px;
     border: none;
     background: transparent;
-    font-size: 19px;
+    font-size: clamp(16px, 4.6vw, 19px);
     font-weight: 700;
+    line-height: 1.25;
+    color: var(--text);
+  }
+  #sortable-info-table .sortable td[data-label="Item"] .card-caret {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--tap);
+    color: var(--text-muted);
+    font-size: 18px;
+  }
+  #sortable-info-table .sortable tr.collapsed td[data-label="Item"] .card-caret { transform: rotate(-90deg); }
+
+  /* Item (add card): full-width Item/Title switch above the name field. The
+     name field uses the same type as the saved headline. */
+  #sortable-info-table .add-row .row-type-selector {
+    width: 100%;
+    margin: 0 0 6px;
+  }
+  #sortable-info-table .add-row .row-type-option {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    padding: 0;
+    font-size: 14px;
+  }
+  #sortable-info-table .add-row td[data-label="Item"] :is(textarea, input.title-input) {
+    width: 100%;
+    field-sizing: content;
+    min-height: var(--tap);
+    max-height: 160px;
+    padding: 6px 10px;
+    border: 1px solid var(--border) !important;
+    border-radius: 6px;
+    background: var(--surface) !important;
+    font-size: clamp(16px, 4.6vw, 19px);
+    font-weight: 700;
+    line-height: 1.25;
+    text-align: center;
     color: var(--text);
   }
 
-  /* Description = flat, borderless control (matches the desktop cell). */
-  .sortable td .custom-dropdown {
-    width: 100%;
+  /* Text size for the Description, Cycle, Last Done and Due Date fields
+     (saved cards + add row), except the calendar field below. */
+  .sortable td .custom-dropdown .selected-option,
+  .sortable td .cycle-num,
+  .sortable td .cycle-num-hours,
+  .sortable td .cycle-unit,
+  .sortable td .cycle-unit-label,
+  .sortable td .input-with-dropdown input.extra-input,
+  .sortable td .input-with-dropdown:not(:has(input.extra-input))::before,
+  .add-row .custom-dropdown .selected-option,
+  .add-row .cycle-num,
+  .add-row .cycle-num-hours,
+  .add-row .cycle-unit,
+  .add-row .cycle-unit-label,
+  .add-row .input-with-dropdown input.extra-input,
+  .add-row .input-with-dropdown:not(:has(input.extra-input))::before {
+    font-size: 15px;
+  }
+  /* Calendar (date) field only: its own size so the whole mm/dd/yyyy still
+     fits the half-width column on narrow phones. Change it here only. */
+  .sortable td .input-with-dropdown input[type="date"].extra-input,
+  .add-row .input-with-dropdown input[type="date"].extra-input {
+    font-size: clamp(11px, 2vw, 15px);
+  }
+
+  /* Chevrons: tall tap targets that stay narrow so the fields keep the width. */
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) .trigger-dropdown {
+    flex: 0 0 auto;
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
+    min-width: 30px;
+    min-height: var(--tap);
+    margin: 0;
+    padding: 0;
+    font-size: 14px;
+  }
+
+  /* Description: flat control; the text itself opens the menu too. */
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) .custom-dropdown {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    width: 100%;
+    min-height: var(--tap);
     padding: 0;
     border: none;
     background: transparent;
   }
-  .sortable td .custom-dropdown .selected-option {
-    width: 100%;
-    min-height: 32px;
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) .custom-dropdown .selected-option {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: var(--tap);
     display: flex;
     align-items: center;
-    font-size: 15px;
+    padding: 0;
     border: none;
-    padding: 4px 0;
+    background: transparent;
+    overflow-wrap: anywhere;
   }
-  .custom-dropdown .trigger-dropdown,
-  .input-with-dropdown .trigger-dropdown { min-width: 32px; min-height: 32px; font-size: 15px; }
 
-  /* Cycle = flat, borderless; keep the desktop hairline between the two rows. */
-  .sortable tr:not(.title-row):not(.add-row) td .cycle-structured {
+  /* Cycle: two lines (calendar value + unit, hours + "hrs") split by a hairline. */
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) .cycle-structured {
     width: 100%;
-    height: auto;                 /* override desktop height:100% — its %-height is
-                                     ambiguous in the grid and lets the 2nd row spill
-                                     out of the cell (over Time Left). */
+    max-width: 100%;
+    height: auto;                         /* desktop's height:100% is ambiguous in the grid */
     align-items: stretch;
     border: none;
     background: transparent;
     overflow: visible;
   }
-  .sortable tr:not(.title-row):not(.add-row) td .cycle-row {
-    flex: 0 0 auto;               /* size to content; don't flex-stretch */
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) .cycle-row {
+    flex: 0 0 auto;
     justify-content: flex-start;
-    gap: 8px;
-    padding: 6px 0;
-    min-height: 38px;
+    gap: 6px;
+    padding: 0;
+    min-height: var(--tap);
   }
-  .sortable td .cycle-num {
-    flex: 0 0 64px;
-    width: 64px;
+  /* Cycle number boxes: outlined and roomy like the Last Done / Due Date
+     fields. The calendar value shares its line with the unit (2 : 3); the
+     hours box fills its line up to the "hrs" label. */
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) :is(.cycle-num, .cycle-num-hours) {
+    flex: 2 1 0;
+    width: auto;
+    min-width: 2.5em;
     max-width: none;
+    field-sizing: fixed;
+    min-height: 34px;
+    padding: 2px 6px;
     text-align: left;
-    font-size: 15px;
-    border: none;
+    border: 1px solid #00000017;
+    border-radius: 4px;
     background: transparent;
-    padding: 4px 0;
+    appearance: textfield;                /* no spinner arrows eating the digits */
+    -moz-appearance: textfield;
   }
-  /* Cycle "unit" dropdown: swap the native select arrow for the same FA
-     chevron the other fields use. The chevron lives directly in this rule (and
-     in the .add-row one) because a separate, lower-specificity .cycle-unit rule
-     would be clobbered by the `background: transparent` shorthand here. */
-  .sortable td .cycle-unit {
-    flex: 1 1 auto;
+  #sortable-info-table .cycle-num-hours::-webkit-outer-spin-button,
+  #sortable-info-table .cycle-num-hours::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  /* Unit select: the same chevron as the other fields instead of the native arrow. */
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) .cycle-unit {
+    flex: 3 1 0;
     width: auto;
     max-width: none;
     min-width: 0;
     min-height: 32px;
-    font-size: 15px;
+    padding: 0 22px 0 0;
     border: none;
-    padding: 4px 30px 4px 0;
     appearance: none;
     -webkit-appearance: none;
     background-color: transparent;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%235E7A6A' d='M233.4 406.6c12.5 12.5 32.8 12.5 45.3 0l192-192c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 338.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l192 192z'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
-    background-position: right 10px center;
-    background-size: 14px;
+    background-position: right 8px center;
+    background-size: 13px;
   }
-  .sortable td .cycle-unit-label { font-size: 15px; margin-left: 4px; }
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) .cycle-unit-label { margin-left: 0; }
 
-  /* The global `td:has(> .cycle-structured) { padding: 0 }` desktop rule
-     outranks the per-cell mobile padding, so the Cycle cell would sit flush.
-     Restore the same padding the other cells get (saved + add rows). */
-  .sortable tr:not(.title-row):not(.add-row) td[data-label="Cycle"],
-  .add-row td[data-label="Cycle"] { padding: 10px 14px !important; }
-
-  /* Add-row: cycle structured inputs stack vertically with sane widths */
-  .add-row .cycle-structured { width: 100%; max-width: 100%; }
-  .add-row .cycle-num { max-width: 90px; }
-  .add-row .cycle-unit { max-width: 110px; }
-
-  /* Last Done / Due Date = flat, borderless date + hrs + chevron. The wider
-     column-gap keeps the native date field's built-in calendar picker icon
-     (which sits flush at the field's right edge) clear of the custom chevron,
-     so a tap on the chevron no longer lands on the calendar picker. */
-  .sortable td .input-with-dropdown {
+  /* Last Done / Due Date: date on top, hours below, chevron on the right.
+     Fields may shrink to fit the half-width column (no fixed min-width). */
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) .input-with-dropdown {
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: clamp(2px, 1.5vw, 10px);  /* keeps the native calendar icon clear of the chevron */
+    row-gap: 4px;
     width: 100%;
+    min-height: var(--tap);
+    padding: 0;
     border: none;
     background: transparent;
-    padding: 0;
-    column-gap: 12px;
-    row-gap: 4px;
   }
-  .sortable td .input-with-dropdown input.extra-input {
-    min-height: 34px;
-    font-size: 15px;
-    padding: 4px 0;
-  }
-  /* In the half-width right column a native date field must be free to shrink
-     so it (and its chevron) never overflow the cell. The wider column-gap above
-     (not field padding) is what keeps the native calendar picker clear of the
-     chevron, so the field keeps its full width for the mm/dd/yyyy value. */
-  .sortable td .input-with-dropdown input[type="date"].extra-input {
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) .input-with-dropdown input.extra-input {
+    width: 100%;
     min-width: 0;
+    min-height: 34px;
+    padding: 2px 4px;
   }
-  .sortable td .input-with-dropdown:not(:has(input.extra-input))::before {
-    font-size: 14px;
-    padding: 8px 0;
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) .input-with-dropdown:not(:has(input.extra-input))::before {
+    padding: 0;
+    white-space: normal;
+  }
+  /* Empty cell: keep the chevron on the same line as the hint. */
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) .input-with-dropdown:not(:has(input.extra-input)) .trigger-dropdown {
+    grid-row: 1;
   }
 
-  /* Time Left = plain readout, horizontally centered (no pill). */
-  .sortable td .time-left,
-  .add-row td .time-left {
+  /* Time Left: plain centered readout. */
+  #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) .time-left {
     font-size: 15px;
-    text-align: center;
     font-weight: 600;
+    text-align: center;
     color: var(--primary-dark);
     background: transparent;
     border-radius: 0;
-    padding: 4px 0;
-    white-space: pre;
+    padding: 2px 0;
+    white-space: pre-line;                /* one value per line, but can still wrap when narrow */
   }
 
-  /* Complete = full-width primary (brand green) action */
-  .sortable tr:not(.title-row):not(.add-row) td.complete-cell::before { display: none; }
-  .sortable tr:not(.title-row):not(.add-row) td.complete-cell { padding-top: 2px; }
+  /* Mark complete: full-width primary action. */
   .complete-btn {
     width: 100%;
-    min-height: 50px;
-    padding: 12px 14px;
-    font-size: 16px;
+    min-height: 44px;
+    margin: 0;
+    padding: 8px 12px;
+    font-size: 15px;
+    font-weight: 600;
     color: #fff;
     background: var(--primary);
     border: none;
@@ -1548,97 +1858,57 @@ textarea::placeholder { display: none; }
   .complete-btn[disabled]:hover { background: var(--bg); color: var(--text-muted); }
   .complete-btn-label { display: inline; }
 
-  /* Delete = centered trash, comfortable tap target */
-  .sortable tr:not(.title-row):not(.add-row) td.delete-cell::before { display: none; }
-  .sortable tr:not(.title-row):not(.add-row) td.delete-cell { text-align: center; padding-top: 2px; }
-  .sortable td.delete-cell .delete-icon { font-size: 20px; padding: 8px; display: inline-block; }
-
-  .grip-column { display: none; }
-  .custom-dropdown, .input-with-dropdown { width: 100%; }
-  .dropdown-options, .type-dropdown { width: 100%; max-height: 150px; }
-
-  /* Add row: same 1 / 2-2 / 1 grid + flat fields + separating gridlines as the
-     saved cards, but kept visually distinct (green tint + dashed edge) as the
-     "add new" zone. */
-  .add-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0;
-    padding: 0;
+  /* Add: same size as Mark complete. */
+  #sortable-info-table .add-row .add-button {
+    width: 100%;
+    min-height: 44px;
     margin: 0;
-    border: 1px dashed var(--primary);
-    border-radius: var(--radius);
-    background: var(--primary-light);
-    overflow: hidden;
-  }
-  .add-row td {
-    display: block;
-    border: none;
-    border-bottom: 1px solid var(--border);
-    padding: 10px 14px;
-    background: transparent;
-  }
-  .add-row td::before {
-    content: attr(data-label);
+    padding: 8px 12px;
+    font-size: 15px;
     font-weight: 600;
-    font-size: 11px;
-    text-transform: uppercase;
-    display: block;
-    margin-bottom: 4px;
-    color: var(--text-muted);
+    border-radius: var(--radius);
   }
-  .add-row td.grip-column { display: none; }
-  /* Placement mirrors the saved card. */
-  .add-row td[data-label="Item"]        { grid-column: 1 / -1; grid-row: 1; }
-  .add-row td[data-label="Description"] { grid-column: 1;      grid-row: 2; border-right: 1px solid var(--border); }
-  .add-row td[data-label="Last Done"]   { grid-column: 2;      grid-row: 2; }
-  .add-row td[data-label="Cycle"]       { grid-column: 1;      grid-row: 3; border-right: 1px solid var(--border); }
-  .add-row td[data-label="Due Date"]    { grid-column: 2;      grid-row: 3; }
-  .add-row td[data-label="Time Left"]   { grid-column: 1 / -1; grid-row: 4; }
-  .add-row td.add-cell                  { grid-column: 1 / -1; grid-row: 5; border-bottom: none; }
-  .add-row td[data-label="Item"]::before,
-  .add-row td.add-cell::before { display: none; }
 
-  /* Flat add-row controls (match the saved card; gridlines give the structure). */
-  .add-row td textarea { border: none; background: transparent; }
-  /* The item name is centered when adding, matching the centered Time Left. */
-  .add-row td[data-label="Item"] textarea,
-  .add-row td[data-label="Item"] input.title-input { text-align: center; }
-  .add-row .custom-dropdown {
-    width: 100%; align-items: center; padding: 0; border: none; background: transparent;
-  }
-  .add-row .custom-dropdown .selected-option {
-    width: 100%; min-height: 32px; display: flex; align-items: center; font-size: 15px; border: none; padding: 4px 0;
-  }
-  .add-row .input-with-dropdown {
-    width: 100%; border: none; background: transparent; padding: 0; min-height: 32px;
-  }
-  .add-row .cycle-structured {
-    width: 100%; max-width: 100%; height: auto; align-items: stretch; border: none; background: transparent; overflow: visible;
-  }
-  .add-row .cycle-row { flex: 0 0 auto; justify-content: flex-start; gap: 8px; padding: 6px 0; min-height: 38px; }
-  .add-row .cycle-num {
-    flex: 0 0 64px; width: 64px; max-width: none; text-align: left; font-size: 15px; border: none; background: transparent; padding: 4px 0;
-  }
-  .add-row .cycle-unit {
-    flex: 1 1 auto; width: auto; max-width: none; min-width: 0; min-height: 32px; font-size: 15px; border: none; padding: 4px 30px 4px 0;
-    appearance: none; -webkit-appearance: none;
-    background-color: transparent;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%235E7A6A' d='M233.4 406.6c12.5 12.5 32.8 12.5 45.3 0l192-192c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 338.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l192 192z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 10px center;
-    background-size: 14px;
-  }
-  .add-row .cycle-unit-label { margin-left: 4px; font-size: 15px; }
+  /* Adding a Title: the item-only fields are irrelevant, so remove them. */
+  #sortable-info-table .add-row.title-mode > td:is([data-label="Description"], [data-label="Cycle"], [data-label="Last Done"], [data-label="Due Date"], [data-label="Time Left"]) { display: none; }
 
-  /* Adding a Title: the item-only fields are irrelevant, so REMOVE them
-     (display:none reclaims the space) instead of leaving empty boxes. The
-     add card collapses to just the Item/Title picker + title input + Add. */
-  .add-row.title-mode td[data-label="Description"],
-  .add-row.title-mode td[data-label="Cycle"],
-  .add-row.title-mode td[data-label="Last Done"],
-  .add-row.title-mode td[data-label="Due Date"],
-  .add-row.title-mode td[data-label="Time Left"] { display: none; }
+  /* Dropdown menus: finger-sized rows. */
+  #sortable-info-table .dropdown-options {
+    width: 100%;
+    min-width: min(220px, calc(100vw - 32px));
+    max-height: 260px;
+  }
+  #sortable-info-table .dropdown-options .option {
+    display: flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 0 12px;
+    font-size: 15px;
+  }
+  #sortable-info-table .remove-option-btn {
+    min-width: 36px;
+    min-height: 36px;
+    font-size: 14px;
+  }
+  #sortable-info-table .add-option-container { padding: 8px; }
+  #sortable-info-table .custom-description { min-height: 36px; font-size: 16px; }
+  #sortable-info-table .add-option-btn { min-height: 36px; padding: 0 14px; font-size: 14px; }
+  #sortable-info-table .type-dropdown {
+    width: auto;
+    min-width: max(100%, 150px);
+  }
+  #sortable-info-table .type-option {
+    min-height: 44px;
+    padding: 0 4px 0 12px;
+    gap: 12px;
+    font-size: 15px;
+  }
+  #sortable-info-table .add-type {
+    min-width: 84px;
+    height: 36px;
+    padding: 0 10px;
+    font-size: 14px;
+  }
 
   #export-excel, #print-dashboard, .add-button { width: 100%; margin: 8px 0; padding: 12px; }
 
@@ -1715,20 +1985,6 @@ textarea::placeholder { display: none; }
 
   .header { flex-direction: column; align-items: flex-start; }
   .my-hours { width: 100%; margin: 8px 0; }
-}
-
-/* ── Narrow phones (≤480px) ──
-   In the half-width card column a native date field at 15px can't show the
-   full mm/dd/yyyy value ("02/01/202…"). Slightly smaller tabular digits and a
-   tighter chevron gap keep the whole date visible. ── */
-@media screen and (max-width: 480px) {
-  .sortable td .input-with-dropdown { column-gap: 4px; }
-  .sortable td .input-with-dropdown input.extra-input {
-    font-size: 12px;
-    font-variant-numeric: tabular-nums;
-  }
-  .custom-dropdown .trigger-dropdown,
-  .input-with-dropdown .trigger-dropdown { min-width: 28px; padding: 6px 4px; }
 }
 
 /* ── Print ── */

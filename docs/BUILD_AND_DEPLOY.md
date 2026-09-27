@@ -13,9 +13,18 @@
 
 ## Config profiles
 - `application.properties` → activates profile `h2` (in-memory H2 locally; see [DATABASE](DATABASE.md)).
+- `application-main.properties` → local Postgres (`localhost:5432/AviaryService`) for testing against a real DB. Run with `./gradlew bootRun --args='--spring.profiles.active=main'`.
 - `application-heroku.properties` → Postgres + `ddl-auto=update` + `server.port=${PORT:8080}`.
 - `src/test/resources/application-tests.yml` + `application.properties` → the `test` profile used by `@ActiveProfiles("test")`.
 - `system.properties` → `java.runtime.version=21` (pins the JDK on Heroku).
+
+## Local setup: `.env` (required)
+`application.properties` imports an optional, gitignored `.env` from the project root. It must hold `AVIARY_AERO_KEY`, a Base64 AES-256 key (32 random bytes), or `AeroKeyHolder` throws `Illegal base64 character 2d` at startup (the committed fallback isn't valid Base64). This applies to every profile. `.env` doesn't sync between machines, so each new checkout needs one:
+```
+# Mac/Linux/Git Bash
+echo "AVIARY_AERO_KEY=$(openssl rand -base64 32)" > .env
+```
+Data encrypted with one machine's key can't be decrypted with another's. To share a local database between machines, copy the same `.env` to each. Heroku needs its own `AVIARY_AERO_KEY` config var.
 
 ## Run target (Heroku)
 `Procfile`: `web: java -jar build/libs/AviaryService-0.0.1-SNAPSHOT.jar`.
