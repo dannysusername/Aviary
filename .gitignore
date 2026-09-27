@@ -47,3 +47,6 @@ docs/SECURITY.md
 docs/
 .gstack/
 sendgrid.env
+
+# Local Gradle daemon JDK pin (machine-specific path)
+gradle.properties
