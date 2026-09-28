@@ -11,13 +11,15 @@
 Each stylesheet defines the same CSS-variable palette (`--primary` green `#2C9B6F`, `--accent` pink `#E64E6D`, surfaces, radius, shadows). Font: Inter via Google Fonts.
 
 ## Dashboard structure
-- Fixed header (logo + logout).
+- Fixed header (logo, **Share** menu, logout, settings gear). Share is a popover card (`.share-dropdown`, toggled via `hidden` + `aria-expanded` by `setShareOpen()` in `dashboard.js`): Print, Download PDF, then a divider and Email/Text marked with a "Soon" pill (`.share-coming-soon`). Closes on outside click, Escape, or picking an item; Arrow keys move between items. Styled with theme tokens so it works in dark mode.
 - "My Hours" card: shows Hobbs/Tach, each with a small muted "last updated" line under it (`.hours-block` / `.hours-updated`) — local date + time + relative ("2 days ago") + source ("you edited it" / "from a flight log"). Edit panel can **set** or **add** hours.
 - Two tabs: **Service Timeline** and **Log Book**.
 - Service Timeline table: drag-reorder (SortableJS via grip handle), title rows vs item rows, a custom Description dropdown (with add/remove custom options), and a Calendar/Clock picker for Last Done / Due Date. "Time Left" is computed client-side.
 - Log Book table: existing rows are **readonly**; an add-row appends a flight.
 
 ## `dashboard.js` patterns (~1400 lines, one file)
+- **Autosave debounce:** one 500ms timer per row (`rowSaveTimers`, keyed by row id) and per aircraft-info field (`userInfoSaveTimers`, keyed by input name). Never share one timer across rows/fields — that used to silently drop the first of two quick edits. A failed save shows an error toast.
+- **Escaping:** anything user-typed or from AeroAPI that goes into an `innerHTML` template must pass through `escapeHtml()` (top of `dashboard.js`). Prefer `textContent` when building single nodes.
 - **AJAX:** `axios`, with the Spring CSRF token read from `<meta name="_csrf">` / `_csrf_header` and sent on every mutating call.
 - **Reorder:** SortableJS → `POST /updateOrder`.
 - **Time Left:** `calculateTimeLeft(dueDate, currentTach)` parses a due value that may hold a calendar date and/or an hours number (whole or decimal — e.g. `100`, `100.5`, `.5`); recomputed on hours change and at midnight. The Clock-input sanitizer accepts digits plus a single decimal point.

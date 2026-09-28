@@ -153,7 +153,9 @@ for their attachment/link instead of building their own renderer.
 ## Cross-cutting concerns
 
 - **Abuse / rate limiting** — self-serve send to arbitrary recipients is a spam
-  vector; cap sends per user per hour, validate recipient input.
+  vector. Done: `POST /pdf/email` validates the address and counts against
+  `OutboundEmailLimiter` (10 user-triggered emails per user per hour, shared
+  with alert invites/resends) → 429 past the cap.
 - **Tokenized PDF links** (for SMS) must be unguessable + expiring so records
   can't be enumerated.
 - **Empty timeline** — disable Share or guard against emailing a blank PDF.

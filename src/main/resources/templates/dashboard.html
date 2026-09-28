@@ -30,12 +30,23 @@
         <div class="header-right">
             <div class="header-share">
                 <div class="share-menu">
-                    <button id="share-toggle-btn" class="share-btn">Share <i class="fa-solid fa-share-from-square"></i></button>
-                    <div id="share-dropdown" class="share-dropdown" style="display: none;">
-                        <button id="share-print-btn">Print</button>
-                        <button id="share-download-pdf-btn">Download PDF</button>
-                        <button class="share-coming-soon" title="Coming soon">Email</button>
-                        <button class="share-coming-soon" title="Coming soon">Text</button>
+                    <button id="share-toggle-btn" class="share-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="share-dropdown">
+                        <i class="fa-solid fa-share-from-square"></i><span class="share-label">Share</span><i class="fa-solid fa-chevron-down share-caret"></i>
+                    </button>
+                    <div id="share-dropdown" class="share-dropdown" role="menu" aria-labelledby="share-toggle-btn" hidden>
+                        <button id="share-print-btn" class="share-item" type="button" role="menuitem">
+                            <i class="fa-solid fa-print"></i><span>Print</span>
+                        </button>
+                        <button id="share-download-pdf-btn" class="share-item" type="button" role="menuitem">
+                            <i class="fa-solid fa-file-arrow-down"></i><span>Download PDF</span>
+                        </button>
+                        <div class="share-divider" role="separator"></div>
+                        <button class="share-item share-coming-soon" type="button" role="menuitem" aria-disabled="true">
+                            <i class="fa-solid fa-envelope"></i><span>Email</span><span class="share-soon">Soon</span>
+                        </button>
+                        <button class="share-item share-coming-soon" type="button" role="menuitem" aria-disabled="true">
+                            <i class="fa-solid fa-comment-sms"></i><span>Text</span><span class="share-soon">Soon</span>
+                        </button>
                     </div>
                 </div>
             </div>

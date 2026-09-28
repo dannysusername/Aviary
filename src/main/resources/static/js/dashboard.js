@@ -1,7 +1,9 @@
 console.log('dashboard.js loaded');
 
-let timeout;
-let userInfoTimeout;
+// One debounce timer per row / per aircraft-info field. A single shared timer
+// meant editing a second row (or field) within 500ms cancelled the first save.
+const rowSaveTimers = new Map();
+const userInfoSaveTimers = new Map();
 let previousBlockTimeHours = document.getElementById('current-block-time')?.value || 0;
 let previousTimeInServiceHours = document.getElementById('current-time-in-service')?.value || 0;
 // True from a successful CSV parse until the next Add (or a fresh upload) --
@@ -10,6 +12,17 @@ let previousTimeInServiceHours = document.getElementById('current-time-in-servic
 // instead of treating it as a fixed manual reading. See UserController.addFlightLog.
 let csvPrefilled = false;
 
+// Escapes a value for use inside an innerHTML template (text or a quoted
+// attribute). Anything a user typed, or that came back from AeroAPI, goes
+// through this -- otherwise e.g. an item named <img onerror=...> runs as code.
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
 
 // ── Lightweight toast + confirm UI (replaces native alert()/confirm()) ──
 function showToast(message, type = 'info') {
@@ -149,8 +162,8 @@ function applyTheme(theme) {
 
 function buildLogRowHtml(log) {
     return `
-        <td data-label="From"><span class="print-only">${log.fromAirport || ''}</span><input type="text" name="fromAirport" class="no-print" value="${log.fromAirport || ''}" readonly></td>
-        <td data-label="To"><span class="print-only">${log.toAirport || ''}</span><input type="text" name="toAirport" class="no-print" value="${log.toAirport || ''}" readonly></td>
+        <td data-label="From"><span class="print-only">${escapeHtml(log.fromAirport)}</span><input type="text" name="fromAirport" class="no-print" value="${escapeHtml(log.fromAirport)}" readonly></td>
+        <td data-label="To"><span class="print-only">${escapeHtml(log.toAirport)}</span><input type="text" name="toAirport" class="no-print" value="${escapeHtml(log.toAirport)}" readonly></td>
         <td data-label="Block Time Out"><span class="print-only">${log.blockTimeOut ?? ''}</span><input type="number" name="blockTimeOut" class="no-print" value="${log.blockTimeOut ?? ''}" readonly step="0.1"><span class="log-timestamp no-print">${formatLogTimestamp(log.blockTimeStart)}</span></td>
         <td data-label="Block Time In"><span class="print-only">${log.blockTimeIn ?? ''}</span><input type="number" name="blockTimeIn" class="no-print" value="${log.blockTimeIn ?? ''}" readonly step="0.1"><span class="log-timestamp no-print">${formatLogTimestamp(log.blockTimeEnd)}</span></td>
         <td data-label="Time in Service Out"><span class="print-only">${log.timeInServiceOut ?? ''}</span><input type="number" name="timeInServiceOut" class="no-print" value="${log.timeInServiceOut ?? ''}" readonly step="0.1"><span class="log-timestamp no-print">${formatLogTimestamp(log.timeInServiceStart)}</span></td>
@@ -227,11 +240,12 @@ function autoSave(input) {
         data.timeLeft = timeLeftSpan.textContent;
     }
 
-    clearTimeout(timeout);
+    clearTimeout(rowSaveTimers.get(id));
     //status.textContent = '...';
     //status.className = 'save-status saving';
 
-    timeout = setTimeout(() => {
+    rowSaveTimers.set(id, setTimeout(() => {
+        rowSaveTimers.delete(id);
         const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
         const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
 
@@ -247,8 +261,9 @@ function autoSave(input) {
             //status.textContent = '✖';
             //status.className = 'save-status error';
             console.error('Error saving:', error.response ? error.response.data : error);
+            showToast(error.response?.data?.message || 'Could not save that change. Check your connection and try again.', 'error');
         });
-    }, 500);
+    }, 500));
 }
 
 async function loadAeroApiUsage() {
@@ -265,12 +280,13 @@ async function loadAeroApiUsage() {
 }
 
 function autoSaveUserInfo(input) {
-    clearTimeout(userInfoTimeout);
+    clearTimeout(userInfoSaveTimers.get(input.name));
 
     const data = {};
     data[input.name] = input.value; // Only send the changed field
 
-    userInfoTimeout = setTimeout(() => {
+    userInfoSaveTimers.set(input.name, setTimeout(() => {
+        userInfoSaveTimers.delete(input.name);
         const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
         const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
 
@@ -302,9 +318,9 @@ function autoSaveUserInfo(input) {
         })
         .catch(error => {
             console.error('Error saving user info:', error.response ? error.response.data : error);
-            // Optionally show an error indicator
+            showToast(error.response?.data?.message || 'Could not save aircraft info. Check your connection and try again.', 'error');
         });
-    }, 500); // Debounce for 500ms
+    }, 500)); // Debounce for 500ms
 }
 
 // In printDashboard, add this loop for redundancy (before window.print())
@@ -1296,7 +1312,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 newRow.className = 'title-row';
                 newRow.innerHTML = `
                     <td class="grip-cell"><span class="grip-icon no-print"><i class="fa-solid fa-grip-vertical"></i></span></td>
-                    <td colspan="6" class="title-cell">${newRowData.item}</td>
+                    <td colspan="6" class="title-cell">${escapeHtml(newRowData.item)}</td>
                     <td class="complete-cell no-print"></td>
                     <td class="delete-cell"><span class="delete-icon no-print" onclick="deleteRow(this)"><i class="fa-solid fa-trash-can fa-xl"></i></span></td>
                 `;
@@ -1310,11 +1326,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dueDatePrint  = [newRowData.dueDateDate,  newRowData.dueDateHours].filter(Boolean).join(' ');
                 newRow.innerHTML = `
                 <td class="grip-cell"><span class="grip-icon no-print"><i class="fa-solid fa-grip-vertical"></i></span></td>
-                <td data-label="Item"><textarea name="item" class="no-print" oninput="autoSave(this)">${newRowData.item}</textarea><i class="fa-solid fa-chevron-down card-caret no-print"></i><span class="print-only">${newRowData.item}</span></td>
+                <td data-label="Item"><textarea name="item" class="no-print" oninput="autoSave(this)">${escapeHtml(newRowData.item)}</textarea><i class="fa-solid fa-chevron-down card-caret no-print"></i><span class="print-only">${escapeHtml(newRowData.item)}</span></td>
                 <td data-label="Description">
                     <div class="custom-dropdown no-print">
-                        <div class="selected-option no-print">${newRowData.description}</div>
-                        <input type="hidden" name="description" value="${newRowData.description}">
+                        <div class="selected-option no-print">${escapeHtml(newRowData.description)}</div>
+                        <input type="hidden" name="description" value="${escapeHtml(newRowData.description)}">
                         <i class="fa-solid fa-chevron-down trigger-dropdown"></i>
                         <div class="dropdown-options no-print">
                             <div class="option" data-value="">--None--</div>
@@ -1328,7 +1344,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         </div>
                     </div>
-                    <span class="print-only">${newRowData.description}</span>
+                    <span class="print-only">${escapeHtml(newRowData.description)}</span>
                 </td>
                 <td data-label="Cycle">
                     <div class="cycle-structured no-print">
@@ -1357,7 +1373,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="type-option"><span>Clock</span><button class="add-type" data-type="clock">Add</button></div>
                         </div>
                     </div>
-                    <span class="print-only">${lastDonePrint}</span>
+                    <span class="print-only">${escapeHtml(lastDonePrint)}</span>
                 </td>
                 <td data-label="Due Date">
                     <div class="input-with-dropdown no-print">
@@ -1367,9 +1383,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="type-option"><span>Clock</span><button class="add-type" data-type="clock">Add</button></div>
                         </div>
                     </div>
-                    <span class="print-only">${dueDatePrint}</span>
+                    <span class="print-only">${escapeHtml(dueDatePrint)}</span>
                 </td>
-                <td data-label="Time Left"><div class="time-left">${newRowData.timeLeft ?? ''}</div></td>
+                <td data-label="Time Left"><div class="time-left">${escapeHtml(newRowData.timeLeft)}</div></td>
                 <td class="complete-cell no-print" data-label="">
                     <button type="button" class="complete-btn"
                             title="Mark maintenance complete"
@@ -1506,12 +1522,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await axios.get('/flightsuggestions/all');
             body.innerHTML = response.data.map(s => `
                 <tr data-id="${s.id}">
-                    <td>${s.origin || ''}</td>
-                    <td>${s.destination || ''}</td>
+                    <td>${escapeHtml(s.origin)}</td>
+                    <td>${escapeHtml(s.destination)}</td>
                     <td>${new Date(s.departureTime).toLocaleString()}</td>
                     <td>${new Date(s.arrivalTime).toLocaleString()}</td>
                     <td>${(s.minutesAirborne / 60).toFixed(1)} hrs</td>
-                    <td>${s.status}</td>
+                    <td>${escapeHtml(s.status)}</td>
                     <td>
                         <button class="audit-add-btn">Add to log</button>
                         <button class="audit-delete-btn">Delete</button>
@@ -1800,23 +1816,38 @@ document.addEventListener('DOMContentLoaded', () => {
         XLSX.writeFile(wb, `Aircraft_Service_Timeline_${new Date().toISOString().split('T')[0]}.xlsx`);
     }
 
-    // Share menu: toggle open/closed, close on an outside click, and wire the
-    // two buttons that need nothing external. Print and Download PDF are the
-    // same browser action (window.print()) -- there's no separate JS API to
-    // save a PDF straight to disk, only the native print dialog, where
-    // "Save as PDF" is one of the destinations the user picks themselves.
+    // Share menu: a popover card under the Share button. Opens on click,
+    // closes on an outside click, Escape, or picking an item. Print uses the
+    // browser's print dialog; Download PDF hits the server-rendered GET /pdf.
     // Email/Text stay disabled (.share-coming-soon) until SendGrid/Twilio are
     // actually set up -- see docs/SHARE_EXPORT_SPEC.md.
     const shareToggleBtn = document.getElementById('share-toggle-btn');
     const shareDropdown = document.getElementById('share-dropdown');
+    function setShareOpen(open) {
+        if (!shareToggleBtn || !shareDropdown) return;
+        shareDropdown.hidden = !open;
+        shareToggleBtn.setAttribute('aria-expanded', String(open));
+        shareToggleBtn.classList.toggle('open', open);
+        if (open) shareDropdown.querySelector('.share-item')?.focus();
+    }
     if (shareToggleBtn && shareDropdown) {
         shareToggleBtn.addEventListener('click', (event) => {
             event.stopPropagation();
-            shareDropdown.style.display = shareDropdown.style.display === 'flex' ? 'none' : 'flex';
+            setShareOpen(shareDropdown.hidden);
         });
         document.addEventListener('click', (event) => {
-            if (shareDropdown.style.display === 'flex' && !event.target.closest('.share-menu')) {
-                shareDropdown.style.display = 'none';
+            if (!shareDropdown.hidden && !event.target.closest('.share-menu')) setShareOpen(false);
+        });
+        shareDropdown.addEventListener('keydown', (event) => {
+            const items = [...shareDropdown.querySelectorAll('.share-item')];
+            const i = items.indexOf(document.activeElement);
+            if (event.key === 'Escape') {
+                setShareOpen(false);
+                shareToggleBtn.focus();
+            } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                const step = event.key === 'ArrowDown' ? 1 : -1;
+                items[(i + step + items.length) % items.length].focus();
             }
         });
     }
@@ -1824,7 +1855,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sharePrintBtn = document.getElementById('share-print-btn');
     if (sharePrintBtn) {
         sharePrintBtn.addEventListener('click', () => {
-            shareDropdown.style.display = 'none';
+            setShareOpen(false);
             printDashboard();
         });
     }
@@ -1832,7 +1863,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const shareDownloadPdfBtn = document.getElementById('share-download-pdf-btn');
     if (shareDownloadPdfBtn) {
         shareDownloadPdfBtn.addEventListener('click', () => {
-            shareDropdown.style.display = 'none';
+            setShareOpen(false);
             downloadDashboardPdf();
         });
     }
@@ -2480,7 +2511,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 li.dataset.id = rec.id;
                 const who = rec.label ? `${rec.label} — ${rec.destination}` : rec.destination;
                 li.innerHTML =
-                    `<span class="alert-recipient-who">${who}</span>` +
+                    `<span class="alert-recipient-who">${escapeHtml(who)}</span>` +
                     `<span class="alert-recipient-status status-${rec.status.toLowerCase()}">${statusBadge(rec.status)}</span>` +
                     `<button type="button" class="alert-recipient-resend no-print">Resend</button>` +
                     `<button type="button" class="alert-recipient-remove no-print">Remove</button>`;
@@ -2551,7 +2582,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (r.ok) loadRecipients();
         } else if (ev.target.classList.contains('alert-recipient-resend')) {
             const r = await fetch('/alerts/recipients/' + id + '/resend', { method: 'POST', headers: csrf() });
-            if (r.ok && typeof showToast === 'function') showToast('Confirmation resent', 'info');
+            if (r.ok) {
+                showToast('Confirmation resent', 'info');
+            } else {
+                const d = await r.json().catch(() => ({}));
+                showToast(d.error || 'Could not resend the confirmation.', 'error');
+            }
             loadRecipients();
         }
     });

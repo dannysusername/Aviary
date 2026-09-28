@@ -94,13 +94,17 @@ public class AlertController {
             Authentication auth) {
         User user = currentUser(auth);
         if (user == null) return unauthorized();
+        AlertRecipient.Channel ch;
         try {
-            AlertRecipient.Channel ch = AlertRecipient.Channel.valueOf(channel.trim().toUpperCase());
+            ch = AlertRecipient.Channel.valueOf(channel.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Pick Email or Text."));
+        }
+        try {
             AlertRecipient r = recipientService.add(user, ch, destination, label);
             return ResponseEntity.ok(recipientBody(r));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("error",
-                e.getMessage() == null ? "Invalid channel." : e.getMessage()));
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 

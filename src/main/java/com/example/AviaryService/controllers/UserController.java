@@ -26,6 +26,7 @@ import com.example.AviaryService.services.DescriptionOptionService;
 import com.example.AviaryService.services.FlightSuggestionService;
 import com.example.AviaryService.services.FlightSyncService;
 import com.example.AviaryService.services.HoursService;
+import com.example.AviaryService.services.OutboundEmailLimiter;
 import com.example.AviaryService.services.PdfExportService;
 import com.example.AviaryService.services.SendGridEmailService;
 import com.example.AviaryService.services.SubscriptionService;
@@ -33,6 +34,7 @@ import com.example.AviaryService.services.TimelineService;
 import com.example.AviaryService.services.UserService;
 import com.example.AviaryService.util.Formatting;
 import com.example.AviaryService.util.Parsing;
+import com.example.AviaryService.util.Validation;
 
 import org.apache.catalina.connector.Response;
 //import org.checkerframework.checker.units.qual.Speed;
@@ -71,6 +73,7 @@ public class UserController {
     private final FlightSyncService flightSyncService;
     private final PdfExportService pdfExportService;
     private final SendGridEmailService sendGridEmailService;
+    private final OutboundEmailLimiter emailLimiter;
 
     public UserController(UserRepository userRepository, ServiceTimelineRepository serviceTimelineRepository,
             PasswordEncoder passwordEncoder, DescriptionOptionRepository descriptionOptionRepository,
@@ -80,7 +83,7 @@ public class UserController {
             com.example.AviaryService.repositories.FlightSuggestionRepository flightSuggestionRepository,
             com.example.AviaryService.repositories.SubscriptionRepository subscriptionRepository,
             AeroApiClient aeroApiClient, FlightSyncService flightSyncService, PdfExportService pdfExportService,
-            SendGridEmailService sendGridEmailService) {
+            SendGridEmailService sendGridEmailService, OutboundEmailLimiter emailLimiter) {
 
         this.userRepository = userRepository;
         this.serviceTimelineRepository = serviceTimelineRepository;
@@ -99,6 +102,7 @@ public class UserController {
         this.flightSyncService = flightSyncService;
         this.pdfExportService = pdfExportService;
         this.sendGridEmailService = sendGridEmailService;
+        this.emailLimiter = emailLimiter;
     }
 
     @GetMapping("/register")
@@ -192,8 +196,8 @@ public class UserController {
     // Share menu's "Email PDF" -- generates the same dashboard PDF as GET /pdf
     // and sends it to an arbitrary recipient via SendGrid. See
     // docs/SHARE_EXPORT_SPEC.md ("Channels -> Email"). Note the spec's
-    // cross-cutting concerns: recipient validation and a per-user rate limit
-    // still need to be added before this is exposed in the UI.
+    // cross-cutting concerns: recipient validation plus the shared per-user
+    // email cap (OutboundEmailLimiter) are in place.
     @PostMapping("/pdf/email")
     @ResponseBody
     public ResponseEntity<Map<String, String>> emailPdf(@RequestParam String recipient,
@@ -209,6 +213,7 @@ public class UserController {
         if (recipient == null || !recipient.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) {
             return ResponseEntity.badRequest().body(Map.of("error", "Enter a valid email address."));
         }
+        emailLimiter.acquire(user);
 
         byte[] pdf = pdfExportService.generateDashboardPdf(user);
         String filename = "Aviary_Dashboard_" + java.time.LocalDate.now() + ".pdf";
@@ -288,9 +293,11 @@ public class UserController {
             @RequestBody Map<String, Object> data, Authentication authentication) {
         User user = userRepository.findByUsername(authentication.getName());
         try {
-            int pollIntervalDays = ((Number) data.get("pollIntervalDays")).intValue();
-            int preferredCheckHour = ((Number) data.get("preferredCheckHour")).intValue();
-            subscriptionService.updateSettings(user, pollIntervalDays, preferredCheckHour);
+            if (!(data.get("pollIntervalDays") instanceof Number days)
+                    || !(data.get("preferredCheckHour") instanceof Number hour)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Pick a check interval and hour."));
+            }
+            subscriptionService.updateSettings(user, days.intValue(), hour.intValue());
             return ResponseEntity.ok(Map.of("status", "success"));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -383,6 +390,12 @@ public class UserController {
         String item = data.get("item");
         if (item == null || item.isEmpty()) {
             return ResponseEntity.badRequest().body("Item is required");
+        }
+        for (String value : data.values()) {
+            if (value != null && value.length() > Validation.MAX_TEXT) {
+                return ResponseEntity.badRequest().body(errorBody(
+                    "Entries must be " + Validation.MAX_TEXT + " characters or fewer."));
+            }
         }
 
         String ajax = data.getOrDefault("ajax", "false");
@@ -479,12 +492,11 @@ public class UserController {
             response.put("newTimeInService", String.valueOf(user.getTimeInServiceHours()));
             return ResponseEntity.ok(response);
             
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
         } catch (Exception e) {
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("status", "error");
-            errorResponse.put("message", e.getMessage());
-            System.out.println("Error updating hours: " + e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
+            log.error("Failed to update hours", e);
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "Could not update hours."));
         }
     }
 
@@ -507,6 +519,11 @@ public class UserController {
                 forbidden.put("message", "You do not own this timeline");
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(forbidden);
             }
+
+            Validation.maxLength("Item", updateDTO.getItem());
+            Validation.maxLength("Description", updateDTO.getDescription());
+            Validation.maxLength("Last done", updateDTO.getLastDoneHours());
+            Validation.maxLength("Due date", updateDTO.getDueDateHours());
 
             System.out.println("Received updateDTO: item=" + updateDTO.getItem() + ", cycle=" + updateDTO.getCycle() +
                     ", description=" + updateDTO.getDescription() + ", lastDone=" + updateDTO.getLastDone() +
@@ -540,11 +557,11 @@ public class UserController {
             Map<String, String> response = new HashMap<>();
             response.put("status", "success");
             return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
         } catch (Exception e) {
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("status", "error");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
+            log.error("Failed to update timeline {}", id, e);
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "Could not save that change."));
         }
     }
 
@@ -552,8 +569,10 @@ public class UserController {
     @DeleteMapping("/delete/{id}")
     @ResponseBody
     public ResponseEntity<Void> deleteTimeline(@PathVariable Long id, Authentication authentication) {
-        ServiceTimeline timeline = serviceTimelineRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Invalid timeline ID: " + id));
+        ServiceTimeline timeline = serviceTimelineRepository.findById(id).orElse(null);
+        if (timeline == null) {
+            return ResponseEntity.notFound().build();
+        }
         User user = userRepository.findByUsername(authentication.getName());
         if (user == null || timeline.getUser() == null || timeline.getUser().getId() != user.getId()) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
@@ -642,6 +661,11 @@ public class UserController {
         newLog.setBlockTimeIn(Formatting.roundHoursOrNull(newLog.getBlockTimeIn()));
         newLog.setTimeInServiceOut(Formatting.roundHoursOrNull(newLog.getTimeInServiceOut()));
         newLog.setTimeInServiceIn(Formatting.roundHoursOrNull(newLog.getTimeInServiceIn()));
+
+        if (tooLong(newLog.getFromAirport()) || tooLong(newLog.getToAirport())) {
+            return ResponseEntity.badRequest().body(errorBody(
+                "Airport must be " + Validation.MAX_TEXT + " characters or fewer."));
+        }
 
         // ── Validation ─────────────────────────────────────────────────────────
         // Reject incomplete entries before they can corrupt displayed hours.
@@ -930,6 +954,10 @@ public class UserController {
         map.put("airborneEnd", airborneEnd);
 
         return map;
+    }
+
+    private static boolean tooLong(String value) {
+        return value != null && value.length() > Validation.MAX_TEXT;
     }
 
     private static Map<String, Object> errorBody(String message) {

@@ -66,8 +66,8 @@ class DashboardMobileCardsTest extends BrowserTestBase {
         item.setCycleCalendarValue(12);
         item.setCycleCalendarUnit("MONTHS");
         item.setCycleHours(100.0);
-        item.setLastDone("2025-06-01");
-        item.setDueDate("2026-06-01 2450.0");
+        setLastDone(item, "2025-06-01");
+        setDueDate(item, "2026-06-01 2450.0");
         item.setTimeLeft("11 mo\n86.0 hrs");
         timelines.save(item);
 
@@ -75,10 +75,10 @@ class DashboardMobileCardsTest extends BrowserTestBase {
         log.setUser(user);
         log.setFromAirport("KSQL");
         log.setToAirport("KPAO");
-        log.setHobbsOut(1234.5);
-        log.setHobbsIn(1236.1);
-        log.setTachOut(1100.2);
-        log.setTachIn(1101.5);
+        log.setBlockTimeOut(1234.5);
+        log.setBlockTimeIn(1236.1);
+        log.setTimeInServiceOut(1100.2);
+        log.setTimeInServiceIn(1101.5);
         flightLogs.save(log);
     }
 
@@ -140,7 +140,8 @@ class DashboardMobileCardsTest extends BrowserTestBase {
         double rowW = pxOf(row, "width");
         double completeW = pxOf(row.locator(".complete-btn"), "width");
         // grid padding is 14px each side; allow generous tolerance.
-        assertTrue(completeW >= rowW - 60,
+        // The trash icon now sits beside the button, so allow for its width.
+        assertTrue(completeW >= rowW - 90,
                 "Complete button should span the card width (card " + rowW + ", btn " + completeW + ")");
 
         Path shot = Paths.get("build", "browsertest-screenshots", "mobile-cards-flat.png");

@@ -62,8 +62,8 @@ class ServiceTimelineMobileLayoutTest extends BrowserTestBase {
         item.setCycleCalendarValue(12);
         item.setCycleCalendarUnit("MONTHS");
         item.setCycleHours(100.0);
-        item.setLastDone("2025-06-01");
-        item.setDueDate("2026-06-01 2450.0");
+        setLastDone(item, "2025-06-01");
+        setDueDate(item, "2026-06-01 2450.0");
         item.setTimeLeft("11 mo\n86.0 hrs");
         timelines.save(item);
     }
