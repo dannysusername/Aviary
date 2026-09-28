@@ -177,18 +177,32 @@ public class UserController {
     // Share menu's Download PDF. Server-side rendering (openhtmltopdf) --
     // see docs/SHARE_EXPORT_SPEC.md and PdfExportService. Real vector
     // text/tables, not the earlier client-side screenshot approach.
+    // `today` is the browser's local date, so Time Left in the PDF matches the
+    // dashboard even when the server's UTC date differs. Only trusted within a
+    // day of the server's date; anything else falls back to the server's.
     @GetMapping("/pdf")
-    public ResponseEntity<byte[]> downloadPdf(Authentication authentication) {
+    public ResponseEntity<byte[]> downloadPdf(@RequestParam(required = false) String today,
+            Authentication authentication) {
         User user = userRepository.findByUsername(authentication.getName());
         if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        byte[] pdf = pdfExportService.generateDashboardPdf(user);
+        java.time.LocalDate serverToday = java.time.LocalDate.now();
+        java.time.LocalDate asOf = serverToday;
+        try {
+            java.time.LocalDate clientToday = today == null ? null : java.time.LocalDate.parse(today);
+            if (clientToday != null && Math.abs(java.time.temporal.ChronoUnit.DAYS.between(serverToday, clientToday)) <= 1) {
+                asOf = clientToday;
+            }
+        } catch (java.time.format.DateTimeParseException ignored) {
+            // bad value -> server date
+        }
+        byte[] pdf = pdfExportService.generateDashboardPdf(user, asOf);
 
         org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
         headers.setContentType(org.springframework.http.MediaType.APPLICATION_PDF);
         headers.setContentDisposition(org.springframework.http.ContentDisposition.attachment()
-            .filename("Aviary_Dashboard_" + java.time.LocalDate.now() + ".pdf")
+            .filename("Aviary_Dashboard_" + asOf + ".pdf")
             .build());
         return new ResponseEntity<>(pdf, headers, HttpStatus.OK);
     }
@@ -1048,9 +1062,6 @@ public class UserController {
         }
         Double dueHours = hasHours ? (currentTimeInService + hrsCycle) : null;
 
-        String timeLeftStr = computeTimeLeftString(dueDateLd, dueHours, today, currentTimeInService);
-        timeline.setTimeLeft(timeLeftStr);
-
         // Only update fields that belong to the active cycle type — leave the other type's
         // fields untouched so they stay visible in the UI after repaint.
         if (hasCalendar) {
@@ -1061,6 +1072,10 @@ public class UserController {
             timeline.setLastDoneHours(Formatting.formatHours(currentTimeInService));
             timeline.setDueDateHours(dueHours != null ? Formatting.formatHours(dueHours) : null);
         }
+        // Same text the dashboard computes, from the row's saved due date/hours.
+        String timeLeftStr = com.example.AviaryService.util.DueDates.formatTimeLeft(
+            timeline.getDueDateDate(), timeline.getDueDateHours(), today, currentTimeInService);
+        timeline.setTimeLeft(timeLeftStr);
         serviceTimelineRepository.save(timeline);
 
         // Build response strings from the actual saved state so repaintDateHoursCell
@@ -1076,29 +1091,6 @@ public class UserController {
         resp.put("dueDate", dueDateStr);
         resp.put("timeLeft", timeLeftStr);
         return ResponseEntity.ok(resp);
-    }
-
-    // Stored format matches the existing "YYYY-MM-DD <hours>" convention that
-    // the rest of the app already parses (see calculateTimeLeft in dashboard.js).
-
-    private static String computeTimeLeftString(java.time.LocalDate dueDate, Double dueHours,
-                                                java.time.LocalDate today, double currentTimeInService) {
-        StringBuilder sb = new StringBuilder();
-        if (dueDate != null) {
-            long daysLeft = java.time.temporal.ChronoUnit.DAYS.between(today, dueDate);
-            sb.append(daysLeft < 0
-                ? Math.abs(daysLeft) + " days overdue"
-                : daysLeft + " days left");
-        }
-        if (dueHours != null) {
-            double hoursLeft = Math.round((dueHours - currentTimeInService) * 10.0) / 10.0;
-            String h = hoursLeft < 0
-                ? Math.abs(hoursLeft) + " hours overdue"
-                : hoursLeft + " hours left";
-            if (sb.length() > 0) sb.append('\n');
-            sb.append(h);
-        }
-        return sb.length() == 0 ? "N/A" : sb.toString();
     }
 
     // POST to add a custom description option directly (before any row uses it)

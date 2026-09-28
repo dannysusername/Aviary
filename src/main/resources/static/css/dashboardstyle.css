@@ -300,6 +300,26 @@ input[type="checkbox"]:focus-visible {
 .edit-hours-btn:hover,
 .back-to-full-list-button:hover { background: var(--primary-light); border-color: var(--primary); }
 
+/* Shown above the Service Timeline while one section (title) is filtered. */
+.section-filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 10px;
+  scroll-margin-top: 80px;              /* clear the fixed header when scrolled into view */
+}
+.section-filter-bar .back-to-full-list-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 0;
+  min-height: 36px;
+}
+.section-filter-label { color: var(--text-muted); font-size: 13px; }
+.section-filter-label strong { color: var(--text); }
+
+
 #add-block-time-btn,
 #add-time-in-service-btn {
   background: var(--primary);
@@ -676,7 +696,11 @@ td.add-cell {
   font-size: 13px;
   text-align: center;
 }
-.title-row .title-cell:hover { background: var(--primary-dark); cursor: pointer; }
+.title-row .title-cell { cursor: pointer; }  /* click a title to show just that section */
+/* Hover highlight only with a real mouse -- on touch it stuck after a tap. */
+@media (hover: hover) {
+  .title-row .title-cell:hover { background: var(--primary-dark); }
+}
 /* No grid hairlines inside the solid green title bar */
 .title-row td { border-color: transparent; }
 
@@ -1508,8 +1532,28 @@ textarea::placeholder { display: none; }
     color: #fff;
     padding: 0;
   }
-  .sortable tr.title-row td.grip-cell,
   .sortable tr.title-row td.complete-cell { display: none; }
+  /* Grip pinned left (mirrors the trash on the right) so titles can be
+     dragged to reorder sections, same as item cards. */
+  .sortable tr.title-row td.grip-cell {
+    position: absolute;
+    top: 50%;
+    left: 4px;
+    transform: translateY(-50%);
+    padding: 0;
+  }
+  .sortable tr.title-row .grip-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--tap);
+    height: var(--tap);
+    padding: 0;
+    font-size: 18px;
+    color: rgba(255,255,255,0.8);
+    cursor: grab;
+    touch-action: none;                   /* let SortableJS own the drag gesture on touch */
+  }
   .sortable tr.title-row td.title-cell {
     text-align: center;
     font-size: 17px;
@@ -2068,14 +2112,23 @@ textarea::placeholder { display: none; }
 /* ── Print ── */
 @media print {
 
-  .main { 
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-sm);
-    overflow: hidden;
+  /* No extra box around each section: the cards/tables inside already have
+     their own borders, and a second box made them look double-bordered and
+     shifted. Same side padding as the My Hours card so everything lines up. */
+  .main {
+    border: none;
+    box-shadow: none;
     margin: 0;
-    padding-top: 0; 
+    padding: 8px 24px 0;
   }
+  #service-tab { padding: 0; }
+
+  /* One line per Time Left entry ("12 days left" / "181.3 hours left"),
+     wrapping only between the calendar and hours lines. */
+  .time-left { white-space: pre !important; }
+
+  /* Flight dates/times print under each reading, like the PDF. */
+  .log-timestamp { font-size: 8pt; margin-top: 1px; }
 
   .no-print, .status-cell, .delete-cell, .status-header,
   .delete-header, .grip-cell, .fixed-header { display: none !important; }
@@ -2096,10 +2149,6 @@ textarea::placeholder { display: none; }
     background: none;
   }
 
-  #service-tab {
-    padding: 16px 24px 0;
-  }
-
   table { page-break-inside: auto; }
   th, td { 
           padding: 8px; 
@@ -2108,7 +2157,7 @@ textarea::placeholder { display: none; }
 
   th.grip-column, td.grip-column, .title-grip-icon-cell { display: none; }
 
-  .time-left { white-space: pre-line; font-weight: bold; }
+  .time-left { font-weight: bold; }
   .aircraft-info-table td, .hours-table td { text-align: left; }
 
   .my-hours h3, #print-current-hours { visibility: visible; }
@@ -2227,9 +2276,13 @@ textarea::placeholder { display: none; }
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 12px 16px;
-  margin-bottom: 16px;
+  margin: 0 clamp(12px, 3vw, 24px) 16px;  /* line up with the tables below */
 }
 .flight-suggestions h3 { margin: 0 0 8px; font-size: 15px; }
+.flight-suggestion-row { flex-wrap: wrap; }
+.flight-suggestion-row .suggestion-route { font-weight: 600; }
+.flight-suggestion-row .suggestion-date { display: inline; margin: 0; }
+.flight-suggestion-row .suggestion-actions { margin-left: auto; display: flex; gap: 8px; }
 .flight-suggestion-row {
   display: flex;
   align-items: center;
@@ -2239,7 +2292,6 @@ textarea::placeholder { display: none; }
 }
 .flight-suggestion-row:first-of-type { border-top: none; }
 .suggestion-accept-btn, .suggestion-dismiss-btn {
-  margin-left: auto;
   font-family: inherit;
   font-size: 13px;
   padding: 4px 12px;

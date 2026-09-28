@@ -2,6 +2,7 @@ package com.example.AviaryService.services;
 
 import java.io.ByteArrayOutputStream;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -21,6 +22,7 @@ import com.example.AviaryService.entity.ServiceTimeline;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.FlightLogRepository;
 import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.util.DueDates;
 import com.example.AviaryService.util.Formatting;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 
@@ -45,6 +47,12 @@ public class PdfExportService {
     }
 
     public byte[] generateDashboardPdf(User user) {
+        return generateDashboardPdf(user, LocalDate.now());
+    }
+
+    // `today` drives Time Left, so the PDF matches what the user's own browser
+    // shows (the server may be a day ahead/behind in UTC).
+    public byte[] generateDashboardPdf(User user, LocalDate today) {
         Context context = new Context();
         context.setVariable("makeModel", user.getMakeModel());
         context.setVariable("tailNumber", user.getTailNumber());
@@ -54,7 +62,7 @@ public class PdfExportService {
         context.setVariable("timeInServiceHours", formatHoursOrBlank(user.getTimeInServiceHours()));
         context.setVariable("generatedAt", DateTimeFormatter.ofPattern("MMM d, yyyy h:mm a")
             .withZone(ZoneOffset.UTC).format(Instant.now()) + " UTC");
-        context.setVariable("timelineRows", buildTimelineRows(user));
+        context.setVariable("timelineRows", buildTimelineRows(user, today));
         context.setVariable("logRows", buildLogRows(user));
 
         String html = templateEngine.process("pdf-export", context);
@@ -77,21 +85,25 @@ public class PdfExportService {
         }
     }
 
-    private List<Map<String, Object>> buildTimelineRows(User user) {
+    private List<Map<String, Object>> buildTimelineRows(User user, LocalDate today) {
         return serviceTimelineRepository.findByUserOrderByTimelineOrderAsc(user).stream()
-            .map(this::timelineRowData)
+            .map(t -> timelineRowData(t, today, user.getTimeInServiceHours()))
             .collect(Collectors.toList());
     }
 
-    private Map<String, Object> timelineRowData(ServiceTimeline t) {
+    private Map<String, Object> timelineRowData(ServiceTimeline t, LocalDate today, Double currentTimeInService) {
         Map<String, Object> row = new HashMap<>();
         row.put("isTitle", t.getIsTitle());
         row.put("item", t.getItem());
         row.put("description", t.getDescription());
         row.put("cycle", Formatting.formatCycle(t.getCycleCalendarValue(), t.getCycleCalendarUnit(), t.getCycleHours()));
-        row.put("lastDone", joinNonBlank(t.getLastDoneDate(), t.getLastDoneHours()));
-        row.put("dueDate", joinNonBlank(t.getDueDateDate(), t.getDueDateHours()));
-        row.put("timeLeft", t.getTimeLeft());
+        row.put("lastDone", joinNonBlank(t.getLastDoneDate(), withHrs(t.getLastDoneHours())));
+        row.put("dueDate", joinNonBlank(t.getDueDateDate(), withHrs(t.getDueDateHours())));
+        // Computed now, not the stored timeLeft column -- that's only as fresh
+        // as the last edit to the row.
+        String timeLeft = DueDates.formatTimeLeft(t.getDueDateDate(), t.getDueDateHours(), today, currentTimeInService);
+        row.put("timeLeft", timeLeft);
+        row.put("overdue", timeLeft.contains("overdue"));
         return row;
     }
 
@@ -108,6 +120,8 @@ public class PdfExportService {
         List<Map<String, Object>> rows = new ArrayList<>();
         for (FlightLog log : logs) {
             Map<String, Object> row = new HashMap<>();
+            Instant start = log.getBlockTimeStart() != null ? log.getBlockTimeStart() : log.getTimeInServiceStart();
+            row.put("date", start == null ? "" : FLIGHT_DATE.format(start));
             row.put("fromAirport", log.getFromAirport());
             row.put("toAirport", log.getToAirport());
             row.put("blockTimeOut", formatHoursOrBlank(log.getBlockTimeOut()));
@@ -119,9 +133,19 @@ public class PdfExportService {
         return rows;
     }
 
+    private static final DateTimeFormatter FLIGHT_DATE =
+        DateTimeFormatter.ofPattern("MMM d, yyyy").withZone(ZoneOffset.UTC);
+
+    // Meter readings always show at least tenths, like the dashboard:
+    // 1415.0 stays "1415.0" (not "1415"), 1100.25 stays "1100.25".
     private static String formatHoursOrBlank(Double hours) {
         if (hours == null) return "";
-        return Formatting.formatHours(hours);
+        String s = Formatting.formatHours(hours);
+        return s.contains(".") ? s : s + ".0";
+    }
+
+    private static String withHrs(String hours) {
+        return hours == null || hours.isBlank() ? hours : hours.trim() + " hrs";
     }
 
     private static String joinNonBlank(String a, String b) {

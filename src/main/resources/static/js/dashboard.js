@@ -164,10 +164,10 @@ function buildLogRowHtml(log) {
     return `
         <td data-label="From"><span class="print-only">${escapeHtml(log.fromAirport)}</span><input type="text" name="fromAirport" class="no-print" value="${escapeHtml(log.fromAirport)}" readonly></td>
         <td data-label="To"><span class="print-only">${escapeHtml(log.toAirport)}</span><input type="text" name="toAirport" class="no-print" value="${escapeHtml(log.toAirport)}" readonly></td>
-        <td data-label="Block Time Out"><span class="print-only">${log.blockTimeOut ?? ''}</span><input type="number" name="blockTimeOut" class="no-print" value="${log.blockTimeOut ?? ''}" readonly step="0.1"><span class="log-timestamp no-print">${formatLogTimestamp(log.blockTimeStart)}</span></td>
-        <td data-label="Block Time In"><span class="print-only">${log.blockTimeIn ?? ''}</span><input type="number" name="blockTimeIn" class="no-print" value="${log.blockTimeIn ?? ''}" readonly step="0.1"><span class="log-timestamp no-print">${formatLogTimestamp(log.blockTimeEnd)}</span></td>
-        <td data-label="Time in Service Out"><span class="print-only">${log.timeInServiceOut ?? ''}</span><input type="number" name="timeInServiceOut" class="no-print" value="${log.timeInServiceOut ?? ''}" readonly step="0.1"><span class="log-timestamp no-print">${formatLogTimestamp(log.timeInServiceStart)}</span></td>
-        <td data-label="Time in Service In"><span class="print-only">${log.timeInServiceIn ?? ''}</span><input type="number" name="timeInServiceIn" class="no-print" value="${log.timeInServiceIn ?? ''}" readonly step="0.1"><span class="log-timestamp no-print">${formatLogTimestamp(log.timeInServiceEnd)}</span></td>
+        <td data-label="Block Time Out"><span class="print-only">${log.blockTimeOut ?? ''}</span><input type="number" name="blockTimeOut" class="no-print" value="${log.blockTimeOut ?? ''}" readonly step="0.1"><span class="log-timestamp">${formatLogTimestamp(log.blockTimeStart)}</span></td>
+        <td data-label="Block Time In"><span class="print-only">${log.blockTimeIn ?? ''}</span><input type="number" name="blockTimeIn" class="no-print" value="${log.blockTimeIn ?? ''}" readonly step="0.1"><span class="log-timestamp">${formatLogTimestamp(log.blockTimeEnd)}</span></td>
+        <td data-label="Time in Service Out"><span class="print-only">${log.timeInServiceOut ?? ''}</span><input type="number" name="timeInServiceOut" class="no-print" value="${log.timeInServiceOut ?? ''}" readonly step="0.1"><span class="log-timestamp">${formatLogTimestamp(log.timeInServiceStart)}</span></td>
+        <td data-label="Time in Service In"><span class="print-only">${log.timeInServiceIn ?? ''}</span><input type="number" name="timeInServiceIn" class="no-print" value="${log.timeInServiceIn ?? ''}" readonly step="0.1"><span class="log-timestamp">${formatLogTimestamp(log.timeInServiceEnd)}</span></td>
         <td class="delete-cell no-print" data-label=""><button class="delete-log-icon"><i class="fa-solid fa-trash-can fa-xl"></i></button></td>
     `;
 }
@@ -344,7 +344,11 @@ function deleteRow(icon) {
     showConfirm('Delete this entry?', 'Delete').then(confirmed => {
         if (!confirmed) return;
         axios.delete(`/delete/${id}`, { headers: { [csrfHeader]: csrfToken } })
-            .then(() => row.remove())
+            .then(() => {
+                row.remove();
+                // Deleting the section being viewed: nothing left to filter on.
+                if (row.classList.contains('title-row')) document.dispatchEvent(new CustomEvent('section-deleted', { detail: id }));
+            })
             .catch(error => {
                 console.error('Error deleting:', error.response ? error.response.data : error);
                 showToast('Could not delete the entry. Please try again.', 'error');
@@ -646,6 +650,58 @@ function updateDropdownWidths() {
     });
 }
 
+// "Smart" calendar Time Left: exact days when it's close, bigger units when
+// it's far. MUST stay in sync with DueDates.formatCalendarTimeLeft (Java),
+// which renders the same text in the PDF:
+//   under 60 days  -> "45 days left"
+//   under 1 year   -> "5 mo 12 days left" ("5 mo left" on an exact month)
+//   1 year or more -> "1 yr 1 mo left" (days dropped)
+// Overdue uses the same rule with "overdue". Months/days are calendar based
+// (same as java.time.Period.between), not 30-day blocks.
+function formatCalendarTimeLeft(dueIso, now = new Date()) {
+    const due = parseIsoDate(dueIso);
+    if (!due) return '';
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const days = Math.round((due - today) / 86400000);
+    const suffix = days < 0 ? 'overdue' : 'left';
+    const [from, to] = days < 0 ? [due, today] : [today, due];
+    const span = Math.abs(days);
+    if (span < 60) return `${span} ${span === 1 ? 'day' : 'days'} ${suffix}`;
+
+    const { years, months, remDays } = calendarPeriod(from, to);
+    const parts = [];
+    if (years > 0) parts.push(`${years} ${years === 1 ? 'yr' : 'yrs'}`);
+    if (months > 0) parts.push(`${months} mo`);
+    if (years === 0 && remDays > 0) parts.push(`${remDays} ${remDays === 1 ? 'day' : 'days'}`);
+    return `${parts.join(' ')} ${suffix}`;
+}
+
+function parseIsoDate(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '').trim());
+    return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+}
+
+// Years/months/days between two local dates (from <= to), matching
+// java.time.Period.between: count whole months, and if the day-of-month
+// hasn't been reached yet, borrow one month and count the leftover days.
+function calendarPeriod(from, to) {
+    let totalMonths = (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
+    let remDays = to.getDate() - from.getDate();
+    if (totalMonths > 0 && remDays < 0) {
+        totalMonths--;
+        remDays = Math.round((to - addMonthsClamped(from, totalMonths)) / 86400000);
+    }
+    return { years: Math.floor(totalMonths / 12), months: totalMonths % 12, remDays };
+}
+
+// Like LocalDate.plusMonths: Jan 31 + 1 month = Feb 28/29, not Mar 3.
+function addMonthsClamped(date, months) {
+    const target = new Date(date.getFullYear(), date.getMonth() + months, 1);
+    const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+    target.setDate(Math.min(date.getDate(), lastDay));
+    return target;
+}
+
 function calculateTimeLeft(dueDateCal, dueDateHrs, currentTimeInServiceHours) {
     //Change to dueDateCal and dueDatehrs
 
@@ -659,10 +715,7 @@ function calculateTimeLeft(dueDateCal, dueDateHrs, currentTimeInServiceHours) {
 
     // Calculate days if dueDate has a calendar date
     if (dueDateCalValue) {
-        const dueDate = new Date(dueDateCalValue + 'T00:00:00');
-        const timeDiff = dueDate - now;
-        const daysLeft = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
-        output += daysLeft < 0 ? `${Math.abs(daysLeft)} days overdue` : `${daysLeft} days left`;
+        output += formatCalendarTimeLeft(dueDateCalValue, now);
     }
 
     // Calculate hours if dueDate has a clock value
@@ -781,6 +834,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Flight log rows: when each Block Time/Time in Service reading was taken
     renderLogTimestamps();
+
+    // Cycle hours come from the server as a Double ("500.0"); show whole
+    // numbers as "500" so they fit the narrow field instead of clipping.
+    document.querySelectorAll('input[name="cycleHours"]').forEach(input => {
+        const n = Number(input.value);
+        if (input.value !== '' && Number.isInteger(n)) input.value = String(n);
+    });
 
     // Theme dropdown: reflect whatever the <head> script already applied,
     // and switch themes live when changed.
@@ -1030,7 +1090,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.closest('.delete-icon') || e.target.closest('.grip-icon')) return;
 
         const titleRow = titleCell.closest('tr');
-        filterByTitle(titleRow);
+        // Clicking the section you're already viewing goes back to everything.
+        if (currentSectionId && currentSectionId === titleRow.getAttribute('data-id')) {
+            showFullList();
+        } else {
+            filterByTitle(titleRow);
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && currentSectionId) showFullList();
+    });
+    document.addEventListener('section-deleted', (e) => {
+        if (e.detail === currentSectionId) showFullList();
     });
 
     // Mobile/narrow: tap an item card's headline to collapse it down to just the
@@ -1068,26 +1140,41 @@ document.addEventListener('DOMContentLoaded', () => {
         // Ensure the add row remains visible
         document.querySelector('.add-row').style.display = '';
         // Add the "Back" button
-        addBackButton();
+        addBackButton(titleRow.querySelector('.title-cell').textContent.trim());
     }
 
-    function addBackButton() {
-        const existingButton = document.querySelector('.back-to-full-list-button');
-        if (existingButton) existingButton.remove();
-    
-        const button = document.createElement('button');
-        button.textContent = 'Back to Full List';
-        button.className = 'back-to-full-list-button';
-        button.addEventListener('click', () => {
-            document.querySelectorAll('.sortable tr').forEach(row => {
-                row.style.display = '';
-            });
-            button.remove();
-            currentSectionId = null; // Reset current section
+    function showFullList() {
+        document.querySelectorAll('.sortable tr').forEach(row => {
+            row.style.display = '';
         });
-    
-        const table = document.querySelector('table');
-        table.parentNode.insertBefore(button, table);
+        document.querySelector('.section-filter-bar')?.remove();
+        currentSectionId = null;
+    }
+
+    // A bar directly above the Service Timeline table (it used to be inserted
+    // above the page's FIRST table -- the aircraft info -- so it was off screen).
+    function addBackButton(sectionName) {
+        document.querySelector('.section-filter-bar')?.remove();
+
+        const bar = document.createElement('div');
+        bar.className = 'section-filter-bar no-print';
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'back-to-full-list-button';
+        button.innerHTML = '<i class="fa-solid fa-arrow-left"></i> ';
+        button.append('Back to full list');
+        button.addEventListener('click', showFullList);
+        const label = document.createElement('span');
+        label.className = 'section-filter-label';
+        label.append('Showing: ');
+        const name = document.createElement('strong');
+        name.textContent = sectionName;
+        label.append(name);
+        bar.append(button, label);
+
+        const table = document.getElementById('sortable-info-table');
+        table.parentNode.insertBefore(bar, table);
+        bar.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
 
     document.querySelectorAll('.custom-dropdown').forEach(dropdown => {
@@ -1907,16 +1994,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const lastDoneDate = lastDoneContainer?.querySelector('input[type="date"]')?.value || '';
             const lastDoneText = lastDoneContainer?.querySelector('input[type="text"].extra-input')?.value || '';
             const lastDonePrint = row.querySelector('td:nth-child(5) .print-only');
-            if (lastDonePrint) lastDonePrint.textContent = `${lastDoneDate} ${lastDoneText}`.trim();
+            if (lastDonePrint) lastDonePrint.textContent = joinDateHours(lastDoneDate, lastDoneText);
 
             // Due Date (similar)
             const dueDateContainer = row.querySelector('td:nth-child(6) .input-with-dropdown');
             const dueDateDate = dueDateContainer?.querySelector('input[type="date"]')?.value || '';
             const dueDateText = dueDateContainer?.querySelector('input[type="text"].extra-input')?.value || '';
             const dueDatePrint = row.querySelector('td:nth-child(6) .print-only');
-            if (dueDatePrint) dueDatePrint.textContent = `${dueDateDate} ${dueDateText}`.trim();
+            if (dueDatePrint) dueDatePrint.textContent = joinDateHours(dueDateDate, dueDateText);
         });
     }
+
+    // "2025-10-09 1100.0 hrs" -- same shape as the PDF's Last Done / Due Date.
+    function joinDateHours(date, hours) {
+        return [date, hours ? `${hours} hrs` : ''].filter(Boolean).join(' ');
+    }
+
+    // Keep the print copy current however printing starts: our buttons, Ctrl+P,
+    // or the browser menu (those last two skip printDashboard entirely).
+    refreshPrintOnlyValues();
+    window.addEventListener('beforeprint', refreshPrintOnlyValues);
 
     function printDashboard() {
         refreshPrintOnlyValues();
@@ -1930,7 +2027,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Replaced an earlier client-side html2canvas+jsPDF approach that
     // screenshotted the dashboard into a slow-to-scroll rasterized PDF.
     function downloadDashboardPdf() {
-        window.location.href = '/pdf';
+        // Pass the local date so the PDF's Time Left matches this screen.
+        const d = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        window.location.href = `/pdf?today=${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     }
 
     const subBtn = document.getElementById('subscribe');

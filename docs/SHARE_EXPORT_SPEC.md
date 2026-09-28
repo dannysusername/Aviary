@@ -38,6 +38,12 @@ separate (it is an *import*; everything here is *export/share*).
   tables/blocks and literal colors, not a shared fragment with
   `dashboard.html`.
 
+**Update 2026-09-27:** the PDF computes Time Left at render time with the same
+"smart" format as the dashboard (`DueDates.formatTimeLeft`), instead of printing
+the stored `timeLeft` column (which went stale and was often blank). Flight logs
+gained a Date column; Last Done / Due Date show "date hours hrs" like the print
+view.
+
 There's no shared dialog, no scope selector, no recipient/message fields —
 those only make sense once Email/Text exist, since Print/Download need no
 configuration at all.

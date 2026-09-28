@@ -45,6 +45,13 @@
 - **`saveCustomDescriptionOption`** — persists a user's custom Service Timeline "Description" values so they reappear in the dropdown.
 - **Hours "last updated" stamps:** `/updateHours` sets `hobbsUpdatedAt`/`tachUpdatedAt` (UTC `Instant`) + `*UpdatedSource = "manual"` for whichever value changed; `/addflightlog` and `/deleteflightlog` set both with source `"flightlog"`. `GET /dashboard` passes the 4 values (timestamps as ISO strings) to the view, which renders them in the browser's local time.
 
+## Time Left + PDF
+- `DueDates.formatTimeLeft(dueDate, dueHours, today, currentTimeInService)` is the one server-side Time Left formatter (smart format, see [FRONTEND](FRONTEND.md)). Used by `PdfExportService` (computed at render time — the stored `timeLeft` column goes stale) and `/completeMaintenance/{id}`.
+- `GET /pdf?today=yyyy-MM-dd` — optional browser date, trusted only within ±1 day of the server date. PDF includes a Date column for flights (UTC date of block/service start) and prints hours with at least one decimal.
+
+## Local demo data
+`config/DemoDataSeeder` (`@Profile({"h2","main"})`, never Heroku/tests) creates **demo / Demo-pass-123** once: section titles, items due at every Time Left scale, 6 chained flight logs, 3 pending + 1 dismissed AeroAPI suggestions. Delete the `demo` user to regenerate with fresh relative dates.
+
 ## Input limits & rate limits
 - **Text length:** every text column is varchar(255). `Validation.maxLength` checks item/description/aircraft fields/airports/description options up front and returns a 400 with a readable message; `GlobalExceptionHandler` catches anything missed. The AeroAPI key is capped at 100 chars (it's stored encrypted, which roughly doubles its length).
 - **Outbound email:** `OutboundEmailLimiter` allows 10 user-triggered emails per user per hour — alert recipient invites/resends and `POST /pdf/email` — then 429. Scheduled digests and "Send alert now" aren't counted (the latter has per-recipient limits in `sendDigest`). Max 10 alert recipients per user.

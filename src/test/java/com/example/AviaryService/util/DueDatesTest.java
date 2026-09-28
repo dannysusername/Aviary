@@ -59,4 +59,30 @@ class DueDatesTest {
         assertEquals(AlertLevel.OK,
             DueDates.classify(null, null, 1200.0, TODAY, 30, 10));
     }
+
+    // Smart Time Left -- must match formatCalendarTimeLeft in dashboard.js.
+    @Test
+    void formatCalendarTimeLeft_usesDaysThenMonthsThenYears() {
+        assertEquals("0 days left", DueDates.formatCalendarTimeLeft(TODAY, TODAY));
+        assertEquals("1 day left", DueDates.formatCalendarTimeLeft(TODAY.plusDays(1), TODAY));
+        assertEquals("45 days left", DueDates.formatCalendarTimeLeft(TODAY.plusDays(45), TODAY));
+        assertEquals("59 days left", DueDates.formatCalendarTimeLeft(TODAY.plusDays(59), TODAY));
+        assertEquals("1 mo 30 days left", DueDates.formatCalendarTimeLeft(TODAY.plusDays(60), TODAY));
+        assertEquals("5 mo 12 days left", DueDates.formatCalendarTimeLeft(TODAY.plusMonths(5).plusDays(12), TODAY));
+        assertEquals("4 mo left", DueDates.formatCalendarTimeLeft(TODAY.plusMonths(4), TODAY));
+        assertEquals("1 yr left", DueDates.formatCalendarTimeLeft(TODAY.plusYears(1), TODAY));
+        assertEquals("1 yr 1 mo left", DueDates.formatCalendarTimeLeft(TODAY.plusDays(400), TODAY));
+        assertEquals("2 yrs 3 mo left", DueDates.formatCalendarTimeLeft(TODAY.plusYears(2).plusMonths(3).plusDays(9), TODAY));
+        assertEquals("12 days overdue", DueDates.formatCalendarTimeLeft(TODAY.minusDays(12), TODAY));
+        assertEquals("1 yr 2 mo overdue", DueDates.formatCalendarTimeLeft(TODAY.minusMonths(14).minusDays(3), TODAY));
+    }
+
+    @Test
+    void formatTimeLeft_combinesCalendarAndHours() {
+        assertEquals("12 days left\n181.3 hours left",
+            DueDates.formatTimeLeft("2026-09-20", "1600.0", TODAY, 1418.7));
+        assertEquals("50 hours left", DueDates.formatTimeLeft(null, "1250", TODAY, 1200.0));
+        assertEquals("2.5 hours overdue", DueDates.formatTimeLeft("", "1197.5", TODAY, 1200.0));
+        assertEquals("N/A", DueDates.formatTimeLeft(null, null, TODAY, 1200.0));
+    }
 }
