@@ -641,7 +641,7 @@ td {
 
 /* Continuous-grid hairlines — the cell border IS the field's outline, so no
    control needs its own box. */
-table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table):not(.settings-table) td {
+.sortable td, .add-row td {
   border-top: 1px solid var(--border);
   overflow-wrap: break-word;
 }
@@ -875,9 +875,10 @@ td textarea:focus { outline: 2px solid var(--primary); background: var(--surface
    row's height is defined here and every neighbour cell centers to match it
    with no dead space. The cell's own padding is removed so the hairline and
    halves span edge to edge. */
-table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td:has(> .cycle-structured) {
+#sortable-info-table td[data-label="Cycle"] {
   padding: 0;
 }
+
 .cycle-structured {
   display: flex; flex-direction: column; gap: 0;
   min-width: 0; max-width: 100%;
@@ -1870,6 +1871,7 @@ textarea::placeholder { display: none; }
     padding: 0;
     min-height: var(--tap);
   }
+<<<<<<< Updated upstream
   /* Cycle number boxes: outlined and roomy like the Last Done / Due Date
      fields. The calendar value shares its line with the unit (2 : 3); the
      hours box fills its line up to the "hrs" label. */
@@ -1881,6 +1883,9 @@ textarea::placeholder { display: none; }
     field-sizing: fixed;
     min-height: 34px;
     padding: 2px 6px;
+=======
+  .sortable td .cycle-num {
+>>>>>>> Stashed changes
     text-align: left;
     border: 1px solid #00000017;
     border-radius: 4px;
