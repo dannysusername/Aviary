@@ -163,7 +163,7 @@ function applyTheme(theme) {
 function buildLogRowHtml(log) {
     return `
         <td data-label="From"><span class="print-only">${escapeHtml(log.fromAirport)}</span><input type="text" name="fromAirport" class="no-print" value="${escapeHtml(log.fromAirport)}" readonly></td>
-        <td data-label="To"><span class="print-only">${escapeHtml(log.toAirport)}</span><input type="text" name="toAirport" class="no-print" value="${escapeHtml(log.toAirport)}" readonly></td>
+        <td data-label="To"><span class="print-only">${escapeHtml(log.toAirport)}</span><input type="text" name="toAirport" class="no-print" value="${escapeHtml(log.toAirport)}" readonly><i class="fa-solid fa-chevron-down card-caret no-print"></i></td>
         <td data-label="Block Time Out"><span class="print-only">${log.blockTimeOut ?? ''}</span><input type="number" name="blockTimeOut" class="no-print" value="${log.blockTimeOut ?? ''}" readonly step="0.1"><span class="log-timestamp">${formatLogTimestamp(log.blockTimeStart)}</span></td>
         <td data-label="Block Time In"><span class="print-only">${log.blockTimeIn ?? ''}</span><input type="number" name="blockTimeIn" class="no-print" value="${log.blockTimeIn ?? ''}" readonly step="0.1"><span class="log-timestamp">${formatLogTimestamp(log.blockTimeEnd)}</span></td>
         <td data-label="Time in Service Out"><span class="print-only">${log.timeInServiceOut ?? ''}</span><input type="number" name="timeInServiceOut" class="no-print" value="${log.timeInServiceOut ?? ''}" readonly step="0.1"><span class="log-timestamp">${formatLogTimestamp(log.timeInServiceStart)}</span></td>
@@ -1122,6 +1122,17 @@ document.addEventListener('DOMContentLoaded', () => {
         row.classList.toggle('collapsed');
     });
 
+    // Mobile/narrow: tap a flight log card to collapse it down to just From/To;
+    // tap again to expand. Same 960px gate as the timeline cards above. The
+    // delete button keeps its own click.
+    document.getElementById('logbook-body').addEventListener('click', function(e) {
+        if (!window.matchMedia('(max-width: 960px)').matches) return;
+        if (e.target.closest('.delete-cell')) return;
+        const row = e.target.closest('tr.log-row');
+        if (!row) return;
+        row.classList.toggle('collapsed');
+    });
+
     let currentSectionId = null; // To track the current section being viewed
     function filterByTitle(titleRow) {
         currentSectionId = titleRow.getAttribute('data-id');
@@ -1609,20 +1620,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await axios.get('/flightsuggestions/all');
             body.innerHTML = response.data.map(s => `
                 <tr data-id="${s.id}">
-                    <td>${escapeHtml(s.origin)}</td>
-                    <td>${escapeHtml(s.destination)}</td>
-                    <td>${new Date(s.departureTime).toLocaleString()}</td>
-                    <td>${new Date(s.arrivalTime).toLocaleString()}</td>
-                    <td>${(s.minutesAirborne / 60).toFixed(1)} hrs</td>
-                    <td>${escapeHtml(s.status)}</td>
-                    <td>
+                    <td data-label="From">${escapeHtml(s.origin)}</td>
+                    <td data-label="To">${escapeHtml(s.destination)}</td>
+                    <td data-label="Departed">${new Date(s.departureTime).toLocaleString()}</td>
+                    <td data-label="Arrived">${new Date(s.arrivalTime).toLocaleString()}</td>
+                    <td data-label="Airborne">${(s.minutesAirborne / 60).toFixed(1)} hrs</td>
+                    <td data-label="Status">${escapeHtml(s.status)}</td>
+                    <td class="audit-actions">
                         <button class="audit-add-btn">Add to log</button>
                         <button class="audit-delete-btn">Delete</button>
                     </td>
                 </tr>
-            `).join('') || '<tr><td colspan="7">No suggestions yet.</td></tr>';
+            `).join('') || '<tr class="audit-message-row"><td colspan="7">No suggestions yet.</td></tr>';
         } catch (error) {
-            body.innerHTML = '<tr><td colspan="6">Could not load suggestions.</td></tr>';
+            body.innerHTML = '<tr class="audit-message-row"><td colspan="7">Could not load suggestions.</td></tr>';
         }
     }
     if (allSuggestionsDetails) {
