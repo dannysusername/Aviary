@@ -1871,7 +1871,6 @@ textarea::placeholder { display: none; }
     padding: 0;
     min-height: var(--tap);
   }
-<<<<<<< Updated upstream
   /* Cycle number boxes: outlined and roomy like the Last Done / Due Date
      fields. The calendar value shares its line with the unit (2 : 3); the
      hours box fills its line up to the "hrs" label. */
@@ -1883,9 +1882,6 @@ textarea::placeholder { display: none; }
     field-sizing: fixed;
     min-height: 34px;
     padding: 2px 6px;
-=======
-  .sortable td .cycle-num {
->>>>>>> Stashed changes
     text-align: left;
     border: 1px solid #00000017;
     border-radius: 4px;
@@ -2107,6 +2103,25 @@ textarea::placeholder { display: none; }
   .logbook-table td.add-cell::before { display: none; }
   .logbook-table .delete-log-icon { font-size: 20px; padding: 8px; background: none; border: none; cursor: pointer; }
   .logbook-table .add-log-button { width: 100%; }
+
+  /* Collapsible log cards: tap the card to fold it down to From | To. The
+     arrow sits in the top-right corner, level with the labels. */
+  .logbook-table tr.log-row { position: relative; cursor: pointer; padding-top: 24px; }
+  .logbook-table tr.log-row.collapsed > td:not([data-label="From"]):not([data-label="To"]) { display: none; }
+  .logbook-table tr.log-row .card-caret {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 0;
+    right: 2px;
+    width: 48px;
+    height: 44px;
+    color: var(--text-muted);
+    font-size: 22px;
+    transition: transform 0.15s ease;
+  }
+  .logbook-table tr.log-row.collapsed .card-caret { transform: rotate(-90deg); }
 
   .logbook-table .print-only { display: none; }
 
@@ -2340,6 +2355,61 @@ textarea::placeholder { display: none; }
 .audit-add-btn:hover { background: var(--accent-hover); }
 .audit-delete-btn { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
 .audit-delete-btn:hover { background: var(--border); }
+
+/* Mobile / narrow (≤960px): the 7-column audit table can't fit, so each
+   suggestion becomes a card like the logbook's: From | To, Departed | Arrived,
+   Airborne | Status, then the two buttons full width. Lives after the base
+   rules above so it wins without !important. */
+@media screen and (max-width: 960px) {
+  #all-suggestions-details { padding-left: clamp(8px, 3vw, 24px); padding-right: clamp(8px, 3vw, 24px); }
+  #all-suggestions-details summary { padding: 10px 0; font-size: 15px; }
+
+  .all-suggestions-table,
+  .all-suggestions-table tbody { display: block; }
+  .all-suggestions-table thead { display: none; }
+  .all-suggestions-table tbody { display: flex; flex-direction: column; gap: 8px; }
+
+  .all-suggestions-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    background: var(--surface);
+  }
+  .all-suggestions-table td {
+    display: block;
+    min-width: 0;
+    padding: 0;
+    border: none;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+  }
+  .all-suggestions-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .all-suggestions-table td.audit-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 8px;
+    padding-top: 4px;
+  }
+  .all-suggestions-table td.audit-actions::before { display: none; }
+  .audit-add-btn, .audit-delete-btn { flex: 1; min-height: 40px; font-size: 14px; }
+
+  /* "No suggestions yet." / error message: plain line, no card grid. */
+  .all-suggestions-table tr.audit-message-row { display: block; }
+  .all-suggestions-table tr.audit-message-row td::before { display: none; }
+}
 
 /* ── Maintenance alert recipients (docs/ALERTS_SPEC.md) ── */
 .alert-recipient-list { list-style: none; padding: 0; margin: 0.5rem 0 0; }
