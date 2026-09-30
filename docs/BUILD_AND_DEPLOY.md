@@ -9,12 +9,13 @@
   - `./gradlew build` — compile + test, produces `build/libs/AviaryService-0.0.1-SNAPSHOT.jar`
   - `./gradlew bootRun` — run locally (`http://localhost:8080`)
   - `./gradlew test` — JUnit 5 suite
+  - `./gradlew browserTest` — Playwright suite in `src/browserTest` (real Chromium, slow; not run in CI). `BrowserTestBase.setLastDone/setDueDate` split a combined "date hours" string into the entity's separate columns.
 - Key deps: `spring-boot-starter-{data-jpa,security,web,thymeleaf}`, `jackson-databind`, `com.h2database:h2`, `org.apache.poi:poi:5.4.1`, `org.postgresql:postgresql` (runtimeOnly). Tests: H2, `spring-boot-starter-test`, `spring-security-test`, Mockito.
 
 ## Config profiles
 - `application.properties` → activates profile `h2` (in-memory H2 locally; see [DATABASE](DATABASE.md)).
 - `application-main.properties` → local Postgres (`localhost:5432/AviaryService`) for testing against a real DB. Run with `./gradlew bootRun --args='--spring.profiles.active=main'`.
-- `application-heroku.properties` → Postgres + `ddl-auto=update` + `server.port=${PORT:8080}`.
+- `application-heroku.properties` → Postgres + `ddl-auto=update` + `server.port=${PORT:8080}`. Also `server.forward-headers-strategy=native` (trust Heroku's `X-Forwarded-Proto` so requests count as HTTPS → Secure cookies + HSTS) and `server.servlet.session.cookie.secure=true`. Heroku must have `SPRING_PROFILES_ACTIVE=heroku` (otherwise the app falls back to the in-memory `h2` profile and loses data on restart) and `AVIARY_REMEMBER_ME_KEY` (otherwise remember-me tokens are signed with the public dev fallback).
 - `src/test/resources/application-tests.yml` + `application.properties` → the `test` profile used by `@ActiveProfiles("test")`.
 - `system.properties` → `java.runtime.version=21` (pins the JDK on Heroku).
 

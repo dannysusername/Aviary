@@ -43,16 +43,16 @@ class FlightLogTableEdgeCasesTest extends BrowserTestBase {
     }
 
     private FlightLog saveLog(User user, String from, String to,
-                              Double hobbsOut, Double hobbsIn,
-                              Double tachOut, Double tachIn) {
+                              Double blockTimeOut, Double blockTimeIn,
+                              Double timeInServiceOut, Double timeInServiceIn) {
         FlightLog log = new FlightLog();
         log.setUser(user);
         log.setFromAirport(from);
         log.setToAirport(to);
-        log.setHobbsOut(hobbsOut);
-        log.setHobbsIn(hobbsIn);
-        log.setTachOut(tachOut);
-        log.setTachIn(tachIn);
+        log.setBlockTimeOut(blockTimeOut);
+        log.setBlockTimeIn(blockTimeIn);
+        log.setTimeInServiceOut(timeInServiceOut);
+        log.setTimeInServiceIn(timeInServiceIn);
         return flightLogs.save(log);
     }
 
@@ -85,10 +85,10 @@ class FlightLogTableEdgeCasesTest extends BrowserTestBase {
         assertThat(row).hasCount(1);
         assertThat(row.locator("input[name='fromAirport']")).hasValue("KAAA");
         assertThat(row.locator("input[name='toAirport']")).hasValue("KBBB");
-        assertThat(row.locator("input[name='hobbsOut']")).hasValue("100.0");
-        assertThat(row.locator("input[name='hobbsIn']")).hasValue("101.5");
-        assertThat(row.locator("input[name='tachOut']")).hasValue("50.0");
-        assertThat(row.locator("input[name='tachIn']")).hasValue("51.5");
+        assertThat(row.locator("input[name='blockTimeOut']")).hasValue("100.0");
+        assertThat(row.locator("input[name='blockTimeIn']")).hasValue("101.5");
+        assertThat(row.locator("input[name='timeInServiceOut']")).hasValue("50.0");
+        assertThat(row.locator("input[name='timeInServiceIn']")).hasValue("51.5");
 
         // Inputs must stay readonly — the row table is display-only; users
         // edit via the add-row + delete only.
@@ -112,10 +112,10 @@ class FlightLogTableEdgeCasesTest extends BrowserTestBase {
         assertThat(row).hasCount(1);
         assertThat(row.locator("input[name='fromAirport']")).hasValue("");
         assertThat(row.locator("input[name='toAirport']")).hasValue("");
-        assertThat(row.locator("input[name='hobbsOut']")).hasValue("");
-        assertThat(row.locator("input[name='hobbsIn']")).hasValue("");
-        assertThat(row.locator("input[name='tachOut']")).hasValue("");
-        assertThat(row.locator("input[name='tachIn']")).hasValue("");
+        assertThat(row.locator("input[name='blockTimeOut']")).hasValue("");
+        assertThat(row.locator("input[name='blockTimeIn']")).hasValue("");
+        assertThat(row.locator("input[name='timeInServiceOut']")).hasValue("");
+        assertThat(row.locator("input[name='timeInServiceIn']")).hasValue("");
 
         assertNoConsoleErrors(errors);
     }
@@ -133,10 +133,10 @@ class FlightLogTableEdgeCasesTest extends BrowserTestBase {
         page.waitForLoadState(LoadState.NETWORKIDLE);
 
         var row = page.locator("tbody#logbook-body tr.log-row[data-id='" + log.getId() + "']");
-        assertThat(row.locator("input[name='hobbsOut']")).hasValue("0.0");
-        assertThat(row.locator("input[name='hobbsIn']")).hasValue("0.0");
-        assertThat(row.locator("input[name='tachOut']")).hasValue("0.0");
-        assertThat(row.locator("input[name='tachIn']")).hasValue("0.0");
+        assertThat(row.locator("input[name='blockTimeOut']")).hasValue("0.0");
+        assertThat(row.locator("input[name='blockTimeIn']")).hasValue("0.0");
+        assertThat(row.locator("input[name='timeInServiceOut']")).hasValue("0.0");
+        assertThat(row.locator("input[name='timeInServiceIn']")).hasValue("0.0");
 
         assertNoConsoleErrors(errors);
     }
@@ -152,8 +152,8 @@ class FlightLogTableEdgeCasesTest extends BrowserTestBase {
         page.waitForLoadState(LoadState.NETWORKIDLE);
 
         var row = page.locator("tbody#logbook-body tr.log-row[data-id='" + log.getId() + "']");
-        assertThat(row.locator("input[name='hobbsIn']")).hasValue("99999.9");
-        assertThat(row.locator("input[name='tachIn']")).hasValue("99999.9");
+        assertThat(row.locator("input[name='blockTimeIn']")).hasValue("99999.9");
+        assertThat(row.locator("input[name='timeInServiceIn']")).hasValue("99999.9");
 
         assertNoConsoleErrors(errors);
     }

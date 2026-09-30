@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -14,6 +15,7 @@ import org.springframework.core.annotation.Order;
 
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.UserRepository;
+import com.example.AviaryService.services.LoginAttemptService;
 
 @Configuration
 @EnableWebSecurity
@@ -33,7 +35,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    public UserDetailsService userDetailsService() {
+    public UserDetailsService userDetailsService(LoginAttemptService loginAttemptService) {
 
         return username -> {
             long start = System.currentTimeMillis();
@@ -47,6 +49,8 @@ public class SecurityConfig {
                     .withUsername(user.getUsername())
                     .password(user.getPassword())
                     .roles("USER") // Simple role for now
+                    // Too many recent wrong passwords -- see LoginAttemptService.
+                    .accountLocked(loginAttemptService.isLocked(username))
                     .build();
         };
     }
@@ -75,9 +79,15 @@ public class SecurityConfig {
             .anyRequest().authenticated()
 
             )
+            // The emailed-link POSTs carry their own unguessable token and come
+            // from a page with no session, so a CSRF token adds nothing there.
+            .csrf(csrf -> csrf.ignoringRequestMatchers("/alerts/confirm", "/alerts/decline", "/alerts/unsubscribe"))
             .formLogin(form -> form
                 .loginPage("/login")
                 .defaultSuccessUrl("/dashboard", true) // After login, go here
+                // Locked out by LoginAttemptService -> say so instead of "wrong password".
+                .failureHandler((request, response, exception) -> response.sendRedirect(
+                    request.getContextPath() + (exception instanceof LockedException ? "/login?locked" : "/login?error")))
                 .permitAll()
             )
             .rememberMe(remember -> remember

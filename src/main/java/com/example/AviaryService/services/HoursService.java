@@ -30,6 +30,26 @@ public class HoursService {
         Double timeInServiceToAdd, Double newBlockTime,
         Double newTimeInService, User user) {
             
+        // NaN/Infinity would poison every Time Left calculation, and a meter
+        // reading can't be negative.
+        for (Double v : new Double[] { newBlockTime, newTimeInService }) {
+            if (v != null && (!Double.isFinite(v) || v < 0)) {
+                throw new IllegalArgumentException("Hours must be a number of 0 or more.");
+            }
+        }
+        for (Double v : new Double[] { blockTimeToAdd, timeInServiceToAdd }) {
+            if (v != null && !Double.isFinite(v)) {
+                throw new IllegalArgumentException("Hours must be a number.");
+            }
+        }
+        // Checked up front so a rejected add never leaves the user half-updated.
+        double currentBlock = user.getBlockTimeHours() == null ? 0 : user.getBlockTimeHours();
+        double currentService = user.getTimeInServiceHours() == null ? 0 : user.getTimeInServiceHours();
+        if ((newBlockTime == null && blockTimeToAdd != null && currentBlock + blockTimeToAdd < 0)
+                || (newTimeInService == null && timeInServiceToAdd != null && currentService + timeInServiceToAdd < 0)) {
+            throw new IllegalArgumentException("That would make your hours negative.");
+        }
+
         boolean updated = false;
 
         System.out.println("==========");

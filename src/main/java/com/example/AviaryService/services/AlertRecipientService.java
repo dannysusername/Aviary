@@ -31,14 +31,17 @@ public class AlertRecipientService {
     // stops obvious junk from ever creating a row.
     private static final String EMAIL_RE = "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$";
     private static final String PHONE_RE = "^\\+[1-9]\\d{6,14}$";
+    private static final int MAX_RECIPIENTS = 10;
 
     private final AlertRecipientRepository recipientRepository;
     private final NotificationService notificationService;
+    private final OutboundEmailLimiter emailLimiter;
 
     public AlertRecipientService(AlertRecipientRepository recipientRepository,
-            NotificationService notificationService) {
+            NotificationService notificationService, OutboundEmailLimiter emailLimiter) {
         this.recipientRepository = recipientRepository;
         this.notificationService = notificationService;
+        this.emailLimiter = emailLimiter;
     }
 
     public List<AlertRecipient> list(User user) {
@@ -49,6 +52,7 @@ public class AlertRecipientService {
     public AlertRecipient add(User user, Channel channel, String rawDestination, String label) {
         String destination = rawDestination == null ? "" : rawDestination.trim();
         validate(channel, destination);
+        com.example.AviaryService.util.Validation.maxLength("Label", label == null ? null : label.trim(), 100);
 
         Optional<AlertRecipient> existing =
             recipientRepository.findByUserAndChannelAndDestination(user, channel.name(), destination);
@@ -68,6 +72,9 @@ public class AlertRecipientService {
             throw new IllegalArgumentException("That address is already on the list (" + r.getStatus().toLowerCase() + ").");
         }
 
+        if (recipientRepository.findByUserOrderByCreatedAtAsc(user).size() >= MAX_RECIPIENTS) {
+            throw new IllegalArgumentException("You can have up to " + MAX_RECIPIENTS + " alert recipients.");
+        }
         AlertRecipient r = new AlertRecipient(user, channel, destination,
             label == null || label.isBlank() ? null : label.trim(), newToken());
         recipientRepository.save(r);
@@ -126,7 +133,10 @@ public class AlertRecipientService {
 
     // -- internals --
 
+    // Counts against the per-user email budget; throwing here rolls back the
+    // add/resend that called it, so nothing is saved when the user is limited.
     private void sendConfirmation(AlertRecipient r) {
+        emailLimiter.acquire(r.getUser());
         String base = notificationService.baseUrl();
         String confirmUrl = base.isBlank() ? "(link unavailable -- alerts base URL not configured)"
             : base + "/alerts/confirm?token=" + r.getConfirmToken();
@@ -163,6 +173,9 @@ public class AlertRecipientService {
     private void validate(Channel channel, String destination) {
         if (destination.isEmpty()) {
             throw new IllegalArgumentException("Enter an address.");
+        }
+        if (destination.length() > 254) {
+            throw new IllegalArgumentException("That address is too long.");
         }
         if (channel == Channel.EMAIL && !destination.matches(EMAIL_RE)) {
             throw new IllegalArgumentException("Enter a valid email address.");

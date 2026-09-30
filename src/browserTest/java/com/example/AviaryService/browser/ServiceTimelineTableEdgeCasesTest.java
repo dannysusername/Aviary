@@ -52,8 +52,8 @@ class ServiceTimelineTableEdgeCasesTest extends BrowserTestBase {
         t.setIsTitle(false);
         t.setTimelineOrder(order);
         t.setDescription(description);
-        t.setLastDone(lastDone);
-        t.setDueDate(dueDate);
+        setLastDone(t, lastDone);
+        setDueDate(t, dueDate);
         t.setTimeLeft(timeLeft);
         return timelines.save(t);
     }

@@ -1,7 +1,9 @@
 console.log('dashboard.js loaded');
 
-let timeout;
-let userInfoTimeout;
+// One debounce timer per row / per aircraft-info field. A single shared timer
+// meant editing a second row (or field) within 500ms cancelled the first save.
+const rowSaveTimers = new Map();
+const userInfoSaveTimers = new Map();
 let previousBlockTimeHours = document.getElementById('current-block-time')?.value || 0;
 let previousTimeInServiceHours = document.getElementById('current-time-in-service')?.value || 0;
 // True from a successful CSV parse until the next Add (or a fresh upload) --
@@ -10,6 +12,17 @@ let previousTimeInServiceHours = document.getElementById('current-time-in-servic
 // instead of treating it as a fixed manual reading. See UserController.addFlightLog.
 let csvPrefilled = false;
 
+// Escapes a value for use inside an innerHTML template (text or a quoted
+// attribute). Anything a user typed, or that came back from AeroAPI, goes
+// through this -- otherwise e.g. an item named <img onerror=...> runs as code.
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
 
 // ── Lightweight toast + confirm UI (replaces native alert()/confirm()) ──
 function showToast(message, type = 'info') {
@@ -149,12 +162,12 @@ function applyTheme(theme) {
 
 function buildLogRowHtml(log) {
     return `
-        <td data-label="From"><span class="print-only">${log.fromAirport || ''}</span><input type="text" name="fromAirport" class="no-print" value="${log.fromAirport || ''}" readonly></td>
-        <td data-label="To"><span class="print-only">${log.toAirport || ''}</span><input type="text" name="toAirport" class="no-print" value="${log.toAirport || ''}" readonly></td>
-        <td data-label="Block Time Out"><span class="print-only">${log.blockTimeOut ?? ''}</span><input type="number" name="blockTimeOut" class="no-print" value="${log.blockTimeOut ?? ''}" readonly step="0.1"><span class="log-timestamp no-print">${formatLogTimestamp(log.blockTimeStart)}</span></td>
-        <td data-label="Block Time In"><span class="print-only">${log.blockTimeIn ?? ''}</span><input type="number" name="blockTimeIn" class="no-print" value="${log.blockTimeIn ?? ''}" readonly step="0.1"><span class="log-timestamp no-print">${formatLogTimestamp(log.blockTimeEnd)}</span></td>
-        <td data-label="Time in Service Out"><span class="print-only">${log.timeInServiceOut ?? ''}</span><input type="number" name="timeInServiceOut" class="no-print" value="${log.timeInServiceOut ?? ''}" readonly step="0.1"><span class="log-timestamp no-print">${formatLogTimestamp(log.timeInServiceStart)}</span></td>
-        <td data-label="Time in Service In"><span class="print-only">${log.timeInServiceIn ?? ''}</span><input type="number" name="timeInServiceIn" class="no-print" value="${log.timeInServiceIn ?? ''}" readonly step="0.1"><span class="log-timestamp no-print">${formatLogTimestamp(log.timeInServiceEnd)}</span></td>
+        <td data-label="From"><span class="print-only">${escapeHtml(log.fromAirport)}</span><input type="text" name="fromAirport" class="no-print" value="${escapeHtml(log.fromAirport)}" readonly></td>
+        <td data-label="To"><span class="print-only">${escapeHtml(log.toAirport)}</span><input type="text" name="toAirport" class="no-print" value="${escapeHtml(log.toAirport)}" readonly></td>
+        <td data-label="Block Time Out"><span class="print-only">${log.blockTimeOut ?? ''}</span><input type="number" name="blockTimeOut" class="no-print" value="${log.blockTimeOut ?? ''}" readonly step="0.1"><span class="log-timestamp">${formatLogTimestamp(log.blockTimeStart)}</span></td>
+        <td data-label="Block Time In"><span class="print-only">${log.blockTimeIn ?? ''}</span><input type="number" name="blockTimeIn" class="no-print" value="${log.blockTimeIn ?? ''}" readonly step="0.1"><span class="log-timestamp">${formatLogTimestamp(log.blockTimeEnd)}</span></td>
+        <td data-label="Time in Service Out"><span class="print-only">${log.timeInServiceOut ?? ''}</span><input type="number" name="timeInServiceOut" class="no-print" value="${log.timeInServiceOut ?? ''}" readonly step="0.1"><span class="log-timestamp">${formatLogTimestamp(log.timeInServiceStart)}</span></td>
+        <td data-label="Time in Service In"><span class="print-only">${log.timeInServiceIn ?? ''}</span><input type="number" name="timeInServiceIn" class="no-print" value="${log.timeInServiceIn ?? ''}" readonly step="0.1"><span class="log-timestamp">${formatLogTimestamp(log.timeInServiceEnd)}</span></td>
         <td class="delete-cell no-print" data-label=""><button class="delete-log-icon"><i class="fa-solid fa-trash-can fa-xl"></i></button></td>
     `;
 }
@@ -227,11 +240,12 @@ function autoSave(input) {
         data.timeLeft = timeLeftSpan.textContent;
     }
 
-    clearTimeout(timeout);
+    clearTimeout(rowSaveTimers.get(id));
     //status.textContent = '...';
     //status.className = 'save-status saving';
 
-    timeout = setTimeout(() => {
+    rowSaveTimers.set(id, setTimeout(() => {
+        rowSaveTimers.delete(id);
         const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
         const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
 
@@ -247,8 +261,9 @@ function autoSave(input) {
             //status.textContent = '✖';
             //status.className = 'save-status error';
             console.error('Error saving:', error.response ? error.response.data : error);
+            showToast(error.response?.data?.message || 'Could not save that change. Check your connection and try again.', 'error');
         });
-    }, 500);
+    }, 500));
 }
 
 async function loadAeroApiUsage() {
@@ -265,12 +280,13 @@ async function loadAeroApiUsage() {
 }
 
 function autoSaveUserInfo(input) {
-    clearTimeout(userInfoTimeout);
+    clearTimeout(userInfoSaveTimers.get(input.name));
 
     const data = {};
     data[input.name] = input.value; // Only send the changed field
 
-    userInfoTimeout = setTimeout(() => {
+    userInfoSaveTimers.set(input.name, setTimeout(() => {
+        userInfoSaveTimers.delete(input.name);
         const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
         const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
 
@@ -302,9 +318,9 @@ function autoSaveUserInfo(input) {
         })
         .catch(error => {
             console.error('Error saving user info:', error.response ? error.response.data : error);
-            // Optionally show an error indicator
+            showToast(error.response?.data?.message || 'Could not save aircraft info. Check your connection and try again.', 'error');
         });
-    }, 500); // Debounce for 500ms
+    }, 500)); // Debounce for 500ms
 }
 
 // In printDashboard, add this loop for redundancy (before window.print())
@@ -328,7 +344,11 @@ function deleteRow(icon) {
     showConfirm('Delete this entry?', 'Delete').then(confirmed => {
         if (!confirmed) return;
         axios.delete(`/delete/${id}`, { headers: { [csrfHeader]: csrfToken } })
-            .then(() => row.remove())
+            .then(() => {
+                row.remove();
+                // Deleting the section being viewed: nothing left to filter on.
+                if (row.classList.contains('title-row')) document.dispatchEvent(new CustomEvent('section-deleted', { detail: id }));
+            })
             .catch(error => {
                 console.error('Error deleting:', error.response ? error.response.data : error);
                 showToast('Could not delete the entry. Please try again.', 'error');
@@ -630,6 +650,58 @@ function updateDropdownWidths() {
     });
 }
 
+// "Smart" calendar Time Left: exact days when it's close, bigger units when
+// it's far. MUST stay in sync with DueDates.formatCalendarTimeLeft (Java),
+// which renders the same text in the PDF:
+//   under 60 days  -> "45 days left"
+//   under 1 year   -> "5 mo 12 days left" ("5 mo left" on an exact month)
+//   1 year or more -> "1 yr 1 mo left" (days dropped)
+// Overdue uses the same rule with "overdue". Months/days are calendar based
+// (same as java.time.Period.between), not 30-day blocks.
+function formatCalendarTimeLeft(dueIso, now = new Date()) {
+    const due = parseIsoDate(dueIso);
+    if (!due) return '';
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const days = Math.round((due - today) / 86400000);
+    const suffix = days < 0 ? 'overdue' : 'left';
+    const [from, to] = days < 0 ? [due, today] : [today, due];
+    const span = Math.abs(days);
+    if (span < 60) return `${span} ${span === 1 ? 'day' : 'days'} ${suffix}`;
+
+    const { years, months, remDays } = calendarPeriod(from, to);
+    const parts = [];
+    if (years > 0) parts.push(`${years} ${years === 1 ? 'yr' : 'yrs'}`);
+    if (months > 0) parts.push(`${months} mo`);
+    if (years === 0 && remDays > 0) parts.push(`${remDays} ${remDays === 1 ? 'day' : 'days'}`);
+    return `${parts.join(' ')} ${suffix}`;
+}
+
+function parseIsoDate(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '').trim());
+    return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+}
+
+// Years/months/days between two local dates (from <= to), matching
+// java.time.Period.between: count whole months, and if the day-of-month
+// hasn't been reached yet, borrow one month and count the leftover days.
+function calendarPeriod(from, to) {
+    let totalMonths = (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
+    let remDays = to.getDate() - from.getDate();
+    if (totalMonths > 0 && remDays < 0) {
+        totalMonths--;
+        remDays = Math.round((to - addMonthsClamped(from, totalMonths)) / 86400000);
+    }
+    return { years: Math.floor(totalMonths / 12), months: totalMonths % 12, remDays };
+}
+
+// Like LocalDate.plusMonths: Jan 31 + 1 month = Feb 28/29, not Mar 3.
+function addMonthsClamped(date, months) {
+    const target = new Date(date.getFullYear(), date.getMonth() + months, 1);
+    const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+    target.setDate(Math.min(date.getDate(), lastDay));
+    return target;
+}
+
 function calculateTimeLeft(dueDateCal, dueDateHrs, currentTimeInServiceHours) {
     //Change to dueDateCal and dueDatehrs
 
@@ -643,10 +715,7 @@ function calculateTimeLeft(dueDateCal, dueDateHrs, currentTimeInServiceHours) {
 
     // Calculate days if dueDate has a calendar date
     if (dueDateCalValue) {
-        const dueDate = new Date(dueDateCalValue + 'T00:00:00');
-        const timeDiff = dueDate - now;
-        const daysLeft = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
-        output += daysLeft < 0 ? `${Math.abs(daysLeft)} days overdue` : `${daysLeft} days left`;
+        output += formatCalendarTimeLeft(dueDateCalValue, now);
     }
 
     // Calculate hours if dueDate has a clock value
@@ -765,6 +834,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Flight log rows: when each Block Time/Time in Service reading was taken
     renderLogTimestamps();
+
+    // Cycle hours come from the server as a Double ("500.0"); show whole
+    // numbers as "500" so they fit the narrow field instead of clipping.
+    document.querySelectorAll('input[name="cycleHours"]').forEach(input => {
+        const n = Number(input.value);
+        if (input.value !== '' && Number.isInteger(n)) input.value = String(n);
+    });
 
     // Theme dropdown: reflect whatever the <head> script already applied,
     // and switch themes live when changed.
@@ -1014,7 +1090,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.closest('.delete-icon') || e.target.closest('.grip-icon')) return;
 
         const titleRow = titleCell.closest('tr');
-        filterByTitle(titleRow);
+        // Clicking the section you're already viewing goes back to everything.
+        if (currentSectionId && currentSectionId === titleRow.getAttribute('data-id')) {
+            showFullList();
+        } else {
+            filterByTitle(titleRow);
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && currentSectionId) showFullList();
+    });
+    document.addEventListener('section-deleted', (e) => {
+        if (e.detail === currentSectionId) showFullList();
     });
 
     // Mobile/narrow: tap an item card's headline to collapse it down to just the
@@ -1052,26 +1140,41 @@ document.addEventListener('DOMContentLoaded', () => {
         // Ensure the add row remains visible
         document.querySelector('.add-row').style.display = '';
         // Add the "Back" button
-        addBackButton();
+        addBackButton(titleRow.querySelector('.title-cell').textContent.trim());
     }
 
-    function addBackButton() {
-        const existingButton = document.querySelector('.back-to-full-list-button');
-        if (existingButton) existingButton.remove();
-    
-        const button = document.createElement('button');
-        button.textContent = 'Back to Full List';
-        button.className = 'back-to-full-list-button';
-        button.addEventListener('click', () => {
-            document.querySelectorAll('.sortable tr').forEach(row => {
-                row.style.display = '';
-            });
-            button.remove();
-            currentSectionId = null; // Reset current section
+    function showFullList() {
+        document.querySelectorAll('.sortable tr').forEach(row => {
+            row.style.display = '';
         });
-    
-        const table = document.querySelector('table');
-        table.parentNode.insertBefore(button, table);
+        document.querySelector('.section-filter-bar')?.remove();
+        currentSectionId = null;
+    }
+
+    // A bar directly above the Service Timeline table (it used to be inserted
+    // above the page's FIRST table -- the aircraft info -- so it was off screen).
+    function addBackButton(sectionName) {
+        document.querySelector('.section-filter-bar')?.remove();
+
+        const bar = document.createElement('div');
+        bar.className = 'section-filter-bar no-print';
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'back-to-full-list-button';
+        button.innerHTML = '<i class="fa-solid fa-arrow-left"></i> ';
+        button.append('Back to full list');
+        button.addEventListener('click', showFullList);
+        const label = document.createElement('span');
+        label.className = 'section-filter-label';
+        label.append('Showing: ');
+        const name = document.createElement('strong');
+        name.textContent = sectionName;
+        label.append(name);
+        bar.append(button, label);
+
+        const table = document.getElementById('sortable-info-table');
+        table.parentNode.insertBefore(bar, table);
+        bar.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
 
     document.querySelectorAll('.custom-dropdown').forEach(dropdown => {
@@ -1296,7 +1399,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 newRow.className = 'title-row';
                 newRow.innerHTML = `
                     <td class="grip-cell"><span class="grip-icon no-print"><i class="fa-solid fa-grip-vertical"></i></span></td>
-                    <td colspan="6" class="title-cell">${newRowData.item}</td>
+                    <td colspan="6" class="title-cell">${escapeHtml(newRowData.item)}</td>
                     <td class="complete-cell no-print"></td>
                     <td class="delete-cell"><span class="delete-icon no-print" onclick="deleteRow(this)"><i class="fa-solid fa-trash-can fa-xl"></i></span></td>
                 `;
@@ -1310,11 +1413,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dueDatePrint  = [newRowData.dueDateDate,  newRowData.dueDateHours].filter(Boolean).join(' ');
                 newRow.innerHTML = `
                 <td class="grip-cell"><span class="grip-icon no-print"><i class="fa-solid fa-grip-vertical"></i></span></td>
-                <td data-label="Item"><textarea name="item" class="no-print" oninput="autoSave(this)">${newRowData.item}</textarea><i class="fa-solid fa-chevron-down card-caret no-print"></i><span class="print-only">${newRowData.item}</span></td>
+                <td data-label="Item"><textarea name="item" class="no-print" oninput="autoSave(this)">${escapeHtml(newRowData.item)}</textarea><i class="fa-solid fa-chevron-down card-caret no-print"></i><span class="print-only">${escapeHtml(newRowData.item)}</span></td>
                 <td data-label="Description">
                     <div class="custom-dropdown no-print">
-                        <div class="selected-option no-print">${newRowData.description}</div>
-                        <input type="hidden" name="description" value="${newRowData.description}">
+                        <div class="selected-option no-print">${escapeHtml(newRowData.description)}</div>
+                        <input type="hidden" name="description" value="${escapeHtml(newRowData.description)}">
                         <i class="fa-solid fa-chevron-down trigger-dropdown"></i>
                         <div class="dropdown-options no-print">
                             <div class="option" data-value="">--None--</div>
@@ -1328,7 +1431,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         </div>
                     </div>
-                    <span class="print-only">${newRowData.description}</span>
+                    <span class="print-only">${escapeHtml(newRowData.description)}</span>
                 </td>
                 <td data-label="Cycle">
                     <div class="cycle-structured no-print">
@@ -1357,7 +1460,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="type-option"><span>Clock</span><button class="add-type" data-type="clock">Add</button></div>
                         </div>
                     </div>
-                    <span class="print-only">${lastDonePrint}</span>
+                    <span class="print-only">${escapeHtml(lastDonePrint)}</span>
                 </td>
                 <td data-label="Due Date">
                     <div class="input-with-dropdown no-print">
@@ -1367,9 +1470,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="type-option"><span>Clock</span><button class="add-type" data-type="clock">Add</button></div>
                         </div>
                     </div>
-                    <span class="print-only">${dueDatePrint}</span>
+                    <span class="print-only">${escapeHtml(dueDatePrint)}</span>
                 </td>
-                <td data-label="Time Left"><div class="time-left">${newRowData.timeLeft ?? ''}</div></td>
+                <td data-label="Time Left"><div class="time-left">${escapeHtml(newRowData.timeLeft)}</div></td>
                 <td class="complete-cell no-print" data-label="">
                     <button type="button" class="complete-btn"
                             title="Mark maintenance complete"
@@ -1506,12 +1609,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await axios.get('/flightsuggestions/all');
             body.innerHTML = response.data.map(s => `
                 <tr data-id="${s.id}">
-                    <td>${s.origin || ''}</td>
-                    <td>${s.destination || ''}</td>
+                    <td>${escapeHtml(s.origin)}</td>
+                    <td>${escapeHtml(s.destination)}</td>
                     <td>${new Date(s.departureTime).toLocaleString()}</td>
                     <td>${new Date(s.arrivalTime).toLocaleString()}</td>
                     <td>${(s.minutesAirborne / 60).toFixed(1)} hrs</td>
-                    <td>${s.status}</td>
+                    <td>${escapeHtml(s.status)}</td>
                     <td>
                         <button class="audit-add-btn">Add to log</button>
                         <button class="audit-delete-btn">Delete</button>
@@ -1800,23 +1903,38 @@ document.addEventListener('DOMContentLoaded', () => {
         XLSX.writeFile(wb, `Aircraft_Service_Timeline_${new Date().toISOString().split('T')[0]}.xlsx`);
     }
 
-    // Share menu: toggle open/closed, close on an outside click, and wire the
-    // two buttons that need nothing external. Print and Download PDF are the
-    // same browser action (window.print()) -- there's no separate JS API to
-    // save a PDF straight to disk, only the native print dialog, where
-    // "Save as PDF" is one of the destinations the user picks themselves.
+    // Share menu: a popover card under the Share button. Opens on click,
+    // closes on an outside click, Escape, or picking an item. Print uses the
+    // browser's print dialog; Download PDF hits the server-rendered GET /pdf.
     // Email/Text stay disabled (.share-coming-soon) until SendGrid/Twilio are
     // actually set up -- see docs/SHARE_EXPORT_SPEC.md.
     const shareToggleBtn = document.getElementById('share-toggle-btn');
     const shareDropdown = document.getElementById('share-dropdown');
+    function setShareOpen(open) {
+        if (!shareToggleBtn || !shareDropdown) return;
+        shareDropdown.hidden = !open;
+        shareToggleBtn.setAttribute('aria-expanded', String(open));
+        shareToggleBtn.classList.toggle('open', open);
+        if (open) shareDropdown.querySelector('.share-item')?.focus();
+    }
     if (shareToggleBtn && shareDropdown) {
         shareToggleBtn.addEventListener('click', (event) => {
             event.stopPropagation();
-            shareDropdown.style.display = shareDropdown.style.display === 'flex' ? 'none' : 'flex';
+            setShareOpen(shareDropdown.hidden);
         });
         document.addEventListener('click', (event) => {
-            if (shareDropdown.style.display === 'flex' && !event.target.closest('.share-menu')) {
-                shareDropdown.style.display = 'none';
+            if (!shareDropdown.hidden && !event.target.closest('.share-menu')) setShareOpen(false);
+        });
+        shareDropdown.addEventListener('keydown', (event) => {
+            const items = [...shareDropdown.querySelectorAll('.share-item')];
+            const i = items.indexOf(document.activeElement);
+            if (event.key === 'Escape') {
+                setShareOpen(false);
+                shareToggleBtn.focus();
+            } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                const step = event.key === 'ArrowDown' ? 1 : -1;
+                items[(i + step + items.length) % items.length].focus();
             }
         });
     }
@@ -1824,7 +1942,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sharePrintBtn = document.getElementById('share-print-btn');
     if (sharePrintBtn) {
         sharePrintBtn.addEventListener('click', () => {
-            shareDropdown.style.display = 'none';
+            setShareOpen(false);
             printDashboard();
         });
     }
@@ -1832,7 +1950,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const shareDownloadPdfBtn = document.getElementById('share-download-pdf-btn');
     if (shareDownloadPdfBtn) {
         shareDownloadPdfBtn.addEventListener('click', () => {
-            shareDropdown.style.display = 'none';
+            setShareOpen(false);
             downloadDashboardPdf();
         });
     }
@@ -1876,16 +1994,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const lastDoneDate = lastDoneContainer?.querySelector('input[type="date"]')?.value || '';
             const lastDoneText = lastDoneContainer?.querySelector('input[type="text"].extra-input')?.value || '';
             const lastDonePrint = row.querySelector('td:nth-child(5) .print-only');
-            if (lastDonePrint) lastDonePrint.textContent = `${lastDoneDate} ${lastDoneText}`.trim();
+            if (lastDonePrint) lastDonePrint.textContent = joinDateHours(lastDoneDate, lastDoneText);
 
             // Due Date (similar)
             const dueDateContainer = row.querySelector('td:nth-child(6) .input-with-dropdown');
             const dueDateDate = dueDateContainer?.querySelector('input[type="date"]')?.value || '';
             const dueDateText = dueDateContainer?.querySelector('input[type="text"].extra-input')?.value || '';
             const dueDatePrint = row.querySelector('td:nth-child(6) .print-only');
-            if (dueDatePrint) dueDatePrint.textContent = `${dueDateDate} ${dueDateText}`.trim();
+            if (dueDatePrint) dueDatePrint.textContent = joinDateHours(dueDateDate, dueDateText);
         });
     }
+
+    // "2025-10-09 1100.0 hrs" -- same shape as the PDF's Last Done / Due Date.
+    function joinDateHours(date, hours) {
+        return [date, hours ? `${hours} hrs` : ''].filter(Boolean).join(' ');
+    }
+
+    // Keep the print copy current however printing starts: our buttons, Ctrl+P,
+    // or the browser menu (those last two skip printDashboard entirely).
+    refreshPrintOnlyValues();
+    window.addEventListener('beforeprint', refreshPrintOnlyValues);
 
     function printDashboard() {
         refreshPrintOnlyValues();
@@ -1899,7 +2027,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Replaced an earlier client-side html2canvas+jsPDF approach that
     // screenshotted the dashboard into a slow-to-scroll rasterized PDF.
     function downloadDashboardPdf() {
-        window.location.href = '/pdf';
+        // Pass the local date so the PDF's Time Left matches this screen.
+        const d = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        window.location.href = `/pdf?today=${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     }
 
     const subBtn = document.getElementById('subscribe');
@@ -2480,7 +2611,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 li.dataset.id = rec.id;
                 const who = rec.label ? `${rec.label} — ${rec.destination}` : rec.destination;
                 li.innerHTML =
-                    `<span class="alert-recipient-who">${who}</span>` +
+                    `<span class="alert-recipient-who">${escapeHtml(who)}</span>` +
                     `<span class="alert-recipient-status status-${rec.status.toLowerCase()}">${statusBadge(rec.status)}</span>` +
                     `<button type="button" class="alert-recipient-resend no-print">Resend</button>` +
                     `<button type="button" class="alert-recipient-remove no-print">Remove</button>`;
@@ -2551,7 +2682,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (r.ok) loadRecipients();
         } else if (ev.target.classList.contains('alert-recipient-resend')) {
             const r = await fetch('/alerts/recipients/' + id + '/resend', { method: 'POST', headers: csrf() });
-            if (r.ok && typeof showToast === 'function') showToast('Confirmation resent', 'info');
+            if (r.ok) {
+                showToast('Confirmation resent', 'info');
+            } else {
+                const d = await r.json().catch(() => ({}));
+                showToast(d.error || 'Could not resend the confirmation.', 'error');
+            }
             loadRecipients();
         }
     });

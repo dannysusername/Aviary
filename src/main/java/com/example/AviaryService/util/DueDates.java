@@ -7,9 +7,8 @@ import com.example.AviaryService.services.AlertLevel;
 
 // Turns a Service Timeline row's stored due-date / due-hours strings into a
 // number of days / hours remaining, and classifies that against a user's alert
-// thresholds. Mirrors computeTimeLeftString in UserController (server-side date
-// math) and calculateTimeLeft in dashboard.js (client-side). See
-// docs/ALERTS_SPEC.md.
+// thresholds, and formats the Time Left text. Mirrors calculateTimeLeft in
+// dashboard.js (client-side). See docs/ALERTS_SPEC.md.
 public final class DueDates {
 
     private DueDates() {
@@ -63,6 +62,55 @@ public final class DueDates {
         }
 
         return level;
+    }
+
+    // The Time Left text shown on the dashboard, print view and PDF, computed
+    // fresh from the due date / due hours (never the stored timeLeft column,
+    // which goes stale). Calendar line first, hours line second, "N/A" if
+    // neither. MUST stay in sync with calculateTimeLeft in dashboard.js.
+    public static String formatTimeLeft(String dueDateDate, String dueDateHours,
+                                        LocalDate today, Double currentTimeInService) {
+        StringBuilder sb = new StringBuilder();
+        LocalDate due = parseDate(dueDateDate);
+        if (due != null) {
+            sb.append(formatCalendarTimeLeft(due, today));
+        }
+        Double hours = hoursUntil(dueDateHours, currentTimeInService);
+        if (hours != null) {
+            double rounded = Math.round(hours * 10.0) / 10.0;
+            if (sb.length() > 0) sb.append('\n');
+            sb.append(plainNumber(Math.abs(rounded))).append(rounded < 0 ? " hours overdue" : " hours left");
+        }
+        return sb.length() == 0 ? "N/A" : sb.toString();
+    }
+
+    // "Smart" calendar Time Left -- same rules as formatCalendarTimeLeft in
+    // dashboard.js:
+    //   under 60 days  -> "45 days left"
+    //   under 1 year   -> "5 mo 12 days left" ("5 mo left" on an exact month)
+    //   1 year or more -> "1 yr 1 mo left" (days dropped)
+    // Overdue reads the same with "overdue". Calendar months (Period.between).
+    public static String formatCalendarTimeLeft(LocalDate due, LocalDate today) {
+        long days = ChronoUnit.DAYS.between(today, due);
+        String suffix = days < 0 ? "overdue" : "left";
+        long span = Math.abs(days);
+        if (span < 60) {
+            return span + (span == 1 ? " day " : " days ") + suffix;
+        }
+        java.time.Period p = days < 0 ? java.time.Period.between(due, today) : java.time.Period.between(today, due);
+        StringBuilder sb = new StringBuilder();
+        if (p.getYears() > 0) sb.append(p.getYears()).append(p.getYears() == 1 ? " yr" : " yrs");
+        if (p.getMonths() > 0) sb.append(sb.length() > 0 ? " " : "").append(p.getMonths()).append(" mo");
+        if (p.getYears() == 0 && p.getDays() > 0) {
+            sb.append(sb.length() > 0 ? " " : "").append(p.getDays()).append(p.getDays() == 1 ? " day" : " days");
+        }
+        return sb.append(' ').append(suffix).toString();
+    }
+
+    // 15.2 -> "15.2", 50.0 -> "50" -- matches how JavaScript prints numbers,
+    // so the server and browser produce identical text.
+    private static String plainNumber(double v) {
+        return java.math.BigDecimal.valueOf(v).stripTrailingZeros().toPlainString();
     }
 
     private static LocalDate parseDate(String raw) {

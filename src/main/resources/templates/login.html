@@ -32,6 +32,7 @@
                 <a>Forgot password?</a>
             </div>
             <div th:if="${param.error}" style="color: red;">Incorrect username or password</div>
+            <div th:if="${param.locked}" style="color: red;">Too many wrong passwords. Try again in 15 minutes.</div>
         </div>
         <button class="login-button" type="submit"></button>
         <button class="google-signin-btn" type="submit"> <!-- Note: If this is for actual Google auth, use a separate action or JS; currently it's same as regular submit -->

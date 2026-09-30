@@ -43,6 +43,7 @@ public class DescriptionOptionService {
         if (raw == null) throw new IllegalArgumentException("Missing Option");
         String trimmed = raw.trim();
         if (trimmed.isEmpty()) throw new IllegalArgumentException("Option cannot be blank");
+        com.example.AviaryService.util.Validation.maxLength("Option", trimmed);
         if (DEFAULT_DESCRIPTION_OPTIONS.contains(trimmed.toLowerCase())) {
             throw new IllegalArgumentException("That option already exists as a default");
         }

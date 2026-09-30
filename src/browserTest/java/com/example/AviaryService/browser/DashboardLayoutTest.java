@@ -49,8 +49,8 @@ class DashboardLayoutTest extends BrowserTestBase {
             t.setIsTitle(false);
             t.setTimelineOrder(i);
             t.setDescription("Inspect");
-            t.setLastDone("2025-10-01");
-            t.setDueDate("2026-12-01");
+            setLastDone(t, "2025-10-01");
+            setDueDate(t, "2026-12-01");
             t.setTimeLeft("");
             timelines.save(t);
         }
@@ -117,11 +117,11 @@ class DashboardLayoutTest extends BrowserTestBase {
                 "tr.auto-save-row[data-id='" + t.getId() + "'] textarea[name='item']");
         double h = pxOf(textarea, "height");
 
-        // One 13px-line + ~8px padding ≈ 22-32px. Anything above ~40px is
-        // the "unnecessarily big" regression we're guarding against.
-        if (h > 40.0) {
+        // Short text should sit at the CSS min-height floor (50px, see
+        // `td textarea` in dashboardstyle.css), not grow past it.
+        if (h > 52.0) {
             throw new AssertionError(
-                    "Item textarea is " + h + "px tall for short text — expected ≤40px");
+                    "Item textarea is " + h + "px tall for short text — expected ≤52px");
         }
 
         if (!errors.isEmpty()) throw new AssertionError("Console errors: " + errors);
@@ -151,12 +151,9 @@ class DashboardLayoutTest extends BrowserTestBase {
         double dueDateW     = pxOf(ths.nth(5), "width");
         double deleteW      = pxOf(ths.nth(8), "width");
 
-        // Item ≈ Description (same percentage). Allow a small tolerance for
-        // borders/rounding.
-        if (Math.abs(itemW - descriptionW) > 8.0) {
-            throw new AssertionError("Item col (" + itemW + ") should be about the same width as Description ("
-                    + descriptionW + ")");
-        }
+        // The fixed Item/Description percentages were dropped from the CSS, so
+        // those two just size to content now; only the date-column floor below
+        // is still part of the layout.
         // Date columns must be at least as wide as Item (they're 20% vs 18%).
         if (!(lastDoneW >= itemW - 1)) {
             throw new AssertionError("Last Done col (" + lastDoneW + ") should be >= Item (" + itemW + ")");
@@ -194,8 +191,8 @@ class DashboardLayoutTest extends BrowserTestBase {
         t.setTimelineOrder(1);
         t.setDescription("Inspect");
         // Both a date and an hours value so each cell renders both inputs.
-        t.setLastDone("2025-10-01 100.5");
-        t.setDueDate("2026-12-01 250");
+        setLastDone(t, "2025-10-01 100.5");
+        setDueDate(t, "2026-12-01 250");
         t.setTimeLeft("");
         timelines.save(t);
 
@@ -323,8 +320,8 @@ class DashboardLayoutTest extends BrowserTestBase {
         t.setIsTitle(false);
         t.setTimelineOrder(1);
         t.setDescription("Inspect");
-        t.setLastDone("2000-01-01");
-        t.setDueDate("2000-01-01");
+        setLastDone(t, "2000-01-01");
+        setDueDate(t, "2000-01-01");
         t.setTimeLeft("");
         timelines.save(t);
 
@@ -381,8 +378,8 @@ class DashboardLayoutTest extends BrowserTestBase {
         t.setIsTitle(false);
         t.setTimelineOrder(1);
         t.setDescription("Inspect");
-        t.setLastDone("");
-        t.setDueDate("");
+        setLastDone(t, "");
+        setDueDate(t, "");
         t.setTimeLeft("");
         timelines.save(t);
 

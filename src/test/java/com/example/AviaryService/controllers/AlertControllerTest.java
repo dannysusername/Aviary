@@ -110,9 +110,18 @@ class AlertControllerTest {
         AlertRecipient r = new AlertRecipient(u, AlertRecipient.Channel.EMAIL, "c@example.com", null, "tok-abc-123");
         recipientRepository.save(r);
 
+        // Opening the link (what a mail scanner does) only shows a button...
         mockMvc.perform(get("/alerts/confirm").param("token", "tok-abc-123"))
             .andExpect(status().isOk())
-            .andExpect(content().contentTypeCompatibleWith("text/html"));
+            .andExpect(content().contentTypeCompatibleWith("text/html"))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("method=\"post\"")));
+        org.junit.jupiter.api.Assertions.assertEquals(AlertRecipient.Status.PENDING,
+            recipientRepository.findByConfirmToken("tok-abc-123").orElseThrow().getStatusEnum());
+
+        // ...pressing it (a POST, no session or CSRF token) confirms.
+        mockMvc.perform(post("/alerts/confirm").param("token", "tok-abc-123"))
+            .andExpect(status().isOk())
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("confirmed")));
 
         AlertRecipient reloaded = recipientRepository.findByConfirmToken("tok-abc-123").orElseThrow();
         org.junit.jupiter.api.Assertions.assertEquals(AlertRecipient.Status.ACCEPTED, reloaded.getStatusEnum());
@@ -120,7 +129,10 @@ class AlertControllerTest {
 
     @Test
     void confirmLink_badToken_stillRendersHtml() throws Exception {
-        mockMvc.perform(get("/alerts/confirm").param("token", "does-not-exist"))
+        mockMvc.perform(post("/alerts/confirm").param("token", "does-not-exist"))
+            .andExpect(status().isOk())
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("not valid")));
+        mockMvc.perform(get("/alerts/confirm").param("token", "<script>"))
             .andExpect(status().isOk())
             .andExpect(content().string(org.hamcrest.Matchers.containsString("not valid")));
     }

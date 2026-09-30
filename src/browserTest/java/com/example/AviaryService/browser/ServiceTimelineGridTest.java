@@ -54,8 +54,8 @@ class ServiceTimelineGridTest extends BrowserTestBase {
         t.setCycleCalendarValue(50);
         t.setCycleCalendarUnit("DAYS");
         t.setCycleHours(25.0);
-        t.setLastDone("");   // empty → exercises the "Add date / hrs" placeholder
-        t.setDueDate("");
+        setLastDone(t, "");   // empty → exercises the "Add date / hrs" placeholder
+        setDueDate(t, "");
         t.setTimeLeft("");
         timelines.save(t);
         return t.getId();

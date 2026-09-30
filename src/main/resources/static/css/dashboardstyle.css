@@ -146,21 +146,6 @@ input[type="checkbox"]:focus-visible {
 }
 
 
-.fixed-header .share-dropdown {
-  padding-top: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.fixed-header .share-dropdown button.share-coming-soon {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.fixed-header .share-dropdown button.share-coming-soon:hover {
-  background: rgba(255,255,255,0.2);
-}
-
 /* ── Shared button base ── */
 .fixed-header .header-right .logout-btn,
 .fixed-header .share-btn,
@@ -207,20 +192,133 @@ input[type="checkbox"]:focus-visible {
   margin-left: 8px;
 }
 
+/* ── Share menu: popover card under the Share button ── */
 .share-menu {
   position: relative;
   display: flex;
-  flex-direction: column;
 }
+
+.fixed-header .share-btn.open { background: rgba(255,255,255,0.3); }
+.fixed-header .share-btn .share-caret {
+  font-size: 10px;
+  opacity: 0.85;
+  transition: transform 0.15s;
+}
+.fixed-header .share-btn.open .share-caret { transform: rotate(180deg); }
 
 .share-dropdown {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 10px);
   right: 0;
+  min-width: 210px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  z-index: 2100;
+  transform-origin: top right;
+  animation: share-pop 0.12s ease-out;
+}
+/* Little notch pointing up at the button. */
+.share-dropdown::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  right: 20px;
+  width: 10px;
+  height: 10px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  transform: rotate(45deg);
+}
+@keyframes share-pop {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+.share-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.share-item i {
+  width: 16px;
+  text-align: center;
+  color: var(--primary);
+}
+.share-item:hover,
+.share-item:focus-visible {
+  background: var(--primary-light);
+  outline: none;
+}
+.share-item:hover span:first-of-type { color: var(--primary-dark); }
+:root[data-theme="dark"] .share-item:hover span:first-of-type { color: var(--text); }
+
+.share-divider {
+  height: 1px;
+  margin: 5px 4px;
+  background: var(--border);
+}
+
+.share-item.share-coming-soon { color: var(--text-muted); cursor: default; }
+.share-item.share-coming-soon i { color: var(--icon-muted); }
+.share-item.share-coming-soon:hover { background: var(--surface-muted); }
+.share-item.share-coming-soon:hover span:first-of-type { color: var(--text-muted); }
+.share-soon {
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .share-dropdown { animation: none; }
 }
 
 .edit-hours-btn:hover,
 .back-to-full-list-button:hover { background: var(--primary-light); border-color: var(--primary); }
+
+/* Shown above the Service Timeline while one section (title) is filtered. */
+.section-filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 10px;
+  scroll-margin-top: 80px;              /* clear the fixed header when scrolled into view */
+}
+.section-filter-bar .back-to-full-list-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 0;
+  min-height: 36px;
+}
+.section-filter-label { color: var(--text-muted); font-size: 13px; }
+.section-filter-label strong { color: var(--text); }
+
 
 #add-block-time-btn,
 #add-time-in-service-btn {
@@ -543,7 +641,7 @@ td {
 
 /* Continuous-grid hairlines — the cell border IS the field's outline, so no
    control needs its own box. */
-table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table):not(.settings-table) td {
+.sortable td, .add-row td {
   border-top: 1px solid var(--border);
   overflow-wrap: break-word;
 }
@@ -598,7 +696,11 @@ td.add-cell {
   font-size: 13px;
   text-align: center;
 }
-.title-row .title-cell:hover { background: var(--primary-dark); cursor: pointer; }
+.title-row .title-cell { cursor: pointer; }  /* click a title to show just that section */
+/* Hover highlight only with a real mouse -- on touch it stuck after a tap. */
+@media (hover: hover) {
+  .title-row .title-cell:hover { background: var(--primary-dark); }
+}
 /* No grid hairlines inside the solid green title bar */
 .title-row td { border-color: transparent; }
 
@@ -773,9 +875,10 @@ td textarea:focus { outline: 2px solid var(--primary); background: var(--surface
    row's height is defined here and every neighbour cell centers to match it
    with no dead space. The cell's own padding is removed so the hairline and
    halves span edge to edge. */
-table:not(.aircraft-info-table):not(.hours-table):not(.logbook-table) td:has(> .cycle-structured) {
+#sortable-info-table td[data-label="Cycle"] {
   padding: 0;
 }
+
 .cycle-structured {
   display: flex; flex-direction: column; gap: 0;
   min-width: 0; max-width: 100%;
@@ -1430,8 +1533,28 @@ textarea::placeholder { display: none; }
     color: #fff;
     padding: 0;
   }
-  .sortable tr.title-row td.grip-cell,
   .sortable tr.title-row td.complete-cell { display: none; }
+  /* Grip pinned left (mirrors the trash on the right) so titles can be
+     dragged to reorder sections, same as item cards. */
+  .sortable tr.title-row td.grip-cell {
+    position: absolute;
+    top: 50%;
+    left: 4px;
+    transform: translateY(-50%);
+    padding: 0;
+  }
+  .sortable tr.title-row .grip-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--tap);
+    height: var(--tap);
+    padding: 0;
+    font-size: 18px;
+    color: rgba(255,255,255,0.8);
+    cursor: grab;
+    touch-action: none;                   /* let SortableJS own the drag gesture on touch */
+  }
   .sortable tr.title-row td.title-cell {
     text-align: center;
     font-size: 17px;
@@ -1748,6 +1871,7 @@ textarea::placeholder { display: none; }
     padding: 0;
     min-height: var(--tap);
   }
+<<<<<<< Updated upstream
   /* Cycle number boxes: outlined and roomy like the Last Done / Due Date
      fields. The calendar value shares its line with the unit (2 : 3); the
      hours box fills its line up to the "hrs" label. */
@@ -1759,6 +1883,9 @@ textarea::placeholder { display: none; }
     field-sizing: fixed;
     min-height: 34px;
     padding: 2px 6px;
+=======
+  .sortable td .cycle-num {
+>>>>>>> Stashed changes
     text-align: left;
     border: 1px solid #00000017;
     border-radius: 4px;
@@ -1786,7 +1913,7 @@ textarea::placeholder { display: none; }
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%235E7A6A' d='M233.4 406.6c12.5 12.5 32.8 12.5 45.3 0l192-192c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 338.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l192 192z'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 8px center;
-    background-size: 13px;
+    background-size: 14px;
   }
   #sortable-info-table :is(.sortable tr:not(.title-row), .add-row) .cycle-unit-label { margin-left: 0; }
 
@@ -1990,14 +2117,23 @@ textarea::placeholder { display: none; }
 /* ── Print ── */
 @media print {
 
-  .main { 
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-sm);
-    overflow: hidden;
+  /* No extra box around each section: the cards/tables inside already have
+     their own borders, and a second box made them look double-bordered and
+     shifted. Same side padding as the My Hours card so everything lines up. */
+  .main {
+    border: none;
+    box-shadow: none;
     margin: 0;
-    padding-top: 0; 
+    padding: 8px 24px 0;
   }
+  #service-tab { padding: 0; }
+
+  /* One line per Time Left entry ("12 days left" / "181.3 hours left"),
+     wrapping only between the calendar and hours lines. */
+  .time-left { white-space: pre !important; }
+
+  /* Flight dates/times print under each reading, like the PDF. */
+  .log-timestamp { font-size: 8pt; margin-top: 1px; }
 
   .no-print, .status-cell, .delete-cell, .status-header,
   .delete-header, .grip-cell, .fixed-header { display: none !important; }
@@ -2018,10 +2154,6 @@ textarea::placeholder { display: none; }
     background: none;
   }
 
-  #service-tab {
-    padding: 16px 24px 0;
-  }
-
   table { page-break-inside: auto; }
   th, td { 
           padding: 8px; 
@@ -2030,7 +2162,7 @@ textarea::placeholder { display: none; }
 
   th.grip-column, td.grip-column, .title-grip-icon-cell { display: none; }
 
-  .time-left { white-space: pre-line; font-weight: bold; }
+  .time-left { font-weight: bold; }
   .aircraft-info-table td, .hours-table td { text-align: left; }
 
   .my-hours h3, #print-current-hours { visibility: visible; }
@@ -2149,9 +2281,13 @@ textarea::placeholder { display: none; }
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 12px 16px;
-  margin-bottom: 16px;
+  margin: 0 clamp(12px, 3vw, 24px) 16px;  /* line up with the tables below */
 }
 .flight-suggestions h3 { margin: 0 0 8px; font-size: 15px; }
+.flight-suggestion-row { flex-wrap: wrap; }
+.flight-suggestion-row .suggestion-route { font-weight: 600; }
+.flight-suggestion-row .suggestion-date { display: inline; margin: 0; }
+.flight-suggestion-row .suggestion-actions { margin-left: auto; display: flex; gap: 8px; }
 .flight-suggestion-row {
   display: flex;
   align-items: center;
@@ -2161,7 +2297,6 @@ textarea::placeholder { display: none; }
 }
 .flight-suggestion-row:first-of-type { border-top: none; }
 .suggestion-accept-btn, .suggestion-dismiss-btn {
-  margin-left: auto;
   font-family: inherit;
   font-size: 13px;
   padding: 4px 12px;

@@ -26,6 +26,7 @@ import com.example.AviaryService.services.DescriptionOptionService;
 import com.example.AviaryService.services.FlightSuggestionService;
 import com.example.AviaryService.services.FlightSyncService;
 import com.example.AviaryService.services.HoursService;
+import com.example.AviaryService.services.OutboundEmailLimiter;
 import com.example.AviaryService.services.PdfExportService;
 import com.example.AviaryService.services.SendGridEmailService;
 import com.example.AviaryService.services.SubscriptionService;
@@ -33,6 +34,7 @@ import com.example.AviaryService.services.TimelineService;
 import com.example.AviaryService.services.UserService;
 import com.example.AviaryService.util.Formatting;
 import com.example.AviaryService.util.Parsing;
+import com.example.AviaryService.util.Validation;
 
 import org.apache.catalina.connector.Response;
 //import org.checkerframework.checker.units.qual.Speed;
@@ -71,6 +73,7 @@ public class UserController {
     private final FlightSyncService flightSyncService;
     private final PdfExportService pdfExportService;
     private final SendGridEmailService sendGridEmailService;
+    private final OutboundEmailLimiter emailLimiter;
 
     public UserController(UserRepository userRepository, ServiceTimelineRepository serviceTimelineRepository,
             PasswordEncoder passwordEncoder, DescriptionOptionRepository descriptionOptionRepository,
@@ -80,7 +83,7 @@ public class UserController {
             com.example.AviaryService.repositories.FlightSuggestionRepository flightSuggestionRepository,
             com.example.AviaryService.repositories.SubscriptionRepository subscriptionRepository,
             AeroApiClient aeroApiClient, FlightSyncService flightSyncService, PdfExportService pdfExportService,
-            SendGridEmailService sendGridEmailService) {
+            SendGridEmailService sendGridEmailService, OutboundEmailLimiter emailLimiter) {
 
         this.userRepository = userRepository;
         this.serviceTimelineRepository = serviceTimelineRepository;
@@ -99,6 +102,7 @@ public class UserController {
         this.flightSyncService = flightSyncService;
         this.pdfExportService = pdfExportService;
         this.sendGridEmailService = sendGridEmailService;
+        this.emailLimiter = emailLimiter;
     }
 
     @GetMapping("/register")
@@ -173,18 +177,32 @@ public class UserController {
     // Share menu's Download PDF. Server-side rendering (openhtmltopdf) --
     // see docs/SHARE_EXPORT_SPEC.md and PdfExportService. Real vector
     // text/tables, not the earlier client-side screenshot approach.
+    // `today` is the browser's local date, so Time Left in the PDF matches the
+    // dashboard even when the server's UTC date differs. Only trusted within a
+    // day of the server's date; anything else falls back to the server's.
     @GetMapping("/pdf")
-    public ResponseEntity<byte[]> downloadPdf(Authentication authentication) {
+    public ResponseEntity<byte[]> downloadPdf(@RequestParam(required = false) String today,
+            Authentication authentication) {
         User user = userRepository.findByUsername(authentication.getName());
         if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        byte[] pdf = pdfExportService.generateDashboardPdf(user);
+        java.time.LocalDate serverToday = java.time.LocalDate.now();
+        java.time.LocalDate asOf = serverToday;
+        try {
+            java.time.LocalDate clientToday = today == null ? null : java.time.LocalDate.parse(today);
+            if (clientToday != null && Math.abs(java.time.temporal.ChronoUnit.DAYS.between(serverToday, clientToday)) <= 1) {
+                asOf = clientToday;
+            }
+        } catch (java.time.format.DateTimeParseException ignored) {
+            // bad value -> server date
+        }
+        byte[] pdf = pdfExportService.generateDashboardPdf(user, asOf);
 
         org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
         headers.setContentType(org.springframework.http.MediaType.APPLICATION_PDF);
         headers.setContentDisposition(org.springframework.http.ContentDisposition.attachment()
-            .filename("Aviary_Dashboard_" + java.time.LocalDate.now() + ".pdf")
+            .filename("Aviary_Dashboard_" + asOf + ".pdf")
             .build());
         return new ResponseEntity<>(pdf, headers, HttpStatus.OK);
     }
@@ -192,8 +210,8 @@ public class UserController {
     // Share menu's "Email PDF" -- generates the same dashboard PDF as GET /pdf
     // and sends it to an arbitrary recipient via SendGrid. See
     // docs/SHARE_EXPORT_SPEC.md ("Channels -> Email"). Note the spec's
-    // cross-cutting concerns: recipient validation and a per-user rate limit
-    // still need to be added before this is exposed in the UI.
+    // cross-cutting concerns: recipient validation plus the shared per-user
+    // email cap (OutboundEmailLimiter) are in place.
     @PostMapping("/pdf/email")
     @ResponseBody
     public ResponseEntity<Map<String, String>> emailPdf(@RequestParam String recipient,
@@ -209,6 +227,7 @@ public class UserController {
         if (recipient == null || !recipient.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) {
             return ResponseEntity.badRequest().body(Map.of("error", "Enter a valid email address."));
         }
+        emailLimiter.acquire(user);
 
         byte[] pdf = pdfExportService.generateDashboardPdf(user);
         String filename = "Aviary_Dashboard_" + java.time.LocalDate.now() + ".pdf";
@@ -288,9 +307,11 @@ public class UserController {
             @RequestBody Map<String, Object> data, Authentication authentication) {
         User user = userRepository.findByUsername(authentication.getName());
         try {
-            int pollIntervalDays = ((Number) data.get("pollIntervalDays")).intValue();
-            int preferredCheckHour = ((Number) data.get("preferredCheckHour")).intValue();
-            subscriptionService.updateSettings(user, pollIntervalDays, preferredCheckHour);
+            if (!(data.get("pollIntervalDays") instanceof Number days)
+                    || !(data.get("preferredCheckHour") instanceof Number hour)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Pick a check interval and hour."));
+            }
+            subscriptionService.updateSettings(user, days.intValue(), hour.intValue());
             return ResponseEntity.ok(Map.of("status", "success"));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -383,6 +404,12 @@ public class UserController {
         String item = data.get("item");
         if (item == null || item.isEmpty()) {
             return ResponseEntity.badRequest().body("Item is required");
+        }
+        for (String value : data.values()) {
+            if (value != null && value.length() > Validation.MAX_TEXT) {
+                return ResponseEntity.badRequest().body(errorBody(
+                    "Entries must be " + Validation.MAX_TEXT + " characters or fewer."));
+            }
         }
 
         String ajax = data.getOrDefault("ajax", "false");
@@ -479,12 +506,11 @@ public class UserController {
             response.put("newTimeInService", String.valueOf(user.getTimeInServiceHours()));
             return ResponseEntity.ok(response);
             
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
         } catch (Exception e) {
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("status", "error");
-            errorResponse.put("message", e.getMessage());
-            System.out.println("Error updating hours: " + e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
+            log.error("Failed to update hours", e);
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "Could not update hours."));
         }
     }
 
@@ -507,6 +533,11 @@ public class UserController {
                 forbidden.put("message", "You do not own this timeline");
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(forbidden);
             }
+
+            Validation.maxLength("Item", updateDTO.getItem());
+            Validation.maxLength("Description", updateDTO.getDescription());
+            Validation.maxLength("Last done", updateDTO.getLastDoneHours());
+            Validation.maxLength("Due date", updateDTO.getDueDateHours());
 
             System.out.println("Received updateDTO: item=" + updateDTO.getItem() + ", cycle=" + updateDTO.getCycle() +
                     ", description=" + updateDTO.getDescription() + ", lastDone=" + updateDTO.getLastDone() +
@@ -540,11 +571,11 @@ public class UserController {
             Map<String, String> response = new HashMap<>();
             response.put("status", "success");
             return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
         } catch (Exception e) {
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("status", "error");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
+            log.error("Failed to update timeline {}", id, e);
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "Could not save that change."));
         }
     }
 
@@ -552,8 +583,10 @@ public class UserController {
     @DeleteMapping("/delete/{id}")
     @ResponseBody
     public ResponseEntity<Void> deleteTimeline(@PathVariable Long id, Authentication authentication) {
-        ServiceTimeline timeline = serviceTimelineRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Invalid timeline ID: " + id));
+        ServiceTimeline timeline = serviceTimelineRepository.findById(id).orElse(null);
+        if (timeline == null) {
+            return ResponseEntity.notFound().build();
+        }
         User user = userRepository.findByUsername(authentication.getName());
         if (user == null || timeline.getUser() == null || timeline.getUser().getId() != user.getId()) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
@@ -642,6 +675,11 @@ public class UserController {
         newLog.setBlockTimeIn(Formatting.roundHoursOrNull(newLog.getBlockTimeIn()));
         newLog.setTimeInServiceOut(Formatting.roundHoursOrNull(newLog.getTimeInServiceOut()));
         newLog.setTimeInServiceIn(Formatting.roundHoursOrNull(newLog.getTimeInServiceIn()));
+
+        if (tooLong(newLog.getFromAirport()) || tooLong(newLog.getToAirport())) {
+            return ResponseEntity.badRequest().body(errorBody(
+                "Airport must be " + Validation.MAX_TEXT + " characters or fewer."));
+        }
 
         // ── Validation ─────────────────────────────────────────────────────────
         // Reject incomplete entries before they can corrupt displayed hours.
@@ -932,6 +970,10 @@ public class UserController {
         return map;
     }
 
+    private static boolean tooLong(String value) {
+        return value != null && value.length() > Validation.MAX_TEXT;
+    }
+
     private static Map<String, Object> errorBody(String message) {
         Map<String, Object> body = new HashMap<>();
         body.put("status", "error");
@@ -1020,9 +1062,6 @@ public class UserController {
         }
         Double dueHours = hasHours ? (currentTimeInService + hrsCycle) : null;
 
-        String timeLeftStr = computeTimeLeftString(dueDateLd, dueHours, today, currentTimeInService);
-        timeline.setTimeLeft(timeLeftStr);
-
         // Only update fields that belong to the active cycle type — leave the other type's
         // fields untouched so they stay visible in the UI after repaint.
         if (hasCalendar) {
@@ -1033,6 +1072,10 @@ public class UserController {
             timeline.setLastDoneHours(Formatting.formatHours(currentTimeInService));
             timeline.setDueDateHours(dueHours != null ? Formatting.formatHours(dueHours) : null);
         }
+        // Same text the dashboard computes, from the row's saved due date/hours.
+        String timeLeftStr = com.example.AviaryService.util.DueDates.formatTimeLeft(
+            timeline.getDueDateDate(), timeline.getDueDateHours(), today, currentTimeInService);
+        timeline.setTimeLeft(timeLeftStr);
         serviceTimelineRepository.save(timeline);
 
         // Build response strings from the actual saved state so repaintDateHoursCell
@@ -1048,29 +1091,6 @@ public class UserController {
         resp.put("dueDate", dueDateStr);
         resp.put("timeLeft", timeLeftStr);
         return ResponseEntity.ok(resp);
-    }
-
-    // Stored format matches the existing "YYYY-MM-DD <hours>" convention that
-    // the rest of the app already parses (see calculateTimeLeft in dashboard.js).
-
-    private static String computeTimeLeftString(java.time.LocalDate dueDate, Double dueHours,
-                                                java.time.LocalDate today, double currentTimeInService) {
-        StringBuilder sb = new StringBuilder();
-        if (dueDate != null) {
-            long daysLeft = java.time.temporal.ChronoUnit.DAYS.between(today, dueDate);
-            sb.append(daysLeft < 0
-                ? Math.abs(daysLeft) + " days overdue"
-                : daysLeft + " days left");
-        }
-        if (dueHours != null) {
-            double hoursLeft = Math.round((dueHours - currentTimeInService) * 10.0) / 10.0;
-            String h = hoursLeft < 0
-                ? Math.abs(hoursLeft) + " hours overdue"
-                : hoursLeft + " hours left";
-            if (sb.length() > 0) sb.append('\n');
-            sb.append(h);
-        }
-        return sb.length() == 0 ? "N/A" : sb.toString();
     }
 
     // POST to add a custom description option directly (before any row uses it)

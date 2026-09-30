@@ -16,10 +16,10 @@
     <form class="register-form" method="post" th:action="@{/register}">
         <div class="username-password">
             <label class="username-label"></label>
-            <input id = "username" class="username-input-box" type="text" name="username" placeholder="Username" autocomplete="username" required>
+            <input id = "username" class="username-input-box" type="text" name="username" placeholder="Username" autocomplete="username" required minlength="3" maxlength="50" pattern="[A-Za-z0-9._\-]+" title="3-50 characters: letters, numbers, dot, underscore or dash">
             <label class="password-label"></label>
             <div class ="password-eyeball-container">
-                <input id="password" class="password-input-box" type="password" name="password" placeholder="Password" autocomplete="current-password" required>
+                <input id="password" class="password-input-box" type="password" name="password" placeholder="Password" autocomplete="new-password" required minlength="8" maxlength="72" title="8-72 characters">
                 <span class="toggle-password" style="cursor: pointer; font-size: 1.3rem;">
                     <i class="fa-solid fa-eye-slash" id="eye-icon"></i>
                 </span>
