@@ -12,6 +12,8 @@ import java.util.List;
 
 import org.slf4j.Logger;
 
+// The custom choices in the maintenance item "Description" dropdown. Saves the
+// ones a user types, and skips blanks, duplicates, and the built-in defaults.
 @Service
 public class DescriptionOptionService {
 

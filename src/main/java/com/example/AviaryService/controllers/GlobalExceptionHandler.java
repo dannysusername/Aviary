@@ -12,9 +12,11 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.example.AviaryService.services.RateLimitedException;
 
-// Last-resort mapping for errors that would otherwise surface as a bare 500.
-// Bodies carry both "error" and "message" because the settings page reads
-// the first and the dashboard reads the second.
+// Catches errors from every controller and turns them into a clean JSON
+// error message, instead of a crash page (500). Has no URLs of its own.
+//
+// The error JSON has both "error" and "message" because the settings page
+// reads "error" and the dashboard reads "message".
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 

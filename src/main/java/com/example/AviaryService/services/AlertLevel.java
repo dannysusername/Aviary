@@ -1,8 +1,8 @@
 package com.example.AviaryService.services;
 
-// Where a Service Timeline item sits relative to its due date, for alerting.
-// Ordinal order is the severity order: OK < DUE_SOON < OVERDUE. The daily sweep
-// fires when an item's current level outranks the level it last alerted at.
+// How close a maintenance item is to being due: OK, DUE_SOON, or OVERDUE
+// (least to most serious, in that order). An alert goes out when an item
+// moves up from the level it last alerted at.
 public enum AlertLevel {
     OK,
     DUE_SOON,

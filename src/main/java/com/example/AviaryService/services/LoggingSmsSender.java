@@ -4,10 +4,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-// Placeholder SMS sender: logs what it would send and returns. Keeps the whole
-// SMS code path (recipients, consent, digests, rate limiting) live and testable
-// while real Twilio delivery waits on A2P 10DLC registration. Swap for a
-// TwilioSmsSender bean when that clears -- callers depend on SmsSender, not this.
+// A stand-in for sending text messages: it only logs what it would send. Real
+// texting (Twilio) is waiting on carrier approval (A2P 10DLC). When that clears,
+// replace this with a TwilioSmsSender. The rest of the app uses SmsSender, so
+// nothing else changes.
 @Service
 public class LoggingSmsSender implements SmsSender {
 

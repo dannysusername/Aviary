@@ -1,9 +1,8 @@
 package com.example.AviaryService.services;
 
-// The result of evaluating a user's Service Timeline for alerts: whether
-// anything is worth sending, and the rendered subject / body if so.
-// Immutable value object -- persistence of per-item state is done separately
-// by AlertDigestService.markFired(). See docs/ALERTS_SPEC.md.
+// One alert message's content: whether there's anything to send, plus the
+// subject and body. Only holds data; AlertDigestService builds it.
+// See docs/ALERTS_SPEC.md.
 public class AlertDigest {
 
     private final boolean shouldSend;

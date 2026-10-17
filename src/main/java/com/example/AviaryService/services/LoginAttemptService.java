@@ -10,11 +10,10 @@ import org.springframework.stereotype.Service;
 
 import com.example.AviaryService.util.SlidingWindowLimiter;
 
-// Slows down password guessing: after MAX_FAILURES wrong passwords for a
-// username within WINDOW, that username is locked until the oldest failure
-// ages out. SecurityConfig's UserDetailsService marks the account locked, so
-// Spring rejects the attempt before even checking the password. A successful
-// login clears the count. Listens to the events Spring Security publishes.
+// Stops password guessing. After MAX_FAILURES wrong passwords for a username
+// within WINDOW, that username is locked until the oldest failure ages out.
+// A successful login resets the count. SecurityConfig checks the lock before
+// even looking at the password.
 @Service
 public class LoginAttemptService {
 

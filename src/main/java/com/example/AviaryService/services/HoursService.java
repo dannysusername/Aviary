@@ -14,6 +14,9 @@ import com.example.AviaryService.repositories.FlightLogRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.util.Formatting;
 
+// Keeps the aircraft's hours right (block time and time in service). Handles
+// manual hour edits, catches typed readings that look like typos compared to
+// existing logs, and recalculates the hours from the flight logs.
 @Service
 public class HoursService {
 

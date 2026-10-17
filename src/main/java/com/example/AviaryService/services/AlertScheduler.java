@@ -12,10 +12,10 @@ import org.springframework.stereotype.Component;
 import com.example.AviaryService.entity.AlertPreference;
 import com.example.AviaryService.repositories.AlertPreferenceRepository;
 
-// Hourly tick that drives maintenance alerts. Each user with alerts enabled is
-// evaluated only on the tick matching their chosen check hour (AlertService
-// enforces that plus a once-a-day guard). Runs at :05 to stay clear of
-// FlightSyncService, which ticks at :00. See docs/ALERTS_SPEC.md.
+// The clock for maintenance alerts. Runs every hour and checks each user whose
+// chosen alert hour matches. AlertService makes sure nobody is checked more
+// than once a day. Runs at :05 so it doesn't overlap FlightSyncService, which
+// runs at :00. See docs/ALERTS_SPEC.md.
 @Component
 public class AlertScheduler {
 

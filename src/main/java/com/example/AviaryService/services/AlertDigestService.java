@@ -18,11 +18,11 @@ import com.example.AviaryService.repositories.ServiceTimelineRepository;
 import com.example.AviaryService.util.DueDates;
 import com.example.AviaryService.util.Formatting;
 
-// Evaluates a user's Service Timeline against their alert thresholds and renders
-// the digest. Two entry points:
-//   buildDigest(...)  -- read-only; decides shouldSend and builds subject/body
-//   markFired(...)     -- writes each item's alertLevel / alertLastFiredAt so the
-//                         next evaluation only fires on a genuine change
+// Decides what goes in a user's alert message. Checks each maintenance item
+// against the user's alert settings and writes the subject and body.
+//   buildDigest(...) -- only reads; decides if anything should be sent
+//   markFired(...)   -- remembers what was alerted, so an item isn't alerted
+//                       again unless it gets worse
 // See docs/ALERTS_SPEC.md ("How it fires", "Digest content").
 @Service
 public class AlertDigestService {

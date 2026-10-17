@@ -13,9 +13,9 @@ import com.example.AviaryService.repositories.FlightSuggestionRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.util.Formatting;
 
-// Accept/dismiss for AeroAPI-detected flights. See docs/ADSB_SYNC_SPEC.md,
-// rule 1: a suggestion is never written to the log book on its own -- only
-// these two user-triggered actions ever change anything.
+// Accept or dismiss a flight that AeroAPI found for the user. A found flight is
+// never added to the logbook on its own; only these two user actions change
+// anything. See docs/ADSB_SYNC_SPEC.md, rule 1.
 @Service
 public class FlightSuggestionService {
 

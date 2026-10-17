@@ -27,10 +27,13 @@ import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.services.AlertRecipientService;
 import com.example.AviaryService.services.AlertService;
 
-// Owner-facing maintenance-alerts API. All routes require an authenticated user
-// (SecurityConfig: anyRequest().authenticated()). The token-guarded
-// confirm/decline/unsubscribe links live in AlertPublicController. See
-// docs/ALERTS_SPEC.md ("Endpoints").
+// The owner's control panel for maintenance alerts. The owner can change
+// alert settings, add or remove the people who get alerts, resend their
+// confirm emails, and send a test alert. Sends back JSON.
+//
+// Login needed for everything here. (SecurityConfig requires it.) The email
+// links people click to confirm or unsubscribe are in AlertPublicController.
+// Full endpoint list: docs/ALERTS_SPEC.md ("Endpoints").
 @RestController
 @RequestMapping("/alerts")
 public class AlertController {

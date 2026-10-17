@@ -17,13 +17,13 @@ import com.sendgrid.helpers.mail.objects.Attachments;
 import com.sendgrid.helpers.mail.objects.Content;
 import com.sendgrid.helpers.mail.objects.Email;
 
-// Sends transactional email through SendGrid's v3 Web API. Nothing outside
-// this class touches the SendGrid SDK types. See docs/SHARE_EXPORT_SPEC.md
-// and docs/ALERTS_SPEC.md. The API key comes from sendgrid.env (gitignored)
-// via aviary.sendgrid.api-key; from-email must be a SendGrid-verified sender
-// or every send fails with HTTP 403. When key/from are blank this bean is
-// present but isConfigured() is false and sends throw IllegalStateException --
-// callers are expected to check first.
+// Sends emails through SendGrid. Only this file uses SendGrid's code.
+// See docs/SHARE_EXPORT_SPEC.md and docs/ALERTS_SPEC.md.
+//
+// Setup: the API key comes from sendgrid.env (not in git) through
+// aviary.sendgrid.api-key. The from-email must be verified in SendGrid, or
+// every send fails with a 403. If the key or from-email is blank,
+// isConfigured() returns false and sending throws, so check it first.
 @Service
 public class SendGridEmailService implements EmailSender {
 

@@ -17,10 +17,12 @@ import com.example.AviaryService.entity.AlertRecipient.Status;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.AlertRecipientRepository;
 
-// Add / list / remove / resend maintenance-alert recipients, and the
-// token-guarded confirm / decline / unsubscribe transitions the emailed links
-// hit. A recipient is PENDING until they themselves confirm -- user A cannot
-// consent for user B (docs/ALERTS_SPEC.md "Recipients").
+// Manages the people who get an owner's alerts: add, list, remove, and resend
+// their confirm email. Also does the confirm / decline / unsubscribe when they
+// click the email links (see AlertPublicController).
+//
+// A new recipient stays PENDING until they confirm themselves. The owner can't
+// say yes for them. See docs/ALERTS_SPEC.md ("Recipients").
 @Service
 public class AlertRecipientService {
 

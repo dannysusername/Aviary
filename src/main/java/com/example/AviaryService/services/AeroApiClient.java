@@ -11,9 +11,9 @@ import org.springframework.web.client.RestClientResponseException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
-// Talks to FlightAware AeroAPI. Nothing outside this class knows the JSON
-// shape or the x-apikey header -- callers get plain Java data back.
-// See docs/ADSB_DATA_SOURCE.md for the endpoint reference.
+// Gets flight data from FlightAware (AeroAPI). The rest of the app calls this
+// and gets plain Java objects back, so only this file deals with AeroAPI's
+// JSON and API key header. Endpoint details: docs/ADSB_DATA_SOURCE.md.
 @Component
 public class AeroApiClient {
 

@@ -15,11 +15,11 @@ import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.AlertRecipientRepository;
 import com.example.AviaryService.repositories.AlertSendLogRepository;
 
-// Fans a digest out to a user's ACCEPTED recipients, one message each, honouring
-// the shared per-recipient rate limit (docs/ALERTS_SPEC.md "Rate limit"):
-// email once / 24h, SMS once / 72h. Manual "send now" and the daily sweep both
-// go through here, so they share the budget. A recipient on cooldown, or a
-// sender that isn't configured, is skipped and logged -- never an exception.
+// Sends an alert to each of a user's confirmed recipients, one message each.
+// Limit per recipient: one email per 24 hours, one text per 72 hours.
+// "Send alert now" and the daily check share that limit. A recipient on
+// cooldown, or a sender that isn't set up, is skipped and logged instead of
+// causing an error. See docs/ALERTS_SPEC.md ("Rate limit").
 @Service
 public class NotificationService {
 
