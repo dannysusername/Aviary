@@ -11,7 +11,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 
 // One row per message actually handed to a sender. Backs the per-recipient rate
-// limit (docs/ALERTS_SPEC.md "Rate limit") and doubles as an activity trail.
+// limit (docs/specs/ALERTS_SPEC.md "Rate limit") and doubles as an activity trail.
 // The daily sweep prunes rows older than 30 days.
 @Entity
 @Table(name = "alert_send_log", indexes = {

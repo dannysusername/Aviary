@@ -1724,7 +1724,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // AeroAPI-detected flights: Add/Dismiss. See docs/ADSB_SYNC_SPEC.md "UX flow".
+    // AeroAPI-detected flights: Add/Dismiss. See docs/specs/ADSB_SYNC_SPEC.md "UX flow".
     document.addEventListener('click', function(event) {
         const isAccept = event.target.classList.contains('suggestion-accept-btn');
         const isDismiss = event.target.classList.contains('suggestion-dismiss-btn');
@@ -1918,7 +1918,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // closes on an outside click, Escape, or picking an item. Print uses the
     // browser's print dialog; Download PDF hits the server-rendered GET /pdf.
     // Email/Text stay disabled (.share-coming-soon) until SendGrid/Twilio are
-    // actually set up -- see docs/SHARE_EXPORT_SPEC.md.
+    // actually set up -- see docs/specs/SHARE_EXPORT_SPEC.md.
     const shareToggleBtn = document.getElementById('share-toggle-btn');
     const shareDropdown = document.getElementById('share-dropdown');
     function setShareOpen(open) {
@@ -2555,7 +2555,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-// ── Maintenance alerts settings (docs/ALERTS_SPEC.md) ────────────────────────
+// ── Maintenance alerts settings (docs/specs/ALERTS_SPEC.md) ────────────────────────
 // Standalone DOMContentLoaded block: talks to /alerts/* and is independent of
 // the large closure above.
 document.addEventListener('DOMContentLoaded', () => {

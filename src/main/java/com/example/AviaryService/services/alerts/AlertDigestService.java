@@ -1,4 +1,4 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.alerts;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -23,7 +23,7 @@ import com.example.AviaryService.util.Formatting;
 //   buildDigest(...) -- only reads; decides if anything should be sent
 //   markFired(...)   -- remembers what was alerted, so an item isn't alerted
 //                       again unless it gets worse
-// See docs/ALERTS_SPEC.md ("How it fires", "Digest content").
+// See docs/specs/ALERTS_SPEC.md ("How it fires", "Digest content").
 @Service
 public class AlertDigestService {
 

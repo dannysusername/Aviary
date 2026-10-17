@@ -1,4 +1,4 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.flights;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -81,7 +81,7 @@ public class SubscriptionService {
         subscriptionRepository.delete(sub);
     }
 
-    // See docs/ADSB_SYNC_SPEC.md "Poll interval" for the 1-9 day / 0-23 hour bounds.
+    // See docs/specs/ADSB_SYNC_SPEC.md "Poll interval" for the 1-9 day / 0-23 hour bounds.
     @Transactional
     public void updateSettings(User user, int pollIntervalDays, int preferredCheckHour) {
         if (pollIntervalDays < 1 || pollIntervalDays > 9) {

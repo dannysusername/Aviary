@@ -109,7 +109,7 @@
                         <div class="settings-hint" th:text="'Leave blank to use the default window (up to ' + ${aeroDefaultLookbackDays} + ' days back).'"></div>
                     </td>
                 </tr>
-                <!-- See docs/ADSB_SYNC_SPEC.md "Poll interval" -- background schedule,
+                <!-- See docs/specs/ADSB_SYNC_SPEC.md "Poll interval" -- background schedule,
                      separate from the on-demand Check flights now button above. -->
                 <tr id="sync-schedule-row" th:hidden="${!subscriptionActive}">
                     <td>Check automatically every</td>
@@ -126,7 +126,7 @@
                     </td>
                 </tr>
 
-                <!-- Maintenance alerts -- see docs/ALERTS_SPEC.md. All values load
+                <!-- Maintenance alerts -- see docs/specs/ALERTS_SPEC.md. All values load
                      from GET /alerts/preferences and GET /alerts/recipients when
                      the settings page opens. -->
                 <tr>
@@ -490,7 +490,7 @@
                 <button id="upload-csv-btn">Upload GARMIN CSV File</button>
             </div>
 
-            <!-- AeroAPI-detected flights awaiting Add/Dismiss. See docs/ADSB_SYNC_SPEC.md "UX flow". -->
+            <!-- AeroAPI-detected flights awaiting Add/Dismiss. See docs/specs/ADSB_SYNC_SPEC.md "UX flow". -->
             <div class="flight-suggestions no-print" th:if="${!flightSuggestions.isEmpty()}">
                 <h3>✈ <span th:text="${flightSuggestions.size()}"></span> flight(s) detected</h3>
                 <div class="flight-suggestion-row" th:each="s : ${flightSuggestions}" th:data-id="${s.id}">
@@ -505,7 +505,7 @@
             </div>
 
             <!-- Every AeroAPI suggestion ever seen, any status -- a record that
-                 survives deleting the FlightLog row it became. See docs/CHANGES.md. -->
+                 survives deleting the FlightLog row it became. See docs/planning/CHANGES.md. -->
             <details id="all-suggestions-details" class="no-print">
                 <summary>View all suggested flights</summary>
                 <table class="all-suggestions-table">

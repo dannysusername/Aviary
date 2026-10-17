@@ -10,7 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import com.example.AviaryService.services.RateLimitedException;
+import com.example.AviaryService.services.account.RateLimitedException;
 
 // Catches errors from every controller and turns them into a clean JSON
 // error message, instead of a crash page (500). Has no URLs of its own.

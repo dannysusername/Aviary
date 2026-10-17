@@ -24,8 +24,8 @@ import com.example.AviaryService.entity.ServiceTimeline;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.ServiceTimelineRepository;
 import com.example.AviaryService.repositories.UserRepository;
-import com.example.AviaryService.services.AlertRecipientService;
-import com.example.AviaryService.services.AlertService;
+import com.example.AviaryService.services.alerts.AlertRecipientService;
+import com.example.AviaryService.services.alerts.AlertService;
 
 // The owner's control panel for maintenance alerts. The owner can change
 // alert settings, add or remove the people who get alerts, resend their
@@ -33,7 +33,7 @@ import com.example.AviaryService.services.AlertService;
 //
 // Login needed for everything here. (SecurityConfig requires it.) The email
 // links people click to confirm or unsubscribe are in AlertPublicController.
-// Full endpoint list: docs/ALERTS_SPEC.md ("Endpoints").
+// Full endpoint list: docs/specs/ALERTS_SPEC.md ("Endpoints").
 @RestController
 @RequestMapping("/alerts")
 public class AlertController {

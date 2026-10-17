@@ -1,4 +1,4 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.flights;
 
 import java.time.Instant;
 
@@ -12,10 +12,11 @@ import com.example.AviaryService.repositories.FlightLogRepository;
 import com.example.AviaryService.repositories.FlightSuggestionRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.util.Formatting;
+import com.example.AviaryService.services.dashboard.HoursService;
 
 // Accept or dismiss a flight that AeroAPI found for the user. A found flight is
 // never added to the logbook on its own; only these two user actions change
-// anything. See docs/ADSB_SYNC_SPEC.md, rule 1.
+// anything. See docs/specs/ADSB_SYNC_SPEC.md, rule 1.
 @Service
 public class FlightSuggestionService {
 

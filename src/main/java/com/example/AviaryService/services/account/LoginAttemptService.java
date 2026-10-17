@@ -1,4 +1,4 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.account;
 
 import java.time.Duration;
 import java.util.Locale;

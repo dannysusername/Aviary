@@ -9,8 +9,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
-import com.example.AviaryService.services.AlertScheduler;
-import com.example.AviaryService.services.FlightSyncService;
+import com.example.AviaryService.services.alerts.AlertScheduler;
+import com.example.AviaryService.services.flights.FlightSyncService;
 
 // One-off entrypoint for Heroku Scheduler. The Eco web dyno sleeps after 30
 // minutes idle, so the in-process @Scheduled sweeps in FlightSyncService and

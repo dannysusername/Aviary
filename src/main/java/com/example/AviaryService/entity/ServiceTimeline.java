@@ -50,7 +50,7 @@ public class ServiceTimeline {
     @Column
     private Double cycleHours;
 
-    // Maintenance-alerts state (docs/ALERTS_SPEC.md). alertLevel is the level
+    // Maintenance-alerts state (docs/specs/ALERTS_SPEC.md). alertLevel is the level
     // this item was last alerted at -- null / "DUE_SOON" / "OVERDUE" -- so the
     // daily sweep only fires when an item gets worse (or an overdue item is due
     // for its weekly re-nudge). alertLastFiredAt backs that re-nudge timer.

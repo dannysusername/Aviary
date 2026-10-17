@@ -60,7 +60,7 @@ public class FlightLog {
     // Set only when this row came from an accepted AeroAPI suggestion. Lets
     // deleting this row reset that suggestion back to pending instead of
     // leaving it permanently "accepted" with nothing pointing at it -- see
-    // docs/CHANGES.md.
+    // docs/planning/CHANGES.md.
     @Column(nullable = true)
     private String faFlightId;
 

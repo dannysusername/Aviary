@@ -1,8 +1,8 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.alerts;
 
 // One alert message's content: whether there's anything to send, plus the
 // subject and body. Only holds data; AlertDigestService builds it.
-// See docs/ALERTS_SPEC.md.
+// See docs/specs/ALERTS_SPEC.md.
 public class AlertDigest {
 
     private final boolean shouldSend;

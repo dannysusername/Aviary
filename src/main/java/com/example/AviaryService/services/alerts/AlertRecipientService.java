@@ -1,4 +1,4 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.alerts;
 
 import java.security.SecureRandom;
 import java.time.Instant;
@@ -16,20 +16,21 @@ import com.example.AviaryService.entity.AlertRecipient.Channel;
 import com.example.AviaryService.entity.AlertRecipient.Status;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.AlertRecipientRepository;
+import com.example.AviaryService.services.messaging.OutboundEmailLimiter;
 
 // Manages the people who get an owner's alerts: add, list, remove, and resend
 // their confirm email. Also does the confirm / decline / unsubscribe when they
 // click the email links (see AlertPublicController).
 //
 // A new recipient stays PENDING until they confirm themselves. The owner can't
-// say yes for them. See docs/ALERTS_SPEC.md ("Recipients").
+// say yes for them. See docs/specs/ALERTS_SPEC.md ("Recipients").
 @Service
 public class AlertRecipientService {
 
     private static final Logger log = LoggerFactory.getLogger(AlertRecipientService.class);
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    // Deliberately loose -- SendGrid/Twilio do the real validation. This just
+    // Deliberately loose -- the email/SMS provider does the real validation. This just
     // stops obvious junk from ever creating a row.
     private static final String EMAIL_RE = "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$";
     private static final String PHONE_RE = "^\\+[1-9]\\d{6,14}$";

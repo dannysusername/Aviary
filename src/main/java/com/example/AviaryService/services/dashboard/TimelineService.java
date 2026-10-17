@@ -1,4 +1,4 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.dashboard;
 
 import java.time.LocalDate;
 import java.util.List;

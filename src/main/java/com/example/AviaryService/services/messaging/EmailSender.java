@@ -1,9 +1,9 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.messaging;
 
 // The "send an email" interface the rest of the app uses. Today the only
-// version is SendGridEmailService. To switch email providers, write a new
+// version is SesEmailService. To switch email providers, write a new
 // version of this; nothing else has to change.
-// See docs/ALERTS_SPEC.md and docs/SHARE_EXPORT_SPEC.md.
+// See docs/specs/ALERTS_SPEC.md and docs/specs/SHARE_EXPORT_SPEC.md.
 public interface EmailSender {
 
     // False when no API key / from-address is configured. Callers should check

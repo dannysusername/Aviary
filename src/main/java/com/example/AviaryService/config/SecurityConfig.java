@@ -15,7 +15,7 @@ import org.springframework.core.annotation.Order;
 
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.UserRepository;
-import com.example.AviaryService.services.LoginAttemptService;
+import com.example.AviaryService.services.account.LoginAttemptService;
 
 @Configuration
 @EnableWebSecurity

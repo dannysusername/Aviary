@@ -1,4 +1,4 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.dashboard;
 
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;

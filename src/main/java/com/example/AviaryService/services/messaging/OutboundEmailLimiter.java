@@ -1,4 +1,4 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.messaging;
 
 import java.time.Duration;
 
@@ -6,10 +6,11 @@ import org.springframework.stereotype.Service;
 
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.util.SlidingWindowLimiter;
+import com.example.AviaryService.services.account.RateLimitedException;
 
 // Limits how many emails one account can trigger per hour: alert invites and
 // resends, "Send alert now", and emailing the PDF. Without it, someone could
-// spam any inbox through our SendGrid account. The daily alert emails don't
+// spam any inbox through our email account. The daily alert emails don't
 // count, because the app sends those, not the user.
 @Service
 public class OutboundEmailLimiter {

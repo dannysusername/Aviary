@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.AviaryService.services.AlertRecipientService;
+import com.example.AviaryService.services.alerts.AlertRecipientService;
 
 // Handles the links inside alert emails. When an owner adds someone to get
 // maintenance alerts, that person gets an email with links to confirm,

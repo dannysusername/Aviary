@@ -1,4 +1,4 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.alerts;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -24,7 +24,7 @@ import com.example.AviaryService.repositories.AlertSendLogRepository;
 // The main alerts logic. Saves alert settings, handles "Send alert now", runs
 // the daily check for each user, and does cleanup (reminds or expires
 // recipients who never confirmed, deletes old send logs).
-// AlertController and AlertScheduler both call into this. See docs/ALERTS_SPEC.md.
+// AlertController and AlertScheduler both call into this. See docs/specs/ALERTS_SPEC.md.
 @Service
 public class AlertService {
 

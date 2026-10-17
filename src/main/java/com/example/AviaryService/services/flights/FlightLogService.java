@@ -1,4 +1,4 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.flights;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -16,6 +16,7 @@ import com.example.AviaryService.repositories.FlightSuggestionRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.util.Formatting;
 import com.example.AviaryService.util.Validation;
+import com.example.AviaryService.services.dashboard.HoursService;
 
 // The rules for flight logs. Kept here so the web controller and the future
 // MCP tools both follow the same rules.

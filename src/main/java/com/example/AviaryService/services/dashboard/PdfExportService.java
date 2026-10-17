@@ -1,4 +1,4 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.dashboard;
 
 import java.io.ByteArrayOutputStream;
 import java.time.Instant;
@@ -27,7 +27,7 @@ import com.example.AviaryService.util.Formatting;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 
 // Makes the maintenance report PDF from templates/pdf-export.html, using the
-// openhtmltopdf library. See docs/SHARE_EXPORT_SPEC.md.
+// openhtmltopdf library. See docs/specs/SHARE_EXPORT_SPEC.md.
 //
 // It replaced an older way that took a screenshot of the dashboard. Those PDFs
 // were huge and scrolled badly. This one has real text and tables.

@@ -1,4 +1,4 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.account;
 
 import java.util.HashMap;
 import java.util.Map;

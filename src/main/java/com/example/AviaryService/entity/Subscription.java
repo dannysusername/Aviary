@@ -32,7 +32,7 @@ public class Subscription {
     //the last time you actually found the plane. Only updated when a position comes back.
 
     // How often the AeroAPI poller checks this subscription, and at what local
-    // hour. Bounds and defaults per docs/ADSB_SYNC_SPEC.md ("Poll interval"):
+    // hour. Bounds and defaults per docs/specs/ADSB_SYNC_SPEC.md ("Poll interval"):
     // 1-9 days, no settings UI to change these yet -- see "Turning it on" there.
     @Column(nullable = false)
     private int pollIntervalDays = 1;

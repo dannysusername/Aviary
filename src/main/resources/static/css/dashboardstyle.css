@@ -2411,7 +2411,7 @@ textarea::placeholder { display: none; }
   .all-suggestions-table tr.audit-message-row td::before { display: none; }
 }
 
-/* ── Maintenance alert recipients (docs/ALERTS_SPEC.md) ── */
+/* ── Maintenance alert recipients (docs/specs/ALERTS_SPEC.md) ── */
 .alert-recipient-list { list-style: none; padding: 0; margin: 0.5rem 0 0; }
 .alert-recipient-list li { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0; }
 .alert-recipient-list .alert-recipient-who { flex: 1; }

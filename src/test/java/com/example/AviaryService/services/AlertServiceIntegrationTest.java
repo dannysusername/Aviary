@@ -24,6 +24,10 @@ import com.example.AviaryService.repositories.AlertRecipientRepository;
 import com.example.AviaryService.repositories.AlertSendLogRepository;
 import com.example.AviaryService.repositories.ServiceTimelineRepository;
 import com.example.AviaryService.repositories.UserRepository;
+import com.example.AviaryService.services.alerts.AlertDigest;
+import com.example.AviaryService.services.alerts.AlertDigestService;
+import com.example.AviaryService.services.alerts.AlertRecipientService;
+import com.example.AviaryService.services.alerts.AlertService;
 
 // Exercises the alert services against real H2. Email/SMS senders are
 // unconfigured in the test profile, so NotificationService no-ops the actual

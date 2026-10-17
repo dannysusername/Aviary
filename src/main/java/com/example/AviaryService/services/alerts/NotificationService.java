@@ -1,4 +1,4 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.alerts;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -14,12 +14,15 @@ import com.example.AviaryService.entity.AlertSendLog;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.AlertRecipientRepository;
 import com.example.AviaryService.repositories.AlertSendLogRepository;
+import com.example.AviaryService.services.dashboard.PdfExportService;
+import com.example.AviaryService.services.messaging.EmailSender;
+import com.example.AviaryService.services.messaging.SmsSender;
 
 // Sends an alert to each of a user's confirmed recipients, one message each.
 // Limit per recipient: one email per 24 hours, one text per 72 hours.
 // "Send alert now" and the daily check share that limit. A recipient on
 // cooldown, or a sender that isn't set up, is skipped and logged instead of
-// causing an error. See docs/ALERTS_SPEC.md ("Rate limit").
+// causing an error. See docs/specs/ALERTS_SPEC.md ("Rate limit").
 @Service
 public class NotificationService {
 

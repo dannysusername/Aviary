@@ -97,4 +97,4 @@ The app is a small, conventional Spring MVC project under `src/main/java/com/exa
 - **`config/`** — `SecurityConfig` (login/logout, BCrypt, per-route access) and `DataSeeder` (the H2 demo data).
 - **`resources/templates/`** + **`resources/static/`** — Thymeleaf views and the dashboard's CSS/JS.
 
-Deeper design docs live in **[docs/](docs/)** — see `ARCHITECTURE.md`, `BACKEND.md`, `FRONTEND.md`, `DATABASE.md`, and `BUILD_AND_DEPLOY.md`. A **Share/Export** feature (print / PDF / email / text) is specced in `docs/SHARE_EXPORT_SPEC.md` but not yet built.
+Deeper design docs live in **[docs/](docs/)** — see `ARCHITECTURE.md`, `BACKEND.md`, `FRONTEND.md`, `DATABASE.md`, and `BUILD_AND_DEPLOY.md`. A **Share/Export** feature (print / PDF / email / text) is specced in `docs/specs/SHARE_EXPORT_SPEC.md` but not yet built.

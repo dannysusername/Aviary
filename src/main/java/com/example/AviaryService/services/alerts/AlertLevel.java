@@ -1,4 +1,4 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.alerts;
 
 // How close a maintenance item is to being due: OK, DUE_SOON, or OVERDUE
 // (least to most serious, in that order). An alert goes out when an item

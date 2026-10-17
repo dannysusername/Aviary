@@ -20,19 +20,19 @@ import com.example.AviaryService.entity.DTO.TimelineUpdateDTO;
 import com.example.AviaryService.repositories.DescriptionOptionRepository;
 import com.example.AviaryService.repositories.ServiceTimelineRepository;
 import com.example.AviaryService.repositories.UserRepository;
-import com.example.AviaryService.services.AeroApiClient;
-import com.example.AviaryService.services.DescriptionOptionService;
-import com.example.AviaryService.services.FlightLogService;
-import com.example.AviaryService.services.FlightSuggestionService;
-import com.example.AviaryService.services.FlightSyncService;
-import com.example.AviaryService.services.GarminCsvService;
-import com.example.AviaryService.services.HoursService;
-import com.example.AviaryService.services.OutboundEmailLimiter;
-import com.example.AviaryService.services.PdfExportService;
-import com.example.AviaryService.services.SendGridEmailService;
-import com.example.AviaryService.services.SubscriptionService;
-import com.example.AviaryService.services.TimelineService;
-import com.example.AviaryService.services.UserService;
+import com.example.AviaryService.services.flights.AeroApiClient;
+import com.example.AviaryService.services.dashboard.DescriptionOptionService;
+import com.example.AviaryService.services.flights.FlightLogService;
+import com.example.AviaryService.services.flights.FlightSuggestionService;
+import com.example.AviaryService.services.flights.FlightSyncService;
+import com.example.AviaryService.services.flights.GarminCsvService;
+import com.example.AviaryService.services.dashboard.HoursService;
+import com.example.AviaryService.services.messaging.OutboundEmailLimiter;
+import com.example.AviaryService.services.dashboard.PdfExportService;
+import com.example.AviaryService.services.messaging.EmailSender;
+import com.example.AviaryService.services.flights.SubscriptionService;
+import com.example.AviaryService.services.dashboard.TimelineService;
+import com.example.AviaryService.services.account.UserService;
 import com.example.AviaryService.util.Validation;
 
 import org.apache.catalina.connector.Response;
@@ -73,7 +73,7 @@ public class UserController {
     private final AeroApiClient aeroApiClient;
     private final FlightSyncService flightSyncService;
     private final PdfExportService pdfExportService;
-    private final SendGridEmailService sendGridEmailService;
+    private final EmailSender emailSender;
     private final OutboundEmailLimiter emailLimiter;
     private final FlightLogService flightLogService;
     private final GarminCsvService garminCsvService;
@@ -86,7 +86,7 @@ public class UserController {
             com.example.AviaryService.repositories.FlightSuggestionRepository flightSuggestionRepository,
             com.example.AviaryService.repositories.SubscriptionRepository subscriptionRepository,
             AeroApiClient aeroApiClient, FlightSyncService flightSyncService, PdfExportService pdfExportService,
-            SendGridEmailService sendGridEmailService, OutboundEmailLimiter emailLimiter,
+            EmailSender emailSender, OutboundEmailLimiter emailLimiter,
             FlightLogService flightLogService, GarminCsvService garminCsvService) {
 
         this.userRepository = userRepository;
@@ -104,7 +104,7 @@ public class UserController {
         this.aeroApiClient = aeroApiClient;
         this.flightSyncService = flightSyncService;
         this.pdfExportService = pdfExportService;
-        this.sendGridEmailService = sendGridEmailService;
+        this.emailSender = emailSender;
         this.emailLimiter = emailLimiter;
         this.flightLogService = flightLogService;
         this.garminCsvService = garminCsvService;
@@ -180,7 +180,7 @@ public class UserController {
     }
 
     // Share menu's Download PDF. Server-side rendering (openhtmltopdf) --
-    // see docs/SHARE_EXPORT_SPEC.md and PdfExportService. Real vector
+    // see docs/specs/SHARE_EXPORT_SPEC.md and PdfExportService. Real vector
     // text/tables, not the earlier client-side screenshot approach.
     // `today` is the browser's local date, so Time Left in the PDF matches the
     // dashboard even when the server's UTC date differs. Only trusted within a
@@ -213,8 +213,8 @@ public class UserController {
     }
 
     // Share menu's "Email PDF" -- generates the same dashboard PDF as GET /pdf
-    // and sends it to an arbitrary recipient via SendGrid. See
-    // docs/SHARE_EXPORT_SPEC.md ("Channels -> Email"). Note the spec's
+    // and sends it to an arbitrary recipient by email. See
+    // docs/specs/SHARE_EXPORT_SPEC.md ("Channels -> Email"). Note the spec's
     // cross-cutting concerns: recipient validation plus the shared per-user
     // email cap (OutboundEmailLimiter) are in place.
     @PostMapping("/pdf/email")
@@ -225,7 +225,7 @@ public class UserController {
         if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        if (!sendGridEmailService.isConfigured()) {
+        if (!emailSender.isConfigured()) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(Map.of("error", "Email sending is not configured on this server."));
         }
@@ -237,7 +237,7 @@ public class UserController {
         byte[] pdf = pdfExportService.generateDashboardPdf(user);
         String filename = "Aviary_Dashboard_" + java.time.LocalDate.now() + ".pdf";
         try {
-            sendGridEmailService.sendPdf(
+            emailSender.sendPdf(
                 recipient.trim(),
                 "Your Aviary maintenance record",
                 "Attached is the maintenance record for " + user.getTailNumber() + ".",
@@ -278,7 +278,7 @@ public class UserController {
     // Manual, on-demand poll -- bypasses the interval/hour gate entirely.
     // start/end are optional ISO dates (yyyy-MM-dd) from the "Custom check
     // range" fields; omitted means AeroAPI's own default window. See
-    // docs/ADSB_SYNC_SPEC.md and docs/ADSB_DATA_SOURCE.md.
+    // docs/specs/ADSB_SYNC_SPEC.md and docs/specs/ADSB_DATA_SOURCE.md.
     @PostMapping("/subscription/check-now")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> checkNow(
@@ -304,7 +304,7 @@ public class UserController {
         }
     }
 
-    // See docs/ADSB_SYNC_SPEC.md "Poll interval" -- how often and at what
+    // See docs/specs/ADSB_SYNC_SPEC.md "Poll interval" -- how often and at what
     // local hour the background poller checks this subscription.
     @PostMapping("/subscription/settings")
     @ResponseBody
@@ -324,7 +324,7 @@ public class UserController {
     }
 
     // Every AeroAPI suggestion ever seen, any status -- an audit trail
-    // independent of FlightLog's lifecycle. See docs/CHANGES.md.
+    // independent of FlightLog's lifecycle. See docs/planning/CHANGES.md.
     @GetMapping("/flightsuggestions/all")
     @ResponseBody
     public ResponseEntity<List<Map<String, Object>>> getAllFlightSuggestions(Authentication authentication) {
@@ -347,7 +347,7 @@ public class UserController {
     }
 
     // AeroAPI-detected flight: turn a suggestion into a real FlightLog row.
-    // See docs/ADSB_SYNC_SPEC.md rule 1 -- this is the only thing that ever
+    // See docs/specs/ADSB_SYNC_SPEC.md rule 1 -- this is the only thing that ever
     // writes a suggestion to the log book; the poller never does.
     @PostMapping("/flightsuggestions/{id}/accept")
     @ResponseBody
@@ -373,7 +373,7 @@ public class UserController {
         }
     }
 
-    // Permanent for that user -- see docs/ADSB_SYNC_SPEC.md "UX flow".
+    // Permanent for that user -- see docs/specs/ADSB_SYNC_SPEC.md "UX flow".
     @PostMapping("/flightsuggestions/{id}/dismiss")
     @ResponseBody
     public ResponseEntity<Map<String, String>> dismissFlightSuggestion(
@@ -444,7 +444,7 @@ public class UserController {
     // One subscription per user. Subscribe needs a registration; unsubscribe
     // and delete need only the authenticated user, so clearing the dashboard
     // tail number can never strand an active subscription. See
-    // docs/ADSB_SYNC_SPEC.md.
+    // docs/specs/ADSB_SYNC_SPEC.md.
     @PostMapping("/subscription/subscribe")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> subscribe(@RequestBody Map<String, String> data, Authentication authentication) {

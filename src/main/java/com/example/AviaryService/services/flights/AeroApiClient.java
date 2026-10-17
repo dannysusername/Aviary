@@ -1,4 +1,4 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.flights;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -13,14 +13,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 // Gets flight data from FlightAware (AeroAPI). The rest of the app calls this
 // and gets plain Java objects back, so only this file deals with AeroAPI's
-// JSON and API key header. Endpoint details: docs/ADSB_DATA_SOURCE.md.
+// JSON and API key header. Endpoint details: docs/specs/ADSB_DATA_SOURCE.md.
 @Component
 public class AeroApiClient {
 
     private static final String BASE_URL = "https://aeroapi.flightaware.com/aeroapi";
 
     // GET /flights/{ident} bounds, confirmed in aeroapi-openapi.yml (see
-    // docs/ADSB_DATA_SOURCE.md "Reference: GET /flights/{ident}"). Public so
+    // docs/specs/ADSB_DATA_SOURCE.md "Reference: GET /flights/{ident}"). Public so
     // the controller can validate a user-supplied range with the same
     // numbers, and so the frontend can be told the truth instead of a
     // hardcoded copy of it.

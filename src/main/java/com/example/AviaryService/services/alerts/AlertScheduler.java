@@ -1,4 +1,4 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.alerts;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -15,7 +15,7 @@ import com.example.AviaryService.repositories.AlertPreferenceRepository;
 // The clock for maintenance alerts. Runs every hour and checks each user whose
 // chosen alert hour matches. AlertService makes sure nobody is checked more
 // than once a day. Runs at :05 so it doesn't overlap FlightSyncService, which
-// runs at :00. See docs/ALERTS_SPEC.md.
+// runs at :00. See docs/specs/ALERTS_SPEC.md.
 @Component
 public class AlertScheduler {
 
