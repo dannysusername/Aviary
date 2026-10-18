@@ -52,6 +52,8 @@ class InputValidationTest {
             User u = new User();
             u.setUsername(USER);
             u.setPassword("x");
+            u.setOwnerName("Test Owner");
+            u.setTailNumber("N12345");
             u.setBlockTimeHours(100.0);
             u.setTimeInServiceHours(90.0);
             userRepository.save(u);

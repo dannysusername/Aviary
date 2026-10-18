@@ -167,6 +167,7 @@ public class AlertController {
             .filter(t -> !t.getIsTitle()).count();
         if (itemCount == 0) missing.add("Add at least one maintenance item");
         if (isBlank(user.getTailNumber())) missing.add("Set your tail number");
+        if (isBlank(user.getOwnerName())) missing.add("Set your owner name");
         if (user.getTimeInServiceHours() == null) missing.add("Enter aircraft hours");
         m.put("readiness", Map.of("missing", missing, "ready", missing.isEmpty()));
         return m;

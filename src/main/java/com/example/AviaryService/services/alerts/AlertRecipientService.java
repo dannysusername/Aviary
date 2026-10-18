@@ -53,6 +53,7 @@ public class AlertRecipientService {
 
     @Transactional
     public AlertRecipient add(User user, Channel channel, String rawDestination, String label) {
+        requireProfile(user);
         String destination = rawDestination == null ? "" : rawDestination.trim();
         validate(channel, destination);
         com.example.AviaryService.util.Validation.maxLength("Label", label == null ? null : label.trim(), 100);
@@ -93,6 +94,7 @@ public class AlertRecipientService {
 
     @Transactional
     public AlertRecipient resend(User user, long id) {
+        requireProfile(user);
         AlertRecipient r = ownedOrThrow(user, id);
         r.setStatusEnum(Status.PENDING);
         r.setConfirmToken(newToken());
@@ -144,12 +146,12 @@ public class AlertRecipientService {
         String confirmUrl = base.isBlank() ? "(link unavailable -- alerts base URL not configured)"
             : base + "/alerts/confirm?token=" + r.getConfirmToken();
         String declineUrl = base.isBlank() ? "" : base + "/alerts/decline?token=" + r.getConfirmToken();
-        String tail = r.getUser().getTailNumber() == null || r.getUser().getTailNumber().isBlank()
-            ? "an aircraft" : r.getUser().getTailNumber();
+        String tail = AlertText.tail(r.getUser());
+        String owner = AlertText.owner(r.getUser());
 
         if (r.getChannelEnum() == Channel.EMAIL) {
             String body = ""
-                + r.getUser().getUsername() + " added you to receive maintenance alerts for " + tail + ".\n\n"
+                + owner + " added you to receive maintenance alerts for " + tail + ".\n\n"
                 + "Confirm you want these: " + confirmUrl + "\n"
                 + (declineUrl.isEmpty() ? "" : "Not you / no thanks: " + declineUrl + "\n")
                 + "\nThis link expires in " + AlertRecipient.CONFIRM_EXPIRY_DAYS + " days. "
@@ -158,7 +160,7 @@ public class AlertRecipientService {
                 "Confirm maintenance alerts for " + tail, body);
         } else {
             notificationService.sendPlainSms(r.getDestination(),
-                r.getUser().getUsername() + " added you to maintenance alerts for " + tail
+                owner + " added you to maintenance alerts for " + tail
                 + ". Reply YES to confirm, STOP to decline. " + confirmUrl);
         }
         log.info("Sent {} confirmation to recipient {}", r.getChannel(), r.getId());
@@ -171,6 +173,22 @@ public class AlertRecipientService {
             throw new IllegalArgumentException("Recipient not found.");
         }
         return r;
+    }
+
+    // A recipient's emails name the owner and aircraft, so both must be set
+    // before anyone is invited
+    private static void requireProfile(User user) {
+
+        if((user.getOwnerName() == null || user.getOwnerName().isBlank()) && (user.getTailNumber() == null || user.getTailNumber().isBlank())) {
+            throw new IllegalArgumentException("Add your name AND tail number in Aircraft Info first.");
+        }
+
+        if(user.getOwnerName() == null || user.getOwnerName().isBlank()) {
+            throw new IllegalArgumentException("Add your name in Aircraft Info first.");
+        }
+        if(user.getTailNumber() == null || user.getTailNumber().isBlank()) {
+            throw new IllegalArgumentException("Add your tail number in Aircraft Info first.");
+        }
     }
 
     private void validate(Channel channel, String destination) {

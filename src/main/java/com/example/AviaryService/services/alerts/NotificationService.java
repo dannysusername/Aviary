@@ -128,12 +128,12 @@ public class NotificationService {
 
     private String emailFooter(User user, AlertRecipient r) {
         StringBuilder sb = new StringBuilder("\n\n----\n");
-        sb.append("You're receiving this because you were added as a maintenance-alert\n");
-        sb.append("recipient for ").append(orAircraft(user.getTailNumber())).append(".\n");
+        sb.append("You're receiving this because ").append(AlertText.owner(user))
+            .append(" added you to maintenance\nalerts for ").append(AlertText.tail(user))
+            .append(". The full dashboard is attached as a PDF.\n");
         if (!baseUrl.isBlank()) {
             sb.append("Stop these emails: ").append(baseUrl)
               .append("/alerts/unsubscribe?token=").append(r.getConfirmToken()).append('\n');
-            sb.append("View dashboard: ").append(baseUrl).append("/dashboard\n");
         }
         if (!postalAddress.isBlank()) {
             sb.append(postalAddress).append('\n');
