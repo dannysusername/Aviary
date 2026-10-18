@@ -2665,12 +2665,29 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const r = await fetch('/alerts/send-now', { method: 'POST', headers: csrf() });
             const d = await r.json();
-            sendNowMsg.textContent = r.ok ? `Sent to ${d.sent} recipient(s).` : (d.error || 'Failed.');
-        } catch (e) { sendNowMsg.textContent = 'Failed.'; }
+
+            if(r.ok) {
+                sendNowMsg.textContent = `Sent to ${d.sent} recipient(s).`;
+                showToast(`Sent to ${d.sent} recipient(s).`, 'success');
+            } else {
+                sendNowMsg.textContent = d.error || 'Failed.';
+                showToast(d.error || 'Failed.', 'error');
+            }
+
+        } catch (e) { sendNowMsg.textContent = 'Failed.'; 
+            showToast('Failed.', 'error');
+        }
     });
 
     addBtn.addEventListener('click', async () => {
+
         addError.textContent = '';
+        if (!destInput.value.trim()) {
+            addError.textContent = 'Enter an address.';
+            showToast('Enter an address.', 'error');
+            return;
+        }
+
         const params = new URLSearchParams();
         params.set('channel', chanSel.value);
         params.set('destination', destInput.value.trim());
@@ -2678,10 +2695,19 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const r = await fetch('/alerts/recipients', { method: 'POST', headers: csrf(), body: params });
             const d = await r.json();
-            if (!r.ok) { addError.textContent = d.error || 'Could not add.'; return; }
-            destInput.value = ''; labelInput.value = '';
+            
+            if (!r.ok) { 
+                addError.textContent = d.error || 'Could not add.';
+                showToast(d.error || 'Could not add.', 'error');
+            } else { 
+                showToast("Recipient added.", 'success') 
+                destInput.value = ''; labelInput.value = '';
+            }
             loadRecipients();
-        } catch (e) { addError.textContent = 'Could not add.'; }
+        } catch (e) { 
+            showToast('Could not add.', 'error');
+            addError.textContent = 'Could not add.'; 
+        }
     });
 
     listEl.addEventListener('click', async (ev) => {
