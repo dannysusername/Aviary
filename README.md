@@ -2,7 +2,7 @@
 
 **Aviary is live — just open it in your browser:**
 
-### 👉 https://aviarist-d300b0c36379.herokuapp.com/login
+### 👉 https://aviary.danielibarra.com
 
 No install, no setup, nothing to download. Register a username + password and you're in. Everything below is for people who want to *develop* Aviary; if you just want to *use* it, the link above is all you need.
 
@@ -84,7 +84,7 @@ push to main
 ```
 
 - **Staging** (`aviarist-staging`) is deployed on every push to `main`, authenticated with the `HEROKU_API_KEY` GitHub Actions secret.
-- **Production** (`aviarist-d300b0c36379`, the link at the top) is a separate app, promoted from staging deliberately once it looks good.
+- **Production** (Heroku app `aviarist-d300b0c36379`, served at the link at the top) is a separate app, promoted from staging deliberately once it looks good.
 - Heroku runs the app from the `Procfile` (`java -jar build/libs/AviaryService-0.0.1-SNAPSHOT.jar`) on Java 21 (`system.properties`). Schema changes apply via Hibernate `ddl-auto=update`.
 
 ## Architecture
