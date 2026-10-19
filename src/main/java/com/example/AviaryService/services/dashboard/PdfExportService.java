@@ -1,4 +1,4 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.dashboard;
 
 import java.io.ByteArrayOutputStream;
 import java.time.Instant;
@@ -26,11 +26,11 @@ import com.example.AviaryService.util.DueDates;
 import com.example.AviaryService.util.Formatting;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 
-// Renders templates/pdf-export.html to real PDF bytes via openhtmltopdf --
-// see docs/SHARE_EXPORT_SPEC.md. Replaced an earlier client-side
-// html2canvas+jsPDF approach that screenshotted the dashboard: that produced
-// huge rasterized pages that scrolled badly in PDF viewers. This produces
-// real vector text/tables instead.
+// Makes the maintenance report PDF from templates/pdf-export.html, using the
+// openhtmltopdf library. See docs/specs/SHARE_EXPORT_SPEC.md.
+//
+// It replaced an older way that took a screenshot of the dashboard. Those PDFs
+// were huge and scrolled badly. This one has real text and tables.
 @Service
 public class PdfExportService {
 

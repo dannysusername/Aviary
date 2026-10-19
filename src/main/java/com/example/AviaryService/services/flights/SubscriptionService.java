@@ -1,4 +1,4 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.flights;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -8,10 +8,10 @@ import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.SubscriptionRepository;
 import com.example.AviaryService.repositories.UserRepository;
 
-// One flight-sync subscription per user. Looked up by user, never by tail
-// number -- a stale/blank User.tailNumber used to make every lookup miss the
-// row that was still active, so the poller kept calling AeroAPI for a plane
-// the user could not unsubscribe from.
+// Manages each user's flight-tracking subscription (one per user).
+// Always looks it up by user, not by tail number. Looking it up by tail number
+// used to miss the row when the tail number changed, so the app kept calling
+// AeroAPI for a plane the user couldn't unsubscribe from.
 @Service
 public class SubscriptionService {
 
@@ -81,7 +81,7 @@ public class SubscriptionService {
         subscriptionRepository.delete(sub);
     }
 
-    // See docs/ADSB_SYNC_SPEC.md "Poll interval" for the 1-9 day / 0-23 hour bounds.
+    // See docs/specs/ADSB_SYNC_SPEC.md "Poll interval" for the 1-9 day / 0-23 hour bounds.
     @Transactional
     public void updateSettings(User user, int pollIntervalDays, int preferredCheckHour) {
         if (pollIntervalDays < 1 || pollIntervalDays > 9) {

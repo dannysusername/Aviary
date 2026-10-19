@@ -7,7 +7,7 @@ import java.time.LocalDate;
 
 import org.junit.jupiter.api.Test;
 
-import com.example.AviaryService.services.AlertLevel;
+import com.example.AviaryService.services.alerts.AlertLevel;
 
 class DueDatesTest {
 

@@ -1,4 +1,4 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.alerts;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -24,6 +24,10 @@ import com.example.AviaryService.repositories.AlertRecipientRepository;
 import com.example.AviaryService.repositories.AlertSendLogRepository;
 import com.example.AviaryService.repositories.ServiceTimelineRepository;
 import com.example.AviaryService.repositories.UserRepository;
+import com.example.AviaryService.services.alerts.AlertDigest;
+import com.example.AviaryService.services.alerts.AlertDigestService;
+import com.example.AviaryService.services.alerts.AlertRecipientService;
+import com.example.AviaryService.services.alerts.AlertService;
 
 // Exercises the alert services against real H2. Email/SMS senders are
 // unconfigured in the test profile, so NotificationService no-ops the actual
@@ -54,6 +58,7 @@ class AlertServiceIntegrationTest {
         user.setUsername("alertuser-" + System.nanoTime());
         user.setPassword("x");
         user.setTailNumber("N12345");
+        user.setOwnerName("Test Owner");
         user.setTimeInServiceHours(1200.0);
         userRepository.save(user);
     }
@@ -112,6 +117,43 @@ class AlertServiceIntegrationTest {
         assertNotEquals(first, after.getConfirmToken());
         assertEquals(AlertRecipient.Status.PENDING, after.getStatusEnum());
     }
+
+    @Test
+    void addReceipient_blockedWithoutOwnerName() {
+        user.setOwnerName(" ");
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, 
+            () -> recipientService.add(user, AlertRecipient.Channel.EMAIL, "a@example.com", null));
+            assertEquals("Add your name in Aircraft Info first.", e.getMessage());
+            assertTrue(recipientService.list(user).isEmpty());
+    }
+
+    @Test 
+    void addRecipient_blockedWithoutTailNumber() {
+        user.setTailNumber(null);
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, 
+            () -> recipientService.add(user, AlertRecipient.Channel.EMAIL, "a@example.com", null));
+            assertEquals("Add your tail number in Aircraft Info first.", e.getMessage());
+            assertTrue(recipientService.list(user).isEmpty());
+    }
+
+    @Test
+    void resend_blockedWithoutOwnerName() {
+        AlertRecipient r = recipientService.add(user, AlertRecipient.Channel.EMAIL, "b@example.com", null);
+        user.setOwnerName(null);
+        assertThrows(IllegalArgumentException.class, () -> recipientService.resend(user, r.getId()));
+    }
+
+    @Test 
+    void digest_usesBlockTimeLabels_andTailFallback() {
+        user.setTailNumber(null);
+        AlertDigest d = digestService.buildDigest(user, alertService.getOrCreatePrefs(user), false);
+        assertTrue(d.body().contains("Block Time"));
+        assertTrue(d.body().contains("Time in Service"));
+        assertFalse(d.body().contains("Hobbs"));
+        assertTrue(d.body().contains("Maintenance status for your aircraft"));
+    }
+
+
 
     // -- digest evaluation --
 

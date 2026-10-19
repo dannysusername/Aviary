@@ -1,4 +1,4 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.flights;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -19,13 +19,13 @@ import com.example.AviaryService.entity.Subscription;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.FlightSuggestionRepository;
 import com.example.AviaryService.repositories.SubscriptionRepository;
-import com.example.AviaryService.services.AeroApiClient.AeroApiFlight;
+import com.example.AviaryService.services.flights.AeroApiClient.AeroApiFlight;
 
-// The poller from docs/ADSB_SYNC_SPEC.md ("The poller"). For each active
-// subscription belonging to a user with an AeroAPI key, checks whether it's
-// due, calls AeroAPI, and turns new completed flights into pending
-// FlightSuggestion rows. Never touches FlightLog directly -- rule 1,
-// propose never write.
+// Checks FlightAware for new flights of each subscribed plane. For each active
+// subscription (whose user has an AeroAPI key) that's due for a check, it asks
+// AeroAPI and turns new finished flights into suggestions the user can accept
+// or dismiss. It never writes to the logbook directly.
+// See docs/specs/ADSB_SYNC_SPEC.md ("The poller", rule 1).
 @Service
 public class FlightSyncService {
 
@@ -74,7 +74,7 @@ public class FlightSyncService {
 
     // Same, with a user-chosen range -- what "Check flights now" sends when
     // custom start/end dates were entered instead of leaving them blank.
-    // Bounds match GET /flights/{ident} exactly (docs/ADSB_DATA_SOURCE.md):
+    // Bounds match GET /flights/{ident} exactly (docs/specs/ADSB_DATA_SOURCE.md):
     // start up to MAX_START_DAYS_BACK in the past, end up to
     // MAX_END_DAYS_AHEAD in the future, start before end.
     public int syncNow(Subscription subscription, LocalDate start, LocalDate end) {

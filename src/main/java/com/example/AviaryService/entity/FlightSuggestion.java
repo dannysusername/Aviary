@@ -15,7 +15,7 @@ import jakarta.persistence.UniqueConstraint;
 // One AeroAPI-detected flight, pending/accepted/dismissed by the user.
 // Unique on (user, faFlightId) -- this is the whole dedupe mechanism: a
 // fa_flight_id already seen for this user, in any status, is never inserted
-// again. See docs/ADSB_SYNC_SPEC.md.
+// again. See docs/specs/ADSB_SYNC_SPEC.md.
 @Entity
 @Table(name = "flight_suggestions",
     uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "fa_flight_id"}))

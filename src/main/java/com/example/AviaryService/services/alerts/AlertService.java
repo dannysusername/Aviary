@@ -1,4 +1,4 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.alerts;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -21,10 +21,10 @@ import com.example.AviaryService.repositories.AlertPreferenceRepository;
 import com.example.AviaryService.repositories.AlertRecipientRepository;
 import com.example.AviaryService.repositories.AlertSendLogRepository;
 
-// Orchestrates maintenance alerts: preferences (including the enable -> baseline
-// transition), the manual "send now", the once-a-day per-user sweep, and the
-// housekeeping the scheduler drives (PENDING reminder/expiry, send-log pruning).
-// See docs/ALERTS_SPEC.md.
+// The main alerts logic. Saves alert settings, handles "Send alert now", runs
+// the daily check for each user, and does cleanup (reminds or expires
+// recipients who never confirmed, deletes old send logs).
+// AlertController and AlertScheduler both call into this. See docs/specs/ALERTS_SPEC.md.
 @Service
 public class AlertService {
 

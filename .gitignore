@@ -50,3 +50,9 @@ sendgrid.env
 
 # Local Gradle daemon JDK pin (machine-specific path)
 gradle.properties
+
+# Learning docs
+
+COOKIES.txt
+HTTP_FUNDAMENTALS.txt
+ROUTING.txt

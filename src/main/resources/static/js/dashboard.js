@@ -1724,7 +1724,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // AeroAPI-detected flights: Add/Dismiss. See docs/ADSB_SYNC_SPEC.md "UX flow".
+    // AeroAPI-detected flights: Add/Dismiss. See docs/specs/ADSB_SYNC_SPEC.md "UX flow".
     document.addEventListener('click', function(event) {
         const isAccept = event.target.classList.contains('suggestion-accept-btn');
         const isDismiss = event.target.classList.contains('suggestion-dismiss-btn');
@@ -1918,7 +1918,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // closes on an outside click, Escape, or picking an item. Print uses the
     // browser's print dialog; Download PDF hits the server-rendered GET /pdf.
     // Email/Text stay disabled (.share-coming-soon) until SendGrid/Twilio are
-    // actually set up -- see docs/SHARE_EXPORT_SPEC.md.
+    // actually set up -- see docs/specs/SHARE_EXPORT_SPEC.md.
     const shareToggleBtn = document.getElementById('share-toggle-btn');
     const shareDropdown = document.getElementById('share-dropdown');
     function setShareOpen(open) {
@@ -2555,7 +2555,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-// ── Maintenance alerts settings (docs/ALERTS_SPEC.md) ────────────────────────
+// ── Maintenance alerts settings (docs/specs/ALERTS_SPEC.md) ────────────────────────
 // Standalone DOMContentLoaded block: talks to /alerts/* and is independent of
 // the large closure above.
 document.addEventListener('DOMContentLoaded', () => {
@@ -2665,12 +2665,29 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const r = await fetch('/alerts/send-now', { method: 'POST', headers: csrf() });
             const d = await r.json();
-            sendNowMsg.textContent = r.ok ? `Sent to ${d.sent} recipient(s).` : (d.error || 'Failed.');
-        } catch (e) { sendNowMsg.textContent = 'Failed.'; }
+
+            if(r.ok) {
+                sendNowMsg.textContent = `Sent to ${d.sent} recipient(s).`;
+                showToast(`Sent to ${d.sent} recipient(s).`, 'success');
+            } else {
+                sendNowMsg.textContent = d.error || 'Failed.';
+                showToast(d.error || 'Failed.', 'error');
+            }
+
+        } catch (e) { sendNowMsg.textContent = 'Failed.'; 
+            showToast('Failed.', 'error');
+        }
     });
 
     addBtn.addEventListener('click', async () => {
+
         addError.textContent = '';
+        if (!destInput.value.trim()) {
+            addError.textContent = 'Enter an address.';
+            showToast('Enter an address.', 'error');
+            return;
+        }
+
         const params = new URLSearchParams();
         params.set('channel', chanSel.value);
         params.set('destination', destInput.value.trim());
@@ -2678,10 +2695,19 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const r = await fetch('/alerts/recipients', { method: 'POST', headers: csrf(), body: params });
             const d = await r.json();
-            if (!r.ok) { addError.textContent = d.error || 'Could not add.'; return; }
-            destInput.value = ''; labelInput.value = '';
+            
+            if (!r.ok) { 
+                addError.textContent = d.error || 'Could not add.';
+                showToast(d.error || 'Could not add.', 'error');
+            } else { 
+                showToast("Recipient added.", 'success') 
+                destInput.value = ''; labelInput.value = '';
+            }
             loadRecipients();
-        } catch (e) { addError.textContent = 'Could not add.'; }
+        } catch (e) { 
+            showToast('Could not add.', 'error');
+            addError.textContent = 'Could not add.'; 
+        }
     });
 
     listEl.addEventListener('click', async (ev) => {

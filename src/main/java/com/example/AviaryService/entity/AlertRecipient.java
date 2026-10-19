@@ -12,7 +12,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 // Someone a user has asked to receive maintenance alerts -- could be the owner's
-// own email, a maintenance shop, a partner. See docs/ALERTS_SPEC.md.
+// own email, a maintenance shop, a partner. See docs/specs/ALERTS_SPEC.md.
 //
 // A recipient only ever receives mail once status == ACCEPTED. Everything starts
 // PENDING and requires the recipient themselves to confirm (user A can't consent

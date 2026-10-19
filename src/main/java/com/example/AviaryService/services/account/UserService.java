@@ -1,4 +1,4 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.account;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -14,6 +14,8 @@ import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.util.Validation;
 
+// User accounts. Registers new users (checking the username and password
+// rules) and saves changes to a user's info, like tail number and AeroAPI key.
 @Service
 public class UserService {
     

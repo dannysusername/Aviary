@@ -1,4 +1,4 @@
-package com.example.AviaryService.services;
+package com.example.AviaryService.services.alerts;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -18,12 +18,12 @@ import com.example.AviaryService.repositories.ServiceTimelineRepository;
 import com.example.AviaryService.util.DueDates;
 import com.example.AviaryService.util.Formatting;
 
-// Evaluates a user's Service Timeline against their alert thresholds and renders
-// the digest. Two entry points:
-//   buildDigest(...)  -- read-only; decides shouldSend and builds subject/body
-//   markFired(...)     -- writes each item's alertLevel / alertLastFiredAt so the
-//                         next evaluation only fires on a genuine change
-// See docs/ALERTS_SPEC.md ("How it fires", "Digest content").
+// Decides what goes in a user's alert message. Checks each maintenance item
+// against the user's alert settings and writes the subject and body.
+//   buildDigest(...) -- only reads; decides if anything should be sent
+//   markFired(...)   -- remembers what was alerted, so an item isn't alerted
+//                       again unless it gets worse
+// See docs/specs/ALERTS_SPEC.md ("How it fires", "Digest content").
 @Service
 public class AlertDigestService {
 
@@ -113,7 +113,7 @@ public class AlertDigestService {
                              boolean baseline, int overdue, int dueSoon) {
         StringBuilder sb = new StringBuilder();
 
-        String tail = orDash(user.getTailNumber());
+        String tail = AlertText.tail(user);
         String makeModel = orDash(user.getMakeModel());
         sb.append("Maintenance status for ").append(tail);
         if (!"—".equals(makeModel)) {
@@ -148,8 +148,8 @@ public class AlertDigestService {
             sb.append('\n');
         }
 
-        sb.append("\nAircraft hours: Hobbs ").append(hours(user.getBlockTimeHours()))
-          .append(" · Tach ").append(hours(user.getTimeInServiceHours())).append('\n');
+        sb.append("\nAircraft hours: Block Time ").append(hours(user.getBlockTimeHours()))
+          .append(" · Time in Service ").append(hours(user.getTimeInServiceHours())).append('\n');
 
         return sb.toString();
     }
@@ -162,19 +162,26 @@ public class AlertDigestService {
         };
     }
 
-    private static String timeLeftText(ServiceTimeline t, Double tis, LocalDate today) {
-        StringBuilder sb = new StringBuilder();
+    static String timeLeftText(ServiceTimeline t, Double tis, LocalDate today) {
+        //Overdue parts first, then what's left
+        // "480.0 hrs overdue 106 days left"
+        List<String> overdue = new ArrayList<>();
+        List<String> left = new ArrayList<>();
         Long days = DueDates.daysUntil(t.getDueDateDate(), today);
         if (days != null) {
-            sb.append(days < 0 ? Math.abs(days) + " days overdue" : days + " days left");
+            if(days < 0) overdue.add(Math.abs(days) + " days");
+            else left.add(days + " days");
         }
         Double hrs = DueDates.hoursUntil(t.getDueDateHours(), tis);
         if (hrs != null) {
             double rounded = Math.round(hrs * 10.0) / 10.0;
-            if (sb.length() > 0) sb.append(", ");
-            sb.append(rounded < 0 ? Math.abs(rounded) + " hrs overdue" : rounded + " hrs left");
+            if (rounded < 0) overdue.add(Math.abs(rounded) + " hrs");
+            else left.add(rounded + " hrs");
         }
-        return sb.length() == 0 ? "" : sb.toString();
+        List<String> parts = new ArrayList<>();
+        if(!overdue.isEmpty()) parts.add(String.join(", ", overdue) + " overdue");
+        if(!left.isEmpty()) parts.add(String.join(", ", left) + " left");
+        return String.join(" · ", parts);
     }
 
     private static String hours(Double v) {

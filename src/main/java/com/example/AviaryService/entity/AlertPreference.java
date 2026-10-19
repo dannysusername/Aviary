@@ -12,7 +12,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 
-// Per-user maintenance-alert settings. See docs/ALERTS_SPEC.md.
+// Per-user maintenance-alert settings. See docs/specs/ALERTS_SPEC.md.
 // One row per user; created lazily the first time the user opens the alerts
 // settings or an alert action needs it.
 @Entity

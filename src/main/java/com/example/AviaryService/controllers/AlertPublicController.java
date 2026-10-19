@@ -8,18 +8,20 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.AviaryService.services.AlertRecipientService;
+import com.example.AviaryService.services.alerts.AlertRecipientService;
 
-// The token-guarded links that go out in confirmation / alert emails. No login
-// required (SecurityConfig permits /alerts/confirm, /alerts/decline,
-// /alerts/unsubscribe) -- the opaque token in the query string is the auth.
+// Handles the links inside alert emails. When an owner adds someone to get
+// maintenance alerts, that person gets an email with links to confirm,
+// decline, or unsubscribe. This file shows the page for each link.
 //
-// Clicking a link (GET) only shows a page with one button; the button POSTs
-// to actually confirm/decline. Corporate mail scanners open every link in an
-// email, so a GET that changed state would confirm or unsubscribe people
-// without them ever clicking. These POSTs are exempt from CSRF in
-// SecurityConfig -- the unguessable token already proves the request came
-// from the email.
+// No login needed: each link has a secret token, and only the person who got
+// the email has it. (SecurityConfig allows these URLs without login.)
+//
+// Clicking a link (GET) only shows a page with a button. Pressing the button
+// (POST) does the action. Work email systems auto-click every link to scan
+// it, so if the link did the action, people would get signed up or
+// unsubscribed by accident. The POSTs skip the CSRF check in SecurityConfig
+// because the secret token already proves the click came from the email.
 @RestController
 @RequestMapping("/alerts")
 public class AlertPublicController {

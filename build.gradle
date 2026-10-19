@@ -40,7 +40,10 @@ dependencies {
 	implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.2'
 	implementation 'com.h2database:h2:2.2.224'
 	implementation 'org.apache.poi:poi:5.4.1'
-	// Server-side PDF rendering for Download PDF (docs/SHARE_EXPORT_SPEC.md) --
+	implementation 'org.springframework.ai:spring-ai-starter-mcp-server-webmvc'
+    // Source: https://mvnrepository.com/artifact/software.amazon.awssdk/ses
+    implementation("software.amazon.awssdk:sesv2:2.56.0")
+	// Server-side PDF rendering for Download PDF (docs/specs/SHARE_EXPORT_SPEC.md) --
 	// real vector text/tables instead of the earlier html2canvas screenshot
 	// approach, which produced huge slow-to-scroll rasterized pages.
 	implementation 'io.github.openhtmltopdf:openhtmltopdf-pdfbox:1.1.85'
@@ -52,12 +55,16 @@ dependencies {
 	testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'org.mockito:mockito-core:5.11.0'
 
-    implementation 'com.sendgrid:sendgrid-java:4.10.3'
-
     // Playwright drives a real Chromium for full-stack browser tests.
     // First run downloads ~150MB of browser binaries to ~/.cache/ms-playwright/.
     browserTestImplementation 'com.microsoft.playwright:playwright:1.47.0'
     
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.ai:spring-ai-bom:1.1.8"
+    }
 }
 
 test {

@@ -47,6 +47,7 @@ class AlertControllerTest {
             u.setUsername("alertuser");
             u.setPassword("x");
             u.setTailNumber("N999AV");
+            u.setOwnerName("Test Owner");
             u.setTimeInServiceHours(500.0);
             userRepository.save(u);
         }
