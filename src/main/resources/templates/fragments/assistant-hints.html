@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<!--
+  "Where to find it" hints for the Import with AI page: one line per
+  assistant, so a moved menu is a one-line fix. Menu names last checked
+  2026-10-20 against each assistant's help pages. Only list assistants that
+  can actually sign in to Aviary (Client ID Metadata Documents; Aviary has no
+  dynamic client registration).
+-->
+<body>
+<div th:fragment="hints" class="assistant-hints-block">
+    <p class="assistant-hints-title">Where to find it</p>
+    <ul id="assistant-hints">
+        <li><strong>Claude</strong> (web or desktop): Settings → Connectors → Add custom connector</li>
+        <li><strong>Claude Code</strong>: run <code>claude mcp add --transport http aviary &lt;address&gt;</code>, then <code>/mcp</code> to sign in</li>
+    </ul>
+</div>
+</body>
+</html>

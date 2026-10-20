@@ -2734,3 +2734,18 @@ document.addEventListener('DOMContentLoaded', () => {
     loadPrefs();
     loadRecipients();
 });
+
+// Empty-timeline "Import with AI" prompt: remove it as soon as the timeline
+// gets its first row, so it never sits above real items.
+document.addEventListener('DOMContentLoaded', function () {
+    const prompt = document.getElementById('import-ai-prompt');
+    const tbody = document.querySelector('.sortable');
+    if (!prompt || !tbody) return;
+    const observer = new MutationObserver(function () {
+        if (tbody.querySelector('tr:not(.add-row)')) {
+            prompt.remove();
+            observer.disconnect();
+        }
+    });
+    observer.observe(tbody, { childList: true });
+});

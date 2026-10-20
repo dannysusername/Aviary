@@ -4,7 +4,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" th:href="@{/css/loginstyle.css}">
     <link rel="stylesheet" th:href="@{/css/connectionsstyle.css}">
-    <title>Connected assistants</title>
+    <title>Import with AI</title>
     <link rel="icon" type="image/svg+xml" href="/images/aviary-icon-square.svg">
     <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32.png">
     <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
@@ -13,12 +13,35 @@
     <img class="login-logo" th:src="@{/images/aviary-icon.svg}" alt="Aviary">
 
     <div class="connections-card">
-        <h1 class="login-title">Connected assistants</h1>
+        <h1 class="login-title">Import with AI</h1>
+
+        <section id="connect-box">
+            <p class="connect-intro">
+                Connect an AI assistant to bring in your existing maintenance records &mdash;
+                a spreadsheet, a typed list, or another tracker's export.
+            </p>
+            <div class="connect-address">
+                <input id="mcp-url" type="text" readonly th:value="${mcpUrl}"
+                       value="https://aviary.danielibarra.com/mcp" aria-label="Aviary connector address">
+                <button id="copy-mcp-url" type="button">Copy</button>
+            </div>
+            <ol id="connect-steps">
+                <li>In your AI assistant, add a custom connector (also called a remote MCP server).</li>
+                <li>Paste the address above.</li>
+                <li>Sign in to Aviary when asked, then click Allow.</li>
+            </ol>
+            <div th:replace="~{fragments/assistant-hints :: hints}"></div>
+            <p id="connect-next">
+                Then paste your maintenance spreadsheet or list and ask it to import into Aviary.
+                You'll see a preview first &mdash; nothing is added until you say so.
+            </p>
+        </section>
+
+        <h2 class="connections-heading">Connected assistants</h2>
         <p class="connections-empty" th:if="${param.disconnected}">Disconnected.</p>
 
         <p class="connections-empty" th:if="${#lists.isEmpty(connections)}">
-            No AI assistants are connected. Add Aviary to an assistant such as
-            an AI assistant to import your service timeline.
+            No assistants connected yet.
         </p>
 
         <ul class="connections-list" th:unless="${#lists.isEmpty(connections)}">
@@ -43,5 +66,6 @@
 
         <a class="connections-back" th:href="@{/dashboard}">Back to dashboard</a>
     </div>
+    <script th:src="@{/js/connections.js}"></script>
 </body>
 </html>

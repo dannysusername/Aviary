@@ -46,3 +46,7 @@ Each stylesheet defines the same CSS-variable palette (`--primary` green `#2C9B6
 - Log Book rows are readonly — to fix a typo a user must delete + re-add (a known deferred improvement).
 - Login/register field + button labels are injected via CSS `::before` pseudo-elements, which is fragile and not screen-reader friendly.
 - No frontend tests exist.
+
+## Import with AI page
+- `GET /account/connections` (`connections.html`): titled "Import with AI". An always-visible connect box shows this site's MCP address (`mcpUrl` = `aviary.oauth.issuer` + `/mcp`, so staging shows staging's), a Copy button (`js/connections.js`, falls back to selecting the address), three steps, the per-assistant "where to find it" list (`fragments/assistant-hints.html` — one line per assistant, update there when an app moves its menu), and what to do next. The connected-assistant list and recent imports sit below under "Connected assistants".
+- Dashboard entry points: header `#connections-link` (robot icon + "Import with AI"; text hidden under 420px, `aria-label` kept) and `#import-ai-prompt` above the empty Service Timeline (server-rendered only when there are no rows; `dashboard.js` removes it via a MutationObserver when the first row is added). Both are `no-print`.
