@@ -63,8 +63,8 @@ public class FlightLogService {
     // fit the user's other flights.
     @Transactional
     public AddedFlightLog add(User user, FlightLog newLog, boolean force) {
-        // Clamp readings to hundredths. Real meters never exceed 2dp (Hobbs
-        // 0.1, Tach 0.01), and this keeps CSV-prefilled or client-computed
+        // Clamp readings to hundredths. Real meters never exceed 2dp (block
+        // time 0.1, time in service 0.01), and this keeps CSV-prefilled or client-computed
         // values from carrying float artifacts into storage.
         newLog.setBlockTimeOut(Formatting.roundHoursOrNull(newLog.getBlockTimeOut()));
         newLog.setBlockTimeIn(Formatting.roundHoursOrNull(newLog.getBlockTimeIn()));

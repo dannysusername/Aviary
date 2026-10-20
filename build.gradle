@@ -41,6 +41,10 @@ dependencies {
 	implementation 'com.h2database:h2:2.2.224'
 	implementation 'org.apache.poi:poi:5.4.1'
 	implementation 'org.springframework.ai:spring-ai-starter-mcp-server-webmvc'
+	// OAuth sign-in for MCP clients: Aviary issues the tokens (authorization server)
+	// and /mcp checks them (resource server).
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-authorization-server'
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     // Source: https://mvnrepository.com/artifact/software.amazon.awssdk/ses
     implementation("software.amazon.awssdk:sesv2:2.56.0")
 	// Server-side PDF rendering for Download PDF (docs/specs/SHARE_EXPORT_SPEC.md) --

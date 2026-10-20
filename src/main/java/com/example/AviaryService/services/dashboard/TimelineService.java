@@ -161,17 +161,8 @@ public class TimelineService {
         LocalDate today = LocalDate.now();
         double currentTimeInService = user.getTimeInServiceHours();
 
-        LocalDate dueDateLd = null;
-        if (hasCalendar) {
-            switch (calUnit) {
-                case "DAYS":   dueDateLd = today.plusDays(calVal); break;
-                case "MONTHS": dueDateLd = today.plusMonths(calVal); break;
-                case "YEARS":  dueDateLd = today.plusYears(calVal); break;
-                default:
-                    throw new IllegalArgumentException("Invalid calendar unit: " + calUnit);
-            }
-        }
-        Double dueHours = hasHours ? (currentTimeInService + hrsCycle) : null;
+        LocalDate dueDateLd = hasCalendar ? DueDates.nextDueDate(today, calVal, calUnit) : null;
+        Double dueHours = hasHours ? DueDates.nextDueHours(currentTimeInService, hrsCycle) : null;
 
         // Only update fields that belong to the active cycle type — leave the other type's
         // fields untouched so they stay visible in the UI after repaint.

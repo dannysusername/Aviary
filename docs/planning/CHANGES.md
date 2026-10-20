@@ -166,12 +166,12 @@ user for the whole day.
 ## Multiple aircraft per user
 
 **What:** a user tracks more than one airplane. Each aircraft has its own
-Service Timeline, aircraft-info card, flight logs, Hobbs/Tach hours, and
+Service Timeline, aircraft-info card, flight logs, block time / time in service hours, and
 AeroAPI subscription — one aircraft shown per page, with a switcher to
 pick the active one. Essentially every per-user thing becomes per-aircraft.
 
 **Current model (what has to change):** everything hangs off `User`
-directly — `User.tailNumber`, `User.hobbsHours`/`tachHours`, the
+directly — `User.tailNumber`, `User.blockTimeHours`/`timeInServiceHours`, the
 `makeModel`/`ownerName`/`makeModelSN` fields, `User.aeroApiKey`; and
 `ServiceTimeline`, `FlightLog`, `DescriptionOption`, `Subscription`,
 `FlightSuggestion`, `AlertPreference`/`AlertRecipient` are all
@@ -180,7 +180,7 @@ directly — `User.tailNumber`, `User.hobbsHours`/`tachHours`, the
 
 **What's involved:**
 1. New `Aircraft` entity `@ManyToOne User`, owning: makeModel, tailNumber,
-   ownerName, serial, hobbsHours/tachHours + their
+   ownerName, serial, blockTimeHours/timeInServiceHours + their
    `*UpdatedAt`/`*UpdatedSource` stamps. Decide: `aeroApiKey` per-aircraft,
    or keep one key on `User` shared across their planes.
 2. Re-parent `ServiceTimeline`, `FlightLog`, `DescriptionOption`,

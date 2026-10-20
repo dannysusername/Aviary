@@ -18,12 +18,13 @@ Spring Boot 3.4.3 · Java 21 · Spring MVC + Security + Data JPA · Thymeleaf ·
 1. Browser loads `GET /dashboard` → `UserController` fetches the user's timelines, flight logs, hours, aircraft info → Thymeleaf renders `dashboard.html`.
 2. User edits a cell → `dashboard.js` debounces and `POST`s JSON via axios (with the Spring CSRF token from `<meta>`) to an endpoint like `/update/{id}`.
 3. Controller updates the entity via the repository and returns JSON.
-4. "Time Left" is computed **client-side** from the due date + current Tach hours.
+4. "Time Left" is computed **client-side** from the due date + current time in service hours.
 
 ## Cross-cutting concerns
 - **Auth:** Spring Security form login, BCrypt passwords, single `USER` role. See [BACKEND](BACKEND.md#auth).
 - **Per-user scoping:** every entity has a `user_id`; queries filter by the authenticated user. See [DATABASE](DATABASE.md).
-- **Hours model:** flight logs roll up into `User.hobbsHours` / `tachHours`, which maintenance due-dates count against.
+- **AI assistants (MCP):** `/mcp` is an MCP server secured by Aviary's own OAuth authorization server (CIMD clients, PKCE, opaque hashed tokens). Assistants preview and import service timeline items; nothing is saved until the owner confirms. See [BACKEND](BACKEND.md#mcp-server--ai-assistant-sign-in).
+- **Hours model:** flight logs roll up into `User.blockTimeHours` / `timeInServiceHours`, which maintenance due-dates count against.
 
 ## Known issues (high level — details in the area maps)
 - Local dev uses **in-memory H2** (data is lost on restart). See [DATABASE](DATABASE.md).

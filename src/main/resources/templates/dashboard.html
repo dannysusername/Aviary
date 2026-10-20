@@ -51,6 +51,9 @@
                 </div>
             </div>
 
+            <a th:href="@{/account/connections}" class="logout-btn no-print" id="connections-link"
+               title="Connected assistants" aria-label="Connected assistants"><i class="fa-solid fa-robot"></i></a>
+
             <form method="post" th:action="@{/logout}" class="no-print">
                 <button type="submit" class="logout-btn">Logout</button>
             </form>

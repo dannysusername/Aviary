@@ -1,0 +1,100 @@
+/* Consent + Connected assistants pages. Loaded after loginstyle.css and
+   reuses its color tokens and card look. */
+
+.consent-card,
+.connections-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-md);
+  width: 100%;
+  max-width: 520px;
+  padding: 32px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  line-height: 1.5;
+}
+
+.consent-scopes {
+  padding-left: 20px;
+}
+
+.consent-note,
+.connections-empty,
+.connection-meta {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.consent-actions {
+  display: flex;
+}
+
+.consent-approve,
+.consent-deny,
+.connection-disconnect {
+  width: 100%;
+  padding: 12px;
+  border-radius: var(--radius);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.consent-approve {
+  background: var(--primary);
+  border: 1px solid var(--primary);
+  color: #fff;
+}
+
+.consent-approve:hover {
+  background: var(--primary-dark);
+}
+
+.consent-deny,
+.connection-disconnect {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.connections-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.connection {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.connection-name {
+  font-weight: 600;
+}
+
+.connection-imports {
+  padding-left: 20px;
+  font-size: 0.9rem;
+}
+
+.connection-disconnect {
+  width: auto;
+  align-self: flex-start;
+  padding: 8px 14px;
+}
+
+.connection-disconnect:hover {
+  border-color: #c0392b;
+  color: #c0392b;
+}
+
+.connections-back {
+  color: var(--primary-dark);
+}

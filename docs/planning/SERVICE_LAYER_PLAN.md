@@ -30,7 +30,7 @@ Only 4 of the current 30 methods are under 15 lines.
 **A service must never return `ResponseEntity`.** That is the single most important
 rule here. Services return plain objects; the controller turns them into HTTP.
 
-Current worst offender: `parseGarminCsv` — 158 lines of Hobbs/airborne math that
+Current worst offender: `parseGarminCsv` — 158 lines of block-time/airborne math that
 returns `ResponseEntity<Map<String,Object>>`. Because of that it cannot be called
 from a scheduled job or tested without web types.
 

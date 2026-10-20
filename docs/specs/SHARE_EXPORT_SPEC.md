@@ -95,7 +95,7 @@ Scope applies to **all four actions, including Print**:
 ## PDF content = data only, no UI chrome
 
 The PDF contains only the record content: **Service Timeline, Aircraft Info,
-Hours (Hobbs/Tach), and Log Book**. All interactive controls are excluded —
+Hours (block time / time in service), and Log Book**. All interactive controls are excluded —
 the Share menu, grip handles, trash/delete icons, complete-maintenance button,
 chevrons, dropdowns, etc.
 

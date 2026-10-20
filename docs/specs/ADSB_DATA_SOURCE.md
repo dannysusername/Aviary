@@ -130,7 +130,7 @@ Each has three variants — `scheduled_`, `estimated_`, `actual_`. **Use `actual
 only**; the others are predictions.
 
 > **`actual_off` → `actual_on` is the flight.** Duration = the difference between
-> them. This is *airborne* time, not Hobbs.
+> them. This is *airborne* time, not block time.
 
 #### Fields we use
 
