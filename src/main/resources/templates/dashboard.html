@@ -52,7 +52,7 @@
             </div>
 
             <a th:href="@{/account/connections}" class="logout-btn no-print" id="connections-link"
-               title="Connected assistants" aria-label="Connected assistants"><i class="fa-solid fa-robot"></i></a>
+               title="Import with AI" aria-label="Import with AI"><i class="fa-solid fa-robot"></i><span class="connections-link-text">Import with AI</span></a>
 
             <form method="post" th:action="@{/logout}" class="no-print">
                 <button type="submit" class="logout-btn">Logout</button>
@@ -259,6 +259,12 @@
         <div id="service-tab" class="tab-content">
             <div class = "main">
                 <h2 class="print-only tab-print-title">Service Timeline</h2>
+
+                <!-- New accounts: point to importing existing records. dashboard.js
+                     removes it as soon as the first row is added. -->
+                <p id="import-ai-prompt" class="no-print" th:if="${#lists.isEmpty(timelines)}">
+                    Have records in a spreadsheet? <a th:href="@{/account/connections}">Import with AI</a>
+                </p>
 
                 <!-- Existing first table follows here -->
                 <table id="sortable-info-table">

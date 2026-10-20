@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -21,20 +22,25 @@ import com.example.AviaryService.repositories.TimelineImportRecordRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.services.imports.ConnectionService;
 
-// Account -> Connected assistants: the AI assistants signed in to this
-// owner's account, with a Disconnect button for each.
+// Import with AI: how to connect an AI assistant (this site's MCP address and
+// steps), then the assistants signed in to this owner's account, each with a
+// Disconnect button.
 @Controller
 public class ConnectionsController {
 
     private final ConnectionService connectionService;
     private final UserRepository userRepository;
     private final TimelineImportRecordRepository importRecordRepository;
+    // This site's MCP address -- production, staging, and local each show their own.
+    private final String mcpUrl;
 
     public ConnectionsController(ConnectionService connectionService, UserRepository userRepository,
-                                 TimelineImportRecordRepository importRecordRepository) {
+                                 TimelineImportRecordRepository importRecordRepository,
+                                 @Value("${aviary.oauth.issuer}") String issuer) {
         this.connectionService = connectionService;
         this.userRepository = userRepository;
         this.importRecordRepository = importRecordRepository;
+        this.mcpUrl = issuer + "/mcp";
     }
 
     @GetMapping("/account/connections")
@@ -49,6 +55,7 @@ public class ConnectionsController {
             }
         }
         model.addAttribute("imports", imports);
+        model.addAttribute("mcpUrl", mcpUrl);
         return "connections";
     }
 

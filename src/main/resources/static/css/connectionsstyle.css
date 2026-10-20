@@ -98,3 +98,85 @@
 .connections-back {
   color: var(--primary-dark);
 }
+
+/* Import with AI: connect box */
+#connect-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--primary-light);
+}
+
+.connect-address {
+  display: flex;
+  gap: 8px;
+}
+
+#mcp-url {
+  flex: 1;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 0.9rem;
+  background: var(--surface);
+  color: var(--text);
+}
+
+#copy-mcp-url {
+  flex-shrink: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#copy-mcp-url:hover {
+  background: var(--primary-dark);
+}
+
+#connect-steps {
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.assistant-hints-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+#assistant-hints {
+  padding-left: 20px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+#assistant-hints code {
+  font-size: 0.8rem;
+}
+
+#connect-next {
+  font-size: 0.9rem;
+}
+
+.connections-heading {
+  font-size: 1.05rem;
+  margin-top: 8px;
+}
+
+@media (max-width: 420px) {
+  .connect-address {
+    flex-direction: column;
+  }
+}

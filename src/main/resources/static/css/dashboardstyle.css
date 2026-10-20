@@ -182,8 +182,24 @@ input[type="checkbox"]:focus-visible {
 .fixed-header .header-right .logout-btn:hover,
 .fixed-header .share-btn:hover,
 .fixed-header #subscribe:hover  { background: rgba(255,255,255,0.3); }
-/* Connected assistants link: a link styled like the Logout button. */
+/* Import with AI link: a link styled like the Logout button. On narrow
+   phones only the robot icon shows (aria-label keeps the name). */
 .fixed-header .header-right #connections-link { text-decoration: none; }
+@media (max-width: 420px) {
+  .fixed-header .header-right #connections-link .connections-link-text { display: none; }
+}
+
+/* Empty timeline: nudge new owners to import existing records. */
+#import-ai-prompt {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border: 1px solid #D8E6DE;
+  border-radius: 8px;
+  background: #E6F4EE;
+  color: #5E7A6A;
+  font-size: 14px;
+}
+#import-ai-prompt a { color: #1E7A54; font-weight: 600; }
 
 .edit-hours-btn,
 .back-to-full-list-button {
