@@ -56,3 +56,7 @@ gradle.properties
 COOKIES.txt
 HTTP_FUNDAMENTALS.txt
 ROUTING.txt
+
+# Spec-driven planning files -- kept local
+.specify/
+specs/

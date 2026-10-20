@@ -205,8 +205,8 @@ flightlog-service, because it's a decision a *person* made. Two co-owners of the
 same plane can each accept or dismiss the same flight independently.
 
 Rules that cannot be broken:
-- it **proposes**, the user accepts. Never write Hobbs/Tach automatically.
-- ADS-B airborne time is not Hobbs time and not tach time. It's an estimate.
+- it **proposes**, the user accepts. Never write block time / time in service automatically.
+- ADS-B airborne time is not block time and not time in service. It's an estimate.
 - hours can go up, never down. AviaryService already has this floor rule.
 - if flightlog-service is down or slow, AviaryService still works — time it out,
   fall back to manual entry. Never hang the page on it.
@@ -289,7 +289,7 @@ Decided: two pieces, not one.
 - users, accounts, subscriptions
 - polls live positions for subscribed tails
 - shows "add these flights?" and remembers what each user answered
-- writes the logbook, rolls Hobbs/Tach, updates maintenance dates
+- writes the logbook, rolls block time / time in service, updates maintenance dates
 
 **Why split:** not because microservices are fashionable. Because a 3-4 GB
 download that un-gzips 70,000 files cannot run in the same process as the web app

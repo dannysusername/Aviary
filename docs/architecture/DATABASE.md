@@ -26,6 +26,18 @@ One-to-many (cascade ALL) → `serviceTimeline`, `flightLogs`.
 ### `flight_suggestions` (`FlightSuggestion`)
 `id`, `tailNumber`, `faFlightId` (unique per user), `departureTime`, `arrivalTime` (`Instant`), `origin`, `destination`, `status` (String "pending" | "accepted" | "dismissed"), `createdAt`, `user_id`. AeroAPI-detected flights awaiting a user decision — see `docs/ADSB_SYNC_SPEC.md`.
 
+### `import_proposals` (`ImportProposal`)
+`id`, `user_id` (not null), `status` ("OPEN" | "NEEDS_FIT_CONFIRMATION" | "CONFIRMED" | "REPLACED" | "EXPIRED"), `itemsJson` / `rejectedJson` (TEXT, JSON lists), `submittedCount`, `createdAt`, `expiresAt` (+24 h), `confirmedAt`, `connectionClientId`. An AI assistant's previewed timeline import; at most one OPEN/NEEDS_FIT_CONFIRMATION per user.
+
+### `timeline_import_records` (`TimelineImportRecord`)
+`id`, `user_id` (not null), `proposalId`, `clientId`, `clientName`, `itemCount`, `importedAt`. One row per confirmed import; shown on Connected assistants.
+
+### `oauth_authorizations` (`OAuthAuthorizationEntity`) — no `user_id`
+String `id`, `registeredClientId` (assistant's CIMD URL), `principalName` (username), scopes, attributes (TEXT), and the authorization code / access token / refresh token **SHA-256 hashes** with issued/expires/metadata, plus `clientName`, `lastUsedAt`. One row = one connected assistant; deleting it disconnects. Keyed by username rather than FK because Spring Authorization Server works in principal names.
+
+### `oauth_consents` (`OAuthConsentEntity`) — no `user_id`
+Composite key (`registeredClientId`, `principalName`), `authorities`. Approved scopes per assistant per owner.
+
 ## Relationships
 `User` 1—* `ServiceTimeline`, `FlightLog` (both cascade ALL, JSON managed/back references to avoid serialization loops). `User` 1—* `DescriptionOption`, `FlightSuggestion` (FK only, no mapped collection on `User` — accessed via repository query).
 

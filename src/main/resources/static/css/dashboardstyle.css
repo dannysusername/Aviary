@@ -182,6 +182,8 @@ input[type="checkbox"]:focus-visible {
 .fixed-header .header-right .logout-btn:hover,
 .fixed-header .share-btn:hover,
 .fixed-header #subscribe:hover  { background: rgba(255,255,255,0.3); }
+/* Connected assistants link: a link styled like the Logout button. */
+.fixed-header .header-right #connections-link { text-decoration: none; }
 
 .edit-hours-btn,
 .back-to-full-list-button {

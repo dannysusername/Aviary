@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" th:href="@{/css/loginstyle.css}">
+    <link rel="stylesheet" th:href="@{/css/connectionsstyle.css}">
+    <title>Connect an assistant</title>
+    <link rel="icon" type="image/svg+xml" href="/images/aviary-icon-square.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32.png">
+    <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+</head>
+<body>
+    <img class="login-logo" th:src="@{/images/aviary-icon.svg}" alt="Aviary">
+
+    <div class="consent-card" th:if="${error}">
+        <h1 class="login-title">Can't connect</h1>
+        <p th:text="${error}">This assistant could not be verified.</p>
+        <p><a th:href="@{/dashboard}">Back to dashboard</a></p>
+    </div>
+
+    <div class="consent-card" th:unless="${error}">
+        <h1 class="login-title">Connect an assistant</h1>
+        <p class="consent-lead">
+            <strong th:text="${clientName}">Assistant</strong>
+            (<span th:text="${clientHost}">assistant.example.com</span>)
+            wants to access your Aviary account <strong th:text="${username}">user</strong>.
+        </p>
+
+        <p>It will be able to:</p>
+        <ul class="consent-scopes">
+            <li th:each="s : ${scopes}" th:text="${s.description}">Read your service timeline</li>
+        </ul>
+        <p class="consent-note">
+            Nothing is added to your timeline until you confirm a proposal.
+            It never sees your password. You can disconnect it any time from
+            Connected assistants.
+        </p>
+
+        <form method="post" th:action="@{/oauth2/authorize}" class="consent-actions">
+            <input type="hidden" name="client_id" th:value="${clientId}">
+            <input type="hidden" name="state" th:value="${state}">
+            <input type="hidden" name="scope" th:each="s : ${scopes}" th:value="${s.scope}">
+            <button type="submit" class="consent-approve" id="consent-approve">Allow</button>
+        </form>
+        <form method="post" th:action="@{/oauth2/authorize}" class="consent-actions">
+            <input type="hidden" name="client_id" th:value="${clientId}">
+            <input type="hidden" name="state" th:value="${state}">
+            <button type="submit" class="consent-deny" id="consent-deny">Deny</button>
+        </form>
+    </div>
+</body>
+</html>

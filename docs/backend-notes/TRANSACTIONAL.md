@@ -82,15 +82,15 @@ for shredding — including A's work.
 flightLogRepository.delete(log);                    // 1. remove the log
 
 List<FlightLog> remainingLogs = flightLogRepository.findByUser(user);
-double newHobbs = computeDisplayedHours(user, remainingLogs, true);
-double newTach  = computeDisplayedHours(user, remainingLogs, false);
-user.setHobbsHours(newHobbs);
+double newBlockTime     = hoursService.recomputeChain(user, true);
+double newTimeInService = hoursService.recomputeChain(user, false);
+user.setBlockTimeHours(newBlockTime);
 ...
 userRepository.save(user);                          // 2. recompute the hours
 ```
 
-If step 1 commits and step 2 does not, the aircraft has a deleted flight but stale hobbs
-and tach hours on screen. That is the exact bug class the recent commits have been fixing.
+If step 1 commits and step 2 does not, the aircraft has a deleted flight but stale block time
+and time in service hours on screen. That is the exact bug class the recent commits have been fixing.
 `@Transactional` is what guarantees both or neither.
 
 ## Which import to use
@@ -188,7 +188,7 @@ Run the app:
 (`-Pdev` is defined in `build.gradle` and serves templates/CSS live from `src/` so frontend
 edits show without a rebuild.)
 
-Then log in and change the hobbs hours. Expect log lines like:
+Then log in and change the block time hours. Expect log lines like:
 
 ```
 Getting transaction for [com.example.AviaryService.services.HoursService.updateHours]

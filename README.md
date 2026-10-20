@@ -2,7 +2,7 @@
 
 **Aviary is live — just open it in your browser:**
 
-### 👉 https://aviarist-d300b0c36379.herokuapp.com/login
+### 👉 https://aviary.danielibarra.com
 
 No install, no setup, nothing to download. Register a username + password and you're in. Everything below is for people who want to *develop* Aviary; if you just want to *use* it, the link above is all you need.
 
@@ -13,8 +13,8 @@ No install, no setup, nothing to download. Register a username + password and yo
 A multi-user maintenance and flight-hours tracker for general-aviation aircraft owners:
 
 - **Service timeline** — track every recurring maintenance item (annual, transponder/pitot-static tests, VOR checks, oil changes, etc.) on a **calendar cycle** (days/months/years) *or* an **engine-hours cycle**. Each row shows last-done, next-due, and live "time left," and a one-click **Complete Maintenance** button rolls the dates and hours forward automatically.
-- **Hours tracking** — Hobbs and Tach meters with a manual baseline "floor," so log-book activity can only ever raise the displayed hours, never silently lower them.
-- **Log book** — record flights by hand (from/to airport, Hobbs/Tach out and in) **or import a Garmin avionics CSV** and let the app derive block time (oil pressure > 15 psi) and airborne time (groundspeed > 35 kt) for you.
+- **Hours tracking** — block time and time in service, each with a manual baseline "floor," so log-book activity can only ever raise the displayed hours, never silently lower them.
+- **Log book** — record flights by hand (from/to airport, block time and time in service out and in) **or import a Garmin avionics CSV** and let the app derive block time (oil pressure > 15 psi) and airborne time (groundspeed > 35 kt) for you.
 - **Aircraft info card** — make/model, tail number, owner, and serial number, editable inline.
 
 Each account is fully isolated — its own aircraft, service timeline, flight logs, and custom maintenance descriptions. Ownership is enforced server-side on every write.
@@ -24,8 +24,16 @@ Each account is fully isolated — its own aircraft, service timeline, flight lo
 1. **Register** at the link above (or **log in**).
 2. **Fill in your aircraft info** — make/model, tail number, owner, serial.
 3. **Build your service timeline** — add maintenance items with a calendar or hours cycle. Rows are drag-reorderable, and you can insert title rows to group them.
-4. **Set your hours** — enter current Hobbs and Tach manually, or let the log book keep them current.
+4. **Set your hours** — enter current block time and time in service manually, or let the log book keep them current.
 5. **Log flights** — add entries by hand, or upload a Garmin CSV and Aviary computes the times and updates your meters.
+
+## Connect an AI assistant
+
+Aviary is also an MCP server, so an AI assistant can import your existing maintenance records — a spreadsheet, a typed list, another tracker's export — into your service timeline.
+
+Add `https://aviary.danielibarra.com/mcp` as a remote (HTTP) MCP server in any assistant that supports MCP, then sign in when it asks.
+
+You sign in on Aviary's own login page and approve access; the assistant never sees your password. Then hand it your records and ask it to import them. It shows you a **proposal** first — the items it will add, anything it isn't sure about, and any rows it couldn't use and why. Nothing is added until you tell it to go ahead, and it never changes or deletes items you already have. See or disconnect assistants any time under the robot icon on the dashboard (**Connected assistants**).
 
 ---
 
@@ -84,7 +92,7 @@ push to main
 ```
 
 - **Staging** (`aviarist-staging`) is deployed on every push to `main`, authenticated with the `HEROKU_API_KEY` GitHub Actions secret.
-- **Production** (`aviarist-d300b0c36379`, the link at the top) is a separate app, promoted from staging deliberately once it looks good.
+- **Production** (Heroku app `aviarist-d300b0c36379`, served at the link at the top) is a separate app, promoted from staging deliberately once it looks good.
 - Heroku runs the app from the `Procfile` (`java -jar build/libs/AviaryService-0.0.1-SNAPSHOT.jar`) on Java 21 (`system.properties`). Schema changes apply via Hibernate `ddl-auto=update`.
 
 ## Architecture

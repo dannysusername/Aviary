@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" th:href="@{/css/loginstyle.css}">
+    <link rel="stylesheet" th:href="@{/css/connectionsstyle.css}">
+    <title>Connected assistants</title>
+    <link rel="icon" type="image/svg+xml" href="/images/aviary-icon-square.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32.png">
+    <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+</head>
+<body>
+    <img class="login-logo" th:src="@{/images/aviary-icon.svg}" alt="Aviary">
+
+    <div class="connections-card">
+        <h1 class="login-title">Connected assistants</h1>
+        <p class="connections-empty" th:if="${param.disconnected}">Disconnected.</p>
+
+        <p class="connections-empty" th:if="${#lists.isEmpty(connections)}">
+            No AI assistants are connected. Add Aviary to an assistant such as
+            an AI assistant to import your service timeline.
+        </p>
+
+        <ul class="connections-list" th:unless="${#lists.isEmpty(connections)}">
+            <li class="connection" th:each="c : ${connections}">
+                <span class="connection-name" th:text="${c.clientName}">Assistant</span>
+                <span class="connection-meta">
+                    <span th:text="${c.clientHost}">assistant.example.com</span>
+                    · connected
+                    <span th:text="${c.connectedAt != null} ? ${#temporals.format(c.connectedAt, 'MMM d, yyyy', 'UTC')} : '—'">Oct 20, 2026</span>
+                    · last used
+                    <span th:text="${c.lastUsedAt != null} ? ${#temporals.format(c.lastUsedAt, 'MMM d, yyyy', 'UTC')} : 'never'">never</span>
+                </span>
+                <ul class="connection-imports" th:if="${imports[c.clientId] != null}">
+                    <li th:each="r : ${imports[c.clientId]}"
+                        th:text="${#temporals.format(r.importedAt, 'MMM d, yyyy', 'UTC')} + ': added ' + ${r.itemCount} + ' items'">Oct 20, 2026: added 3 items</li>
+                </ul>
+                <form method="post" th:action="@{/account/connections/{id}/disconnect(id=${c.id})}">
+                    <button type="submit" class="connection-disconnect">Disconnect</button>
+                </form>
+            </li>
+        </ul>
+
+        <a class="connections-back" th:href="@{/dashboard}">Back to dashboard</a>
+    </div>
+</body>
+</html>

@@ -14,6 +14,24 @@ public final class DueDates {
     private DueDates() {
     }
 
+    // The next due date one calendar cycle after lastDone. unit is
+    // "DAYS" | "MONTHS" | "YEARS"; month and year steps clamp to the end of a
+    // shorter month (Jan 31 + 1 month = Feb 28/29), the same as LocalDate.
+    public static LocalDate nextDueDate(LocalDate lastDone, int value, String unit) {
+        switch (unit) {
+            case "DAYS":   return lastDone.plusDays(value);
+            case "MONTHS": return lastDone.plusMonths(value);
+            case "YEARS":  return lastDone.plusYears(value);
+            default:
+                throw new IllegalArgumentException("Invalid calendar unit: " + unit);
+        }
+    }
+
+    // The next due time-in-service one hours cycle after lastDoneHours.
+    public static double nextDueHours(double lastDoneHours, double cycleHours) {
+        return lastDoneHours + cycleHours;
+    }
+
     // Whole days from today until dueDateDate (negative = overdue). null when the
     // string is blank or unparseable. dueDateDate is stored ISO ("2026-09-10");
     // legacy rows may append hours ("2026-09-10 12.5") so only the first token
