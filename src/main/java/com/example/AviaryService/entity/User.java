@@ -2,6 +2,7 @@ package com.example.AviaryService.entity;
 
 import jakarta.persistence.*;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -60,7 +61,9 @@ public class User {
     @PrePersist
     void onCreate() {
         if (createdAt == null) {
-            createdAt = Instant.now();
+            // Microseconds: what the database keeps. Linux clocks give
+            // nanoseconds, so without this the saved value reads back different.
+            createdAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
         }
     }
 
