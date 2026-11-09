@@ -5,12 +5,13 @@ import java.time.Instant;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.FlightLog;
 import com.example.AviaryService.entity.FlightSuggestion;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.FlightLogRepository;
 import com.example.AviaryService.repositories.FlightSuggestionRepository;
-import com.example.AviaryService.repositories.UserRepository;
+import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.util.Formatting;
 import com.example.AviaryService.services.dashboard.HoursService;
 
@@ -22,14 +23,14 @@ public class FlightSuggestionService {
 
     private final FlightSuggestionRepository flightSuggestionRepository;
     private final FlightLogRepository flightLogRepository;
-    private final UserRepository userRepository;
+    private final AircraftRepository aircraftRepository;
     private final HoursService hoursService;
 
     public FlightSuggestionService(FlightSuggestionRepository flightSuggestionRepository,
-            FlightLogRepository flightLogRepository, UserRepository userRepository, HoursService hoursService) {
+            FlightLogRepository flightLogRepository, AircraftRepository aircraftRepository, HoursService hoursService) {
         this.flightSuggestionRepository = flightSuggestionRepository;
         this.flightLogRepository = flightLogRepository;
-        this.userRepository = userRepository;
+        this.aircraftRepository = aircraftRepository;
         this.hoursService = hoursService;
     }
 
@@ -40,7 +41,9 @@ public class FlightSuggestionService {
         // Also reachable from the "view all suggested flights" audit list
         // (any status, not just pending) -- guard against creating a second
         // FlightLog for a flight that's already in the log book.
-        if (flightLogRepository.findByUserAndFaFlightId(user, suggestion.getFaFlightId()).isPresent()) {
+        // The suggestion belongs to the aircraft whose tail number matched.
+        Aircraft aircraft = suggestion.getAircraft();
+        if (flightLogRepository.findByAircraftAndFaFlightId(aircraft, suggestion.getFaFlightId()).isPresent()) {
             throw new IllegalArgumentException("This flight is already in your log book.");
         }
 
@@ -60,14 +63,15 @@ public class FlightSuggestionService {
         flightLog.setTimeInServiceEnd(suggestion.getArrivalTime());
         flightLog.setFaFlightId(suggestion.getFaFlightId());
         flightLog.setSource("aeroapi");
+        flightLog.setAircraft(aircraft);
         flightLogRepository.save(flightLog);
 
-        double newTimeInService = hoursService.recomputeChain(user, /*useBlockTime=*/false);
-        user.setTimeInServiceHours(newTimeInService);
+        double newTimeInService = hoursService.recomputeChain(aircraft, /*useBlockTime=*/false);
+        aircraft.setTimeInServiceHours(newTimeInService);
         Instant now = Instant.now();
-        user.setTimeInServiceUpdatedAt(now);
-        user.setTimeInServiceUpdatedSource("flightlog");
-        userRepository.save(user);
+        aircraft.setTimeInServiceUpdatedAt(now);
+        aircraft.setTimeInServiceUpdatedSource("flightlog");
+        aircraftRepository.save(aircraft);
 
         // Stays in the table as "accepted" rather than being deleted -- this
         // is what stops the same fa_flight_id from ever being re-suggested.

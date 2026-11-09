@@ -37,6 +37,11 @@ public class TimelineImportRecord {
     @Column(nullable = false)
     private Instant importedAt;
 
+    // The aircraft's tail number (or "Unnamed aircraft") at import time.
+    // Text, not a link, so the history still reads right after the aircraft
+    // is removed. Null on records from before fleets.
+    private String aircraftLabel;
+
     public Long getId() { return id; }
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
@@ -50,4 +55,6 @@ public class TimelineImportRecord {
     public void setItemCount(int itemCount) { this.itemCount = itemCount; }
     public Instant getImportedAt() { return importedAt; }
     public void setImportedAt(Instant importedAt) { this.importedAt = importedAt; }
+    public String getAircraftLabel() { return aircraftLabel; }
+    public void setAircraftLabel(String aircraftLabel) { this.aircraftLabel = aircraftLabel; }
 }

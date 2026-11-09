@@ -10,6 +10,7 @@ import java.util.stream.Stream;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.ServiceTimeline;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.entity.DTO.TimelineUpdateDTO;
@@ -37,7 +38,7 @@ public class TimelineService {
     }
 
     @Transactional
-    public ServiceTimeline addTimeline(Map<String, String> data, User user) {
+    public ServiceTimeline addTimeline(Map<String, String> data, User user, Aircraft aircraft) {
         String item = data.get("item");
         String isTitle = data.getOrDefault("isTitle", "false");
         String description = data.get("description");
@@ -65,8 +66,9 @@ public class TimelineService {
             timeline.setTimeLeft(timeLeft);
         }
         timeline.setUser(user);
+        timeline.setAircraft(aircraft);
 
-        Integer maxOrder = serviceTimelineRepository.findMaxTimelineOrderByUser(user);
+        Integer maxOrder = serviceTimelineRepository.findMaxTimelineOrderByAircraft(aircraft);
         int newOrder = (maxOrder != null) ? maxOrder + 1 : 0;
         timeline.setTimelineOrder(newOrder);
 
@@ -117,11 +119,18 @@ public class TimelineService {
         serviceTimelineRepository.delete(getOwned(user, id));
     }
 
-    // Applies the drag-and-drop order: ids[i] gets position i. Ids that
-    // aren't this user's rows are ignored.
+    // Applies the drag-and-drop order: ids[i] gets position i, within one
+    // aircraft. Rejects the whole list (nothing saved) if any id isn't a row
+    // of that aircraft, so a drag can never reorder another plane's rows.
     @Transactional
-    public void reorder(User user, List<Long> ids) {
-        List<ServiceTimeline> timelines = serviceTimelineRepository.findByUserOrderByIdAsc(user);
+    public void reorder(Aircraft aircraft, List<Long> ids) {
+        List<ServiceTimeline> timelines = serviceTimelineRepository.findByAircraftOrderByIdAsc(aircraft);
+        java.util.Set<Long> own = timelines.stream().map(ServiceTimeline::getId).collect(Collectors.toSet());
+        for (Long id : ids) {
+            if (!own.contains(id)) {
+                throw new IllegalArgumentException("Those rows aren't all on this aircraft.");
+            }
+        }
         for (int i = 0; i < ids.size(); i++) {
             Long id = ids.get(i);
             ServiceTimeline timeline = timelines.stream()
@@ -139,7 +148,7 @@ public class TimelineService {
     // maintenance, each "date hours" with blank parts left out.
     public record CompletedMaintenance(String lastDone, String dueDate, String timeLeft) {}
 
-    // Marks maintenance done today at the user's current Time in Service and
+    // Marks maintenance done today at the row's aircraft's Time in Service and
     // rolls the due date/hours forward one cycle. The server picks "today"
     // and the hours so the result is the same from any tab. Throws
     // NoSuchElementException / SecurityException like updateTimeline, and
@@ -159,7 +168,8 @@ public class TimelineService {
         }
 
         LocalDate today = LocalDate.now();
-        double currentTimeInService = user.getTimeInServiceHours();
+        // The row's own aircraft, never another plane in the fleet.
+        double currentTimeInService = timeline.getAircraft().getTimeInServiceHours();
 
         LocalDate dueDateLd = hasCalendar ? DueDates.nextDueDate(today, calVal, calUnit) : null;
         Double dueHours = hasHours ? DueDates.nextDueHours(currentTimeInService, hrsCycle) : null;

@@ -24,6 +24,39 @@ function escapeHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
+// ── Which aircraft this page is for ──
+// The server renders the id into <meta name="aircraft-id">. Every request
+// carries it (X-Aircraft-Id) so an action always lands on the aircraft on
+// screen, even with another tab open on a different one. It never changes
+// while the page is open: switching aircraft is a page load.
+function currentAircraftId() {
+    return document.querySelector('meta[name="aircraft-id"]')?.getAttribute('content') || '';
+}
+
+if (window.axios) {
+    axios.interceptors.request.use(config => {
+        const id = currentAircraftId();
+        if (id) {
+            config.headers = config.headers || {};
+            config.headers['X-Aircraft-Id'] = id;
+        }
+        return config;
+    });
+    // 404 "Aircraft not found." means this aircraft was removed (probably in
+    // another tab). Say so instead of a generic failure.
+    axios.interceptors.response.use(r => r, error => {
+        const data = error.response?.data;
+        if (error.response?.status === 404 && data && data.message === 'Aircraft not found.') {
+            showAircraftRemovedToast();
+        }
+        return Promise.reject(error);
+    });
+}
+
+function showAircraftRemovedToast() {
+    showToast('This aircraft was removed. Reload to see your other aircraft.', 'error');
+}
+
 // ── Lightweight toast + confirm UI (replaces native alert()/confirm()) ──
 function showToast(message, type = 'info') {
     let container = document.getElementById('toast-container');
@@ -302,6 +335,17 @@ function autoSaveUserInfo(input) {
             const printSpan = input.nextElementSibling;
             if (printSpan && printSpan.classList.contains('print-only')) {
                 printSpan.textContent = input.value;
+            }
+
+            // Tail number changed: the header button and the picker entry
+            // show it too.
+            if (input.name === 'tailNumber') {
+                const name = input.value.trim().toUpperCase() || 'Unnamed aircraft';
+                input.value = input.value.trim().toUpperCase();
+                const pickerName = document.querySelector('.aircraft-picker-name');
+                if (pickerName) pickerName.textContent = name;
+                const current = document.querySelector('.aircraft-option[aria-current="true"] .aircraft-option-name');
+                if (current) current.textContent = name;
             }
 
             // The API key is sensitive: after a successful save, re-mask it
@@ -2041,7 +2085,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Pass the local date so the PDF's Time Left matches this screen.
         const d = new Date();
         const pad = (n) => String(n).padStart(2, '0');
-        window.location.href = `/pdf?today=${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        window.location.href = `/pdf?today=${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+            + `&aircraftId=${encodeURIComponent(currentAircraftId())}`;
     }
 
     const subBtn = document.getElementById('subscribe');
@@ -2581,7 +2626,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function csrf() {
         const t = document.querySelector('meta[name="_csrf"]')?.getAttribute('content');
         const h = document.querySelector('meta[name="_csrf_header"]')?.getAttribute('content');
-        return h ? { [h]: t } : {};
+        const headers = h ? { [h]: t } : {};
+        const aircraftId = currentAircraftId();
+        if (aircraftId) headers['X-Aircraft-Id'] = aircraftId;
+        return headers;
     }
     const jsonHeaders = () => ({ 'Content-Type': 'application/json', ...csrf() });
 
@@ -2738,7 +2786,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Empty-timeline "Import with AI" prompt: remove it as soon as the timeline
 // gets its first row, so it never sits above real items.
 document.addEventListener('DOMContentLoaded', function () {
-    const prompt = document.getElementById('import-ai-prompt');
+    const prompt = document.getElementById('empty-timeline');
     const tbody = document.querySelector('.sortable');
     if (!prompt || !tbody) return;
     const observer = new MutationObserver(function () {
@@ -2748,4 +2796,176 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
     observer.observe(tbody, { childList: true });
+});
+
+
+// ── Aircraft picker, Add aircraft, Remove aircraft ──
+// See specs/003-multi-aircraft-fleet/contracts/ui.md. One panel serves both
+// widths: a dropdown under the header button on desktop, a bottom sheet on
+// phones (CSS). The add form only needs a tail number; Save stays above the
+// on-screen keyboard (visualViewport) and lands on the new aircraft.
+document.addEventListener('DOMContentLoaded', function () {
+    const btn = document.getElementById('aircraft-picker-btn');
+    const panel = document.getElementById('aircraft-panel');
+    const backdrop = document.getElementById('aircraft-panel-backdrop');
+    if (!btn || !panel) return;
+
+    const listView = document.getElementById('aircraft-list-view');
+    const form = document.getElementById('add-aircraft-form');
+    const addBtn = document.getElementById('add-aircraft-btn');
+    const tailInput = document.getElementById('new-tail-number');
+    const tailError = document.getElementById('new-tail-number-error');
+    const saveBtn = document.getElementById('add-aircraft-save');
+    const narrow = window.matchMedia('(max-width: 960px)');
+
+    function fitToViewport() {
+        // Phones: keep the sheet (and its Save bar) inside the visible area
+        // when the keyboard shrinks the viewport.
+        if (!narrow.matches || !window.visualViewport) {
+            panel.style.maxHeight = '';
+            return;
+        }
+        const vv = window.visualViewport;
+        panel.style.maxHeight = Math.floor(vv.height * 0.9) + 'px';
+        panel.style.bottom = Math.max(0, window.innerHeight - vv.height - vv.offsetTop) + 'px';
+    }
+
+    function showList() {
+        form.hidden = true;
+        listView.hidden = false;
+    }
+
+    function showForm() {
+        listView.hidden = true;
+        form.hidden = false;
+        tailError.textContent = '';
+        tailInput.removeAttribute('aria-invalid');
+        tailInput.focus();
+    }
+
+    function open() {
+        panel.hidden = false;
+        if (backdrop) backdrop.hidden = false;
+        btn.setAttribute('aria-expanded', 'true');
+        document.body.classList.add('aircraft-panel-open');
+        showList();
+        fitToViewport();
+        (panel.querySelector('.aircraft-option[aria-current="true"]') || addBtn).focus();
+    }
+
+    function close() {
+        panel.hidden = true;
+        if (backdrop) backdrop.hidden = true;
+        btn.setAttribute('aria-expanded', 'false');
+        document.body.classList.remove('aircraft-panel-open');
+        panel.style.maxHeight = '';
+        panel.style.bottom = '';
+        btn.focus();
+    }
+
+    btn.addEventListener('click', () => (panel.hidden ? open() : close()));
+    if (backdrop) backdrop.addEventListener('click', close);
+    panel.querySelectorAll('.aircraft-panel-close').forEach(b => b.addEventListener('click', close));
+    panel.querySelector('.aircraft-panel-back')?.addEventListener('click', () => { showList(); addBtn.focus(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !panel.hidden) close(); });
+    document.addEventListener('click', e => {
+        // Desktop dropdown: a click outside closes it.
+        if (!panel.hidden && !narrow.matches && !panel.contains(e.target) && !btn.contains(e.target)) close();
+    });
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', () => { if (!panel.hidden) fitToViewport(); });
+        window.visualViewport.addEventListener('scroll', () => { if (!panel.hidden) fitToViewport(); });
+    }
+
+    addBtn.addEventListener('click', showForm);
+
+    form.addEventListener('submit', async e => {
+        e.preventDefault();
+        tailError.textContent = '';
+        tailInput.removeAttribute('aria-invalid');
+        if (!tailInput.value.trim()) {
+            tailError.textContent = 'Enter a tail number.';
+            tailInput.setAttribute('aria-invalid', 'true');
+            tailInput.focus();
+            return;
+        }
+        saveBtn.disabled = true;
+        saveBtn.classList.add('saving');
+        try {
+            const r = await axios.post('/aircraft', {
+                tailNumber: tailInput.value,
+                makeModel: document.getElementById('new-make-model').value,
+                ownerName: document.getElementById('new-owner-name').value,
+                makeModelSN: document.getElementById('new-serial').value,
+            }, { headers: csrfHeaderOnly() });
+            window.location.href = r.data.redirect;
+        } catch (err) {
+            // Keep everything typed; show the message by the tail number.
+            tailError.textContent = err.response?.data?.message || 'Could not add the aircraft. Try again.';
+            tailInput.setAttribute('aria-invalid', 'true');
+            tailInput.focus();
+            saveBtn.disabled = false;
+            saveBtn.classList.remove('saving');
+        }
+    });
+
+    function csrfHeaderOnly() {
+        const t = document.querySelector('meta[name="_csrf"]').getAttribute('content');
+        const h = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
+        return { [h]: t, 'Content-Type': 'application/json' };
+    }
+
+    // Empty aircraft: "Add your first maintenance item" jumps to the add row.
+    const firstItemBtn = document.getElementById('add-first-item-btn');
+    if (firstItemBtn) {
+        firstItemBtn.addEventListener('click', () => {
+            const addRow = document.querySelector('.add-row');
+            if (!addRow) return;
+            addRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            const field = addRow.querySelector('textarea[name="item"]');
+            if (field) setTimeout(() => field.focus(), 300);
+        });
+    }
+
+    // ── Remove aircraft (last item in the picker panel) ──
+    const removeBtn = document.getElementById('remove-aircraft-btn');
+    const dialog = document.getElementById('remove-aircraft-dialog');
+    if (!removeBtn || !dialog) return;
+    const confirmInput = document.getElementById('remove-aircraft-confirm');
+    const okBtn = document.getElementById('remove-aircraft-ok');
+    const removeError = document.getElementById('remove-aircraft-error');
+    const word = (dialog.dataset.confirmWord || 'DELETE');
+    const norm = v => (v || '').replace(/\s+/g, '').toUpperCase();
+
+    function closeDialog() {
+        dialog.classList.remove('show');
+        dialog.hidden = true;
+        btn.focus();
+    }
+    removeBtn.addEventListener('click', () => {
+        close();
+        confirmInput.value = '';
+        removeError.textContent = '';
+        okBtn.disabled = true;
+        dialog.hidden = false;
+        requestAnimationFrame(() => dialog.classList.add('show'));
+        confirmInput.focus();
+    });
+    confirmInput.addEventListener('input', () => { okBtn.disabled = norm(confirmInput.value) !== norm(word); });
+    document.getElementById('remove-aircraft-cancel').addEventListener('click', closeDialog);
+    dialog.addEventListener('click', e => { if (e.target === dialog) closeDialog(); });
+    dialog.addEventListener('keydown', e => { if (e.key === 'Escape') closeDialog(); });
+    okBtn.addEventListener('click', async () => {
+        okBtn.disabled = true;
+        try {
+            const r = await axios.delete('/aircraft/' + encodeURIComponent(currentAircraftId()), {
+                headers: csrfHeaderOnly(),
+                data: { confirm: confirmInput.value },
+            });
+            window.location.href = r.data.redirect;
+        } catch (err) {
+            removeError.textContent = err.response?.data?.message || 'Could not remove the aircraft. Try again.';
+            okBtn.disabled = false;
+        }
+    });
 });

@@ -12,10 +12,12 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.FlightLog;
 import com.example.AviaryService.entity.FlightSuggestion;
 import com.example.AviaryService.entity.ServiceTimeline;
 import com.example.AviaryService.entity.User;
+import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.FlightLogRepository;
 import com.example.AviaryService.repositories.FlightSuggestionRepository;
 import com.example.AviaryService.repositories.ServiceTimelineRepository;
@@ -39,15 +41,17 @@ public class DemoDataSeeder implements CommandLineRunner {
     private final FlightLogRepository flightLogRepository;
     private final FlightSuggestionRepository suggestionRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AircraftRepository aircraftRepository;
 
     public DemoDataSeeder(UserRepository userRepository, ServiceTimelineRepository timelineRepository,
             FlightLogRepository flightLogRepository, FlightSuggestionRepository suggestionRepository,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder, AircraftRepository aircraftRepository) {
         this.userRepository = userRepository;
         this.timelineRepository = timelineRepository;
         this.flightLogRepository = flightLogRepository;
         this.suggestionRepository = suggestionRepository;
         this.passwordEncoder = passwordEncoder;
+        this.aircraftRepository = aircraftRepository;
     }
 
     @Override
@@ -57,11 +61,13 @@ public class DemoDataSeeder implements CommandLineRunner {
         }
 
         LocalDate today = LocalDate.now();
-        User demo = new User(USERNAME, passwordEncoder.encode(PASSWORD), 1532.4, 1418.7);
-        demo.setMakeModel("Cirrus SR22");
-        demo.setTailNumber("N482DM");
-        demo.setOwnerName("Demo Pilot");
-        demo.setMakeModelSN("3517");
+        User demo = new User(USERNAME, passwordEncoder.encode(PASSWORD));
+        userRepository.save(demo);
+
+        // Two aircraft so the fleet picker can be seen without setup (FR-021).
+        Aircraft sr22 = aircraft(demo, "N482DM", "Cirrus SR22", "3517", 1532.4, 1418.7);
+        Aircraft pa28 = aircraft(demo, "N731KR", "Piper PA-28-181", "28-8090123", 4210.6, 4105.2);
+        demo.setLastViewedAircraft(sr22);
         userRepository.save(demo);
 
         List<ServiceTimeline> rows = new ArrayList<>();
@@ -86,6 +92,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                 today.minusMonths(20), null, today.plusMonths(4), null, demo));        // 4 mo
         for (int i = 0; i < rows.size(); i++) {
             rows.get(i).setTimelineOrder(i);
+            rows.get(i).setAircraft(sr22);
         }
         timelineRepository.saveAll(rows);
 
@@ -105,6 +112,7 @@ public class DemoDataSeeder implements CommandLineRunner {
             FlightLog log = new FlightLog(leg[0], leg[1], round(block + blockLen), round(block),
                 round(service + serviceLen), round(service), demo);
             log.setSource("manual");
+            log.setAircraft(sr22);
             log.setBlockTimeStart(start);
             log.setBlockTimeEnd(start.plus(minutes(blockLen)));
             log.setTimeInServiceStart(start.plus(Duration.ofMinutes(6)));
@@ -120,14 +128,74 @@ public class DemoDataSeeder implements CommandLineRunner {
         Instant s1 = today.minusDays(2).atTime(15, 10).toInstant(ZoneOffset.UTC);
         Instant s2 = today.minusDays(1).atTime(13, 40).toInstant(ZoneOffset.UTC);
         Instant s3 = today.minusDays(1).atTime(18, 5).toInstant(ZoneOffset.UTC);
-        suggestionRepository.save(new FlightSuggestion(demo, "N482DM", "demo-fa-1", s1, s1.plus(Duration.ofMinutes(72)), "KTMB", "KORL"));
-        suggestionRepository.save(new FlightSuggestion(demo, "N482DM", "demo-fa-2", s2, s2.plus(Duration.ofMinutes(65)), "KORL", "KSRQ"));
-        suggestionRepository.save(new FlightSuggestion(demo, "N482DM", "demo-fa-3", s3, s3.plus(Duration.ofMinutes(88)), "KSRQ", "KTMB"));
+        suggestionRepository.save(suggestion(sr22, new FlightSuggestion(demo, "N482DM", "demo-fa-1", s1, s1.plus(Duration.ofMinutes(72)), "KTMB", "KORL")));
+        suggestionRepository.save(suggestion(sr22, new FlightSuggestion(demo, "N482DM", "demo-fa-2", s2, s2.plus(Duration.ofMinutes(65)), "KORL", "KSRQ")));
+        suggestionRepository.save(suggestion(sr22, new FlightSuggestion(demo, "N482DM", "demo-fa-3", s3, s3.plus(Duration.ofMinutes(88)), "KSRQ", "KTMB")));
         FlightSuggestion dismissed = new FlightSuggestion(demo, "N482DM", "demo-fa-0",
             today.minusDays(9).atTime(16, 0).toInstant(ZoneOffset.UTC),
             today.minusDays(9).atTime(16, 35).toInstant(ZoneOffset.UTC), "KTMB", "X51");
         dismissed.setStatus("dismissed");
-        suggestionRepository.save(dismissed);
+        suggestionRepository.save(suggestion(sr22, dismissed));
+
+        seedSecondAircraft(demo, pa28, today);
+    }
+
+    // N731KR: a smaller timeline with one overdue item, and a few flights.
+    private void seedSecondAircraft(User demo, Aircraft pa28, LocalDate today) {
+        List<ServiceTimeline> rows = new ArrayList<>();
+        rows.add(item("Annual Inspection", "Inspect", "MONTHS", 12, null,
+                today.minusMonths(11).minusDays(20), null, today.plusDays(10), null, demo));   // due soon
+        rows.add(item("Oil Change", "Replace", null, null, 50.0,
+                today.minusMonths(2), "4060.0", null, "4110.0", demo));                 // 4.8 hours left
+        rows.add(item("Transponder Check", "Test", "MONTHS", 24, null,
+                today.minusMonths(24).minusDays(30), null, today.minusDays(30), null, demo));  // 30 days overdue
+        rows.add(item("Vacuum Pump", "Replace", null, null, 500.0,
+                today.minusYears(1), "3800.0", null, "4300.0", demo));
+        rows.add(item("ELT Battery", "Replace", "MONTHS", 24, null,
+                today.minusMonths(6), null, today.plusMonths(18), null, demo));
+        for (int i = 0; i < rows.size(); i++) {
+            rows.get(i).setTimelineOrder(i);
+            rows.get(i).setAircraft(pa28);
+        }
+        timelineRepository.saveAll(rows);
+
+        String[][] legs = { {"KFXE", "KBCT", "0.8", "0.6"}, {"KBCT", "KFXE", "0.9", "0.7"}, {"KFXE", "KVRB", "1.5", "1.3"} };
+        double block = 4210.6 - sum(legs, 2);
+        double service = 4105.2 - sum(legs, 3);
+        Instant start = today.minusDays(12).atTime(13, 0).toInstant(ZoneOffset.UTC);
+        for (String[] leg : legs) {
+            double blockLen = Double.parseDouble(leg[2]);
+            double serviceLen = Double.parseDouble(leg[3]);
+            FlightLog log = new FlightLog(leg[0], leg[1], round(block + blockLen), round(block),
+                round(service + serviceLen), round(service), demo);
+            log.setSource("manual");
+            log.setAircraft(pa28);
+            log.setBlockTimeStart(start);
+            log.setBlockTimeEnd(start.plus(minutes(blockLen)));
+            log.setTimeInServiceStart(start.plus(Duration.ofMinutes(5)));
+            log.setTimeInServiceEnd(start.plus(Duration.ofMinutes(5)).plus(minutes(serviceLen)));
+            flightLogRepository.save(log);
+            block += blockLen;
+            service += serviceLen;
+            start = start.plus(Duration.ofDays(4));
+        }
+    }
+
+    private Aircraft aircraft(User owner, String tail, String makeModel, String serial,
+            double blockTime, double timeInService) {
+        Aircraft a = new Aircraft(owner);
+        a.setTailNumber(tail);
+        a.setMakeModel(makeModel);
+        a.setOwnerName("Demo Pilot");
+        a.setMakeModelSN(serial);
+        a.setBlockTimeHours(blockTime);
+        a.setTimeInServiceHours(timeInService);
+        return aircraftRepository.save(a);
+    }
+
+    private static FlightSuggestion suggestion(Aircraft aircraft, FlightSuggestion s) {
+        s.setAircraft(aircraft);
+        return s;
     }
 
     private static ServiceTimeline title(String name, User user) {

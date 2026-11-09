@@ -3,6 +3,9 @@
 <head>
     <meta name="_csrf" th:content="${_csrf.token}"/>
     <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+    <!-- The aircraft this page shows. dashboard.js sends it with every request
+         (X-Aircraft-Id) so an action always lands on the plane on screen. -->
+    <meta name="aircraft-id" th:content="${aircraftId}"/>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dashboard</title>
     <link rel="icon" type="image/svg+xml" href="/images/aviary-icon-square.svg">
@@ -25,12 +28,98 @@
     <header class="fixed-header">
         <div class="header-left">
             <img class="brand-logo no-print" th:src="@{/images/aviary-icon.svg}" alt="Aviary">
+
+            <!-- Aircraft picker: which plane this dashboard shows, and the way
+                 to add another. Dropdown on desktop, bottom sheet on phones.
+                 See specs/003-multi-aircraft-fleet/contracts/ui.md. -->
+            <div class="aircraft-picker no-print">
+                <button id="aircraft-picker-btn" type="button" aria-haspopup="dialog" aria-expanded="false"
+                        aria-controls="aircraft-panel"
+                        th:attr="aria-label=${otherAircraftOverdue} ? 'Aircraft: ' + ${aircraft.displayName} + '. Another aircraft has overdue items.' : 'Aircraft: ' + ${aircraft.displayName}">
+                    <i class="fa-solid fa-plane" aria-hidden="true"></i>
+                    <span class="aircraft-picker-name" th:text="${aircraft.displayName}">N12345</span>
+                    <i class="fa-solid fa-chevron-down aircraft-picker-caret" aria-hidden="true"></i>
+                    <span class="aircraft-overdue-dot" th:if="${otherAircraftOverdue}" aria-hidden="true"></span>
+                </button>
+
+                <div id="aircraft-panel-backdrop" class="aircraft-panel-backdrop" hidden></div>
+                <div id="aircraft-panel" class="aircraft-panel" role="dialog" aria-modal="true"
+                     aria-labelledby="aircraft-panel-title" hidden>
+                    <!-- View 1: the fleet -->
+                    <div class="aircraft-panel-view" id="aircraft-list-view">
+                        <div class="aircraft-panel-head">
+                            <h2 id="aircraft-panel-title">Your aircraft</h2>
+                            <button type="button" class="aircraft-panel-close" aria-label="Close">
+                                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                        <button id="add-aircraft-btn" type="button" class="add-aircraft-btn"
+                                th:disabled="${fleetSize >= maxAircraft}">
+                            <i class="fa-solid fa-plus" aria-hidden="true"></i> Add aircraft
+                        </button>
+                        <p class="aircraft-limit-note" th:if="${fleetSize >= maxAircraft}"
+                           th:text="'You can track up to ' + ${maxAircraft} + ' aircraft.'"></p>
+                        <ul id="aircraft-list" class="aircraft-list">
+                            <li th:each="a : ${fleet}">
+                                <a class="aircraft-option" th:href="@{/dashboard(aircraft=${a.id})}"
+                                   th:attr="aria-current=${a.selected} ? 'true' : null">
+                                    <span class="aircraft-option-text">
+                                        <span class="aircraft-option-name" th:text="${a.displayName}"></span>
+                                        <span class="aircraft-option-model" th:if="${a.makeModel != null and !#strings.isEmpty(a.makeModel)}"
+                                              th:text="${a.makeModel}"></span>
+                                    </span>
+                                    <span class="aircraft-option-status">
+                                        <span class="chip chip-overdue" th:if="${a.overdue > 0}" th:text="${a.overdue} + ' overdue'"></span>
+                                        <span class="chip chip-due-soon" th:if="${a.dueSoon > 0}" th:text="${a.dueSoon} + ' due soon'"></span>
+                                    </span>
+                                </a>
+                            </li>
+                        </ul>
+                        <!-- Remove the aircraft on screen. Not offered for an account's only aircraft. -->
+                        <button id="remove-aircraft-btn" type="button" class="remove-aircraft-btn" th:if="${fleetSize > 1}"
+                                th:text="'Remove ' + ${aircraft.displayName} + '…'">Remove aircraft…</button>
+                    </div>
+
+                    <!-- View 2: add an aircraft. Only the tail number is needed now. -->
+                    <form class="aircraft-panel-view" id="add-aircraft-form" hidden novalidate>
+                        <div class="aircraft-panel-head">
+                            <button type="button" class="aircraft-panel-back" aria-label="Back to your aircraft">
+                                <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+                            </button>
+                            <h2>Add aircraft</h2>
+                            <button type="button" class="aircraft-panel-close" aria-label="Close">
+                                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                        <div class="add-aircraft-fields">
+                            <label for="new-tail-number">Tail number</label>
+                            <input id="new-tail-number" name="newTailNumber" type="text" placeholder="e.g. N731KR"
+                                   autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false"
+                                   maxlength="255" aria-describedby="new-tail-number-error" required>
+                            <p id="new-tail-number-error" class="field-error" role="alert"></p>
+
+                            <details id="new-aircraft-more">
+                                <summary>More details (optional)</summary>
+                                <label for="new-make-model">Make/Model</label>
+                                <input id="new-make-model" name="newMakeModel" type="text" maxlength="255" placeholder="e.g. Piper PA-28">
+                                <label for="new-owner-name">Owner</label>
+                                <input id="new-owner-name" name="newOwnerName" type="text" maxlength="255" autocomplete="name">
+                                <label for="new-serial">Make/model S/N</label>
+                                <input id="new-serial" name="newMakeModelSN" type="text" maxlength="255" autocomplete="off">
+                            </details>
+                        </div>
+                        <div class="add-aircraft-savebar">
+                            <button id="add-aircraft-save" type="submit">Save</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
 
         <div class="header-right">
             <div class="header-share">
                 <div class="share-menu">
-                    <button id="share-toggle-btn" class="share-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="share-dropdown">
+                    <button id="share-toggle-btn" class="share-btn" type="button" aria-label="Share" aria-haspopup="menu" aria-expanded="false" aria-controls="share-dropdown">
                         <i class="fa-solid fa-share-from-square"></i><span class="share-label">Share</span><i class="fa-solid fa-chevron-down share-caret"></i>
                     </button>
                     <div id="share-dropdown" class="share-dropdown" role="menu" aria-labelledby="share-toggle-btn" hidden>
@@ -228,7 +317,25 @@
         <!-- Aircraft info -- shared across both tabs. Wrapped in the same
              .main class the tab content uses, so it gets identical padding
              instead of a guessed-at margin rule. -->
-        <div class="main">
+        <div class="main aircraft-info-wrap">
+            <div id="remove-aircraft-dialog" class="confirm-overlay remove-aircraft-overlay" hidden
+                 th:if="${fleetSize > 1}"
+                 th:attr="data-confirm-word=${aircraft.tailNumberKey != null} ? ${aircraft.tailNumber} : 'DELETE'">
+                <div class="confirm-box" role="dialog" aria-modal="true" aria-labelledby="remove-aircraft-title">
+                    <h2 id="remove-aircraft-title" th:text="'Remove ' + ${aircraft.displayName} + '?'"></h2>
+                    <p th:text="'This deletes ' + ${aircraftRowCount} + ' maintenance items and ' + ${aircraftFlightCount}
+                        + ' flights for ' + ${aircraft.displayName} + '. It can’t be undone.'"></p>
+                    <label for="remove-aircraft-confirm"
+                           th:text="${aircraft.tailNumberKey != null} ? 'Type ' + ${aircraft.tailNumber} + ' to confirm' : 'Type DELETE to confirm'"></label>
+                    <input id="remove-aircraft-confirm" type="text" autocapitalize="characters" autocomplete="off"
+                           autocorrect="off" spellcheck="false" aria-describedby="remove-aircraft-error">
+                    <p id="remove-aircraft-error" class="field-error" role="alert"></p>
+                    <div class="confirm-actions">
+                        <button type="button" class="confirm-btn cancel" id="remove-aircraft-cancel">Cancel</button>
+                        <button type="button" class="confirm-btn ok" id="remove-aircraft-ok" disabled>Remove</button>
+                    </div>
+                </div>
+            </div>
             <table class="aircraft-info-table">
                 <tbody>
                     <tr>
@@ -262,9 +369,11 @@
 
                 <!-- New accounts: point to importing existing records. dashboard.js
                      removes it as soon as the first row is added. -->
-                <p id="import-ai-prompt" class="no-print" th:if="${#lists.isEmpty(timelines)}">
-                    Have records in a spreadsheet? <a th:href="@{/account/connections}">Import with AI</a>
-                </p>
+                <div id="empty-timeline" class="no-print" th:if="${#lists.isEmpty(timelines)}">
+                    <button id="add-first-item-btn" type="button" class="add-first-item-btn">
+                        <i class="fa-solid fa-plus" aria-hidden="true"></i> Add your first maintenance item
+                    </button>
+                </div>
 
                 <!-- Existing first table follows here -->
                 <table id="sortable-info-table">

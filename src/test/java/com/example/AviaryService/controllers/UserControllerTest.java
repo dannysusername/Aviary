@@ -1,9 +1,11 @@
 package com.example.AviaryService.controllers;
 
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.DescriptionOption;
 import com.example.AviaryService.entity.FlightLog;
 import com.example.AviaryService.entity.ServiceTimeline;
 import com.example.AviaryService.entity.User;
+import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.DescriptionOptionRepository;
 import com.example.AviaryService.repositories.FlightLogRepository;
 import com.example.AviaryService.repositories.ServiceTimelineRepository;
@@ -14,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
@@ -54,12 +57,30 @@ class UserControllerTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private AircraftRepository aircraftRepository;
+
+    @Autowired
+    private JdbcTemplate jdbc;
+
+    // The user's (only) aircraft, freshly loaded.
+    private Aircraft plane(String username) {
+        return aircraftRepository.findFirstByUserOrderByIdAsc(userRepository.findByUsername(username)).orElseThrow();
+    }
+
     @BeforeEach
     void setUp() {
         // Clear existing data to avoid duplicates and foreign key violations
         descriptionOptionRepository.deleteAll();
         serviceTimelineRepository.deleteAll();
         flightLogRepository.deleteAll();
+        // users.last_viewed_aircraft_id points at aircraft; clear it so the
+        // users (and their cascaded aircraft) can be deleted.
+        jdbc.update("UPDATE users SET last_viewed_aircraft_id = NULL");
+        jdbc.update("DELETE FROM flight_suggestions");
+        jdbc.update("DELETE FROM subscriptions");
+        jdbc.update("DELETE FROM import_proposals");
+        aircraftRepository.deleteAll();
         userRepository.deleteAll();
 
         // Create 50 users with 2 timelines each
@@ -68,10 +89,14 @@ class UserControllerTest {
             user.setUsername("user" + i);
             user.setPassword(passwordEncoder.encode("password" + i));
             userRepository.save(user);
+            Aircraft aircraft = aircraftRepository.save(new Aircraft(user));
+            user.setLastViewedAircraft(aircraft);
+            userRepository.save(user);
 
             for (int j = 1; j <= 2; j++) {
                 ServiceTimeline timeline = new ServiceTimeline();
                 timeline.setUser(user);
+                timeline.setAircraft(aircraft);
                 timeline.setItem("Timeline " + j + " for " + user.getUsername());
                 timeline.setIsTitle(false);
                 timeline.setTimelineOrder(j);
@@ -94,7 +119,7 @@ class UserControllerTest {
                 .content("{\"item\":\"Test Item\",\"isTitle\":\"true\"}")
                 .with(SecurityMockMvcRequestPostProcessors.csrf()))
                 .andExpect(status().isFound())
-                .andExpect(redirectedUrl("/dashboard"));
+                .andExpect(redirectedUrl("/dashboard?aircraft=" + plane("user1").getId()));
 
         // Verify data in PostgreSQL
         User user = userRepository.findByUsername("user1");
@@ -119,7 +144,7 @@ class UserControllerTest {
                 .content("{\"item\":\"Item\",\"isTitle\":\"false\",\"description\":\"Custom Desc\",\"cycle\":\"Weekly\",\"lastDone\":\"2025-10-01\",\"dueDate\":\"2025-10-08\",\"timeLeft\":\"7 days\"}")
                 .with(SecurityMockMvcRequestPostProcessors.csrf()))
                 .andExpect(status().isFound())
-                .andExpect(redirectedUrl("/dashboard"));
+                .andExpect(redirectedUrl("/dashboard?aircraft=" + plane("user2").getId()));
 
         // Verify data in PostgreSQL
         User user = userRepository.findByUsername("user2");
@@ -135,7 +160,7 @@ class UserControllerTest {
                 .with(SecurityMockMvcRequestPostProcessors.csrf()))
                 .andExpect(status().isOk());
 
-        User user = userRepository.findByUsername("user1");
+        Aircraft user = plane("user1");
         assertTrue(user.getTimeInServiceUpdatedAt() != null, "timeInServiceUpdatedAt should be set after a manual edit");
         assertTrue("manual".equals(user.getTimeInServiceUpdatedSource()), "timeInService source should be 'manual'");
     }
@@ -149,7 +174,7 @@ class UserControllerTest {
                 .with(SecurityMockMvcRequestPostProcessors.csrf()))
                 .andExpect(status().isOk());
 
-        User user = userRepository.findByUsername("user2");
+        Aircraft user = plane("user2");
         assertTrue("flightlog".equals(user.getTimeInServiceUpdatedSource()), "timeInService source should be 'flightlog'");
         assertTrue(user.getTimeInServiceUpdatedAt() != null, "timeInServiceUpdatedAt should be set after a flight log");
     }
@@ -164,12 +189,12 @@ class UserControllerTest {
     @WithMockUser(username = "user3", roles = {"USER"})
     void testAddFlightLogRejectsPartialPairAndPreservesHours() throws Exception {
         // Set up a user with manually-entered hours.
-        User u = userRepository.findByUsername("user3");
+        Aircraft u = plane("user3");
         u.setBlockTimeHours(100.0);
         u.setBlockTimeManualBaseline(100.0);
         u.setTimeInServiceHours(100.0);
         u.setTimeInServiceManualBaseline(100.0);
-        userRepository.save(u);
+        aircraftRepository.save(u);
 
         // The original bug: posting a log with only timeInServiceOut filled in.
         mockMvc.perform(post("/addflightlog")
@@ -179,22 +204,22 @@ class UserControllerTest {
                 .andExpect(status().isBadRequest());
 
         // Critical: the meters must NOT have been touched.
-        User after = userRepository.findByUsername("user3");
+        Aircraft after = plane("user3");
         assertEquals(100.0, after.getBlockTimeHours(), 0.0001, "BlockTime hours must not be wiped by a rejected partial entry");
         assertEquals(100.0, after.getTimeInServiceHours(), 0.0001, "TimeInService hours must not be wiped by a rejected partial entry");
-        assertTrue(flightLogRepository.findByUser(after).isEmpty(), "No partial log should have been saved");
+        assertTrue(flightLogRepository.findByAircraft(after).isEmpty(), "No partial log should have been saved");
     }
 
     @Test
     @WithMockUser(username = "user4", roles = {"USER"})
     void testManualBaselineActsAsFloorAgainstLowerLogReadings() throws Exception {
         // User manually claims 200 hours on the airframe.
-        User u = userRepository.findByUsername("user4");
+        Aircraft u = plane("user4");
         u.setBlockTimeHours(200.0);
         u.setBlockTimeManualBaseline(200.0);
         u.setTimeInServiceHours(200.0);
         u.setTimeInServiceManualBaseline(200.0);
-        userRepository.save(u);
+        aircraftRepository.save(u);
 
         // Add a complete log whose blockTimeIn=50 is well BELOW the manual floor.
         mockMvc.perform(post("/addflightlog")
@@ -203,7 +228,7 @@ class UserControllerTest {
                 .with(SecurityMockMvcRequestPostProcessors.csrf()))
                 .andExpect(status().isOk());
 
-        User after = userRepository.findByUsername("user4");
+        Aircraft after = plane("user4");
         assertEquals(200.0, after.getBlockTimeHours(), 0.0001, "Manual baseline must not be overwritten by a lower log reading");
         assertEquals(200.0, after.getTimeInServiceHours(), 0.0001, "Manual baseline must not be overwritten by a lower log reading");
     }
@@ -212,12 +237,12 @@ class UserControllerTest {
     @WithMockUser(username = "user5", roles = {"USER"})
     void testDeleteFlightLogRevertsToBaseline() throws Exception {
         // Start at a manual baseline of 100.
-        User u = userRepository.findByUsername("user5");
+        Aircraft u = plane("user5");
         u.setBlockTimeHours(100.0);
         u.setBlockTimeManualBaseline(100.0);
         u.setTimeInServiceHours(100.0);
         u.setTimeInServiceManualBaseline(100.0);
-        userRepository.save(u);
+        aircraftRepository.save(u);
 
         // Add a log that raises blockTime to 150 and timeInService to 145.
         mockMvc.perform(post("/addflightlog")
@@ -226,12 +251,12 @@ class UserControllerTest {
                 .with(SecurityMockMvcRequestPostProcessors.csrf()))
                 .andExpect(status().isOk());
 
-        User afterAdd = userRepository.findByUsername("user5");
+        Aircraft afterAdd = plane("user5");
         assertEquals(150.0, afterAdd.getBlockTimeHours(), 0.0001, "BlockTime should be raised by the log");
         assertEquals(145.0, afterAdd.getTimeInServiceHours(), 0.0001, "TimeInService should be raised by the log");
 
         // Delete that log — meters must revert to the baseline, not crash to 0.
-        List<FlightLog> logs = flightLogRepository.findByUser(afterAdd);
+        List<FlightLog> logs = flightLogRepository.findByAircraft(afterAdd);
         assertEquals(1, logs.size());
         Long logId = logs.get(0).getId();
 
@@ -239,7 +264,7 @@ class UserControllerTest {
                 .with(SecurityMockMvcRequestPostProcessors.csrf()))
                 .andExpect(status().isOk());
 
-        User afterDelete = userRepository.findByUsername("user5");
+        Aircraft afterDelete = plane("user5");
         assertEquals(100.0, afterDelete.getBlockTimeHours(), 0.0001, "Delete must revert BlockTime to the manual baseline");
         assertEquals(100.0, afterDelete.getTimeInServiceHours(), 0.0001, "Delete must revert TimeInService to the manual baseline");
     }

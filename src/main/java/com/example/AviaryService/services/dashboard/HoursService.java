@@ -9,29 +9,29 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.AviaryService.entity.FlightLog;
-import com.example.AviaryService.entity.User;
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.repositories.FlightLogRepository;
-import com.example.AviaryService.repositories.UserRepository;
+import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.util.Formatting;
 
-// Keeps the aircraft's hours right (block time and time in service). Handles
+// Keeps one aircraft's hours right (block time and time in service). Handles
 // manual hour edits, catches typed readings that look like typos compared to
 // existing logs, and recalculates the hours from the flight logs.
 @Service
 public class HoursService {
 
-    private final UserRepository userRepository;
+    private final AircraftRepository aircraftRepository;
     private final FlightLogRepository flightLogRepository;
 
-    public HoursService(UserRepository userRepository, FlightLogRepository flightLogRepository) {
-        this.userRepository = userRepository;
+    public HoursService(AircraftRepository aircraftRepository, FlightLogRepository flightLogRepository) {
+        this.aircraftRepository = aircraftRepository;
         this.flightLogRepository = flightLogRepository;
     }
 
     @Transactional
     public void updateHours(Double blockTimeToAdd,
         Double timeInServiceToAdd, Double newBlockTime,
-        Double newTimeInService, User user) {
+        Double newTimeInService, Aircraft aircraft) {
             
         // NaN/Infinity would poison every Time Left calculation, and a meter
         // reading can't be negative.
@@ -45,9 +45,9 @@ public class HoursService {
                 throw new IllegalArgumentException("Hours must be a number.");
             }
         }
-        // Checked up front so a rejected add never leaves the user half-updated.
-        double currentBlock = user.getBlockTimeHours() == null ? 0 : user.getBlockTimeHours();
-        double currentService = user.getTimeInServiceHours() == null ? 0 : user.getTimeInServiceHours();
+        // Checked up front so a rejected add never leaves the aircraft half-updated.
+        double currentBlock = aircraft.getBlockTimeHours() == null ? 0 : aircraft.getBlockTimeHours();
+        double currentService = aircraft.getTimeInServiceHours() == null ? 0 : aircraft.getTimeInServiceHours();
         if ((newBlockTime == null && blockTimeToAdd != null && currentBlock + blockTimeToAdd < 0)
                 || (newTimeInService == null && timeInServiceToAdd != null && currentService + timeInServiceToAdd < 0)) {
             throw new IllegalArgumentException("That would make your hours negative.");
@@ -58,38 +58,38 @@ public class HoursService {
         System.out.println("==========");
 
         if (newBlockTime != null) { //If newBlockTime has a value
-            user.setBlockTimeHours(newBlockTime);
+            aircraft.setBlockTimeHours(newBlockTime);
             // Manual edit also sets the floor — logs can raise this, never lower it.
-            user.setBlockTimeManualBaseline(newBlockTime);
+            aircraft.setBlockTimeManualBaseline(newBlockTime);
             System.out.println("Setting BlockTime time to: " + newBlockTime);
             updated = true;
         } else if (blockTimeToAdd != null) { //else if blockTimeToAdd has a value
-            double currentBlockTime = user.getBlockTimeHours();
+            double currentBlockTime = aircraft.getBlockTimeHours();
             double computedBlockTime = Formatting.roundHours(currentBlockTime + blockTimeToAdd);
-            user.setBlockTimeHours(computedBlockTime);
-            user.setBlockTimeManualBaseline(computedBlockTime);
+            aircraft.setBlockTimeHours(computedBlockTime);
+            aircraft.setBlockTimeManualBaseline(computedBlockTime);
             System.out.println("Adding " + blockTimeToAdd + " to current BlockTime: " + currentBlockTime);
             updated = true;
         }
 
-        double finalBlockTime = user.getBlockTimeHours();
+        double finalBlockTime = aircraft.getBlockTimeHours();
         System.out.println("Current blockTime: " + finalBlockTime);
 
         if (newTimeInService != null) { //If newTimeInService has a value
-            user.setTimeInServiceHours(newTimeInService);
-            user.setTimeInServiceManualBaseline(newTimeInService);
+            aircraft.setTimeInServiceHours(newTimeInService);
+            aircraft.setTimeInServiceManualBaseline(newTimeInService);
             System.out.println("Setting Time in Service to: " + newTimeInService);
             updated = true;
         } else if (timeInServiceToAdd != null) { //else if timeInServiceToAdd has a value
-            double currentTimeInService = user.getTimeInServiceHours();
+            double currentTimeInService = aircraft.getTimeInServiceHours();
             double computedTimeInService = Formatting.roundHours(currentTimeInService + timeInServiceToAdd);
-            user.setTimeInServiceHours(computedTimeInService);
-            user.setTimeInServiceManualBaseline(computedTimeInService);
+            aircraft.setTimeInServiceHours(computedTimeInService);
+            aircraft.setTimeInServiceManualBaseline(computedTimeInService);
             System.out.println("Adding " + timeInServiceToAdd + " to current Time in Service: " + currentTimeInService);
             updated = true;
         }
 
-        double finalTimeInService = user.getTimeInServiceHours();
+        double finalTimeInService = aircraft.getTimeInServiceHours();
         System.out.println("Current Time in Service: " + finalTimeInService);
 
         if (!updated) {
@@ -98,15 +98,15 @@ public class HoursService {
 
         java.time.Instant now = java.time.Instant.now();
         if (newBlockTime != null || blockTimeToAdd != null) {
-            user.setBlockTimeUpdatedAt(now);
-            user.setBlockTimeUpdatedSource("manual");
+            aircraft.setBlockTimeUpdatedAt(now);
+            aircraft.setBlockTimeUpdatedSource("manual");
         }
         if (newTimeInService != null || timeInServiceToAdd != null) {
-            user.setTimeInServiceUpdatedAt(now);
-            user.setTimeInServiceUpdatedSource("manual");
+            aircraft.setTimeInServiceUpdatedAt(now);
+            aircraft.setTimeInServiceUpdatedSource("manual");
         }
 
-        userRepository.save(user);
+        aircraftRepository.save(aircraft);
 
         }
 
@@ -117,7 +117,7 @@ public class HoursService {
     // controller so it can ask the user to confirm before saving anyway.
     public record AccuracyIssue(Double expectedFloor, Double expectedCeiling, Double enteredOut, Double enteredIn) {}
 
-    // Checks a not-yet-saved manual entry against the user's existing logs.
+    // Checks a not-yet-saved manual entry against the aircraft's existing logs.
     // Only meaningful when the entry has both a start and end timestamp for
     // this pair -- without those there's nothing to compare chronologically,
     // so it's waved through (same as before this feature existed).
@@ -154,7 +154,7 @@ public class HoursService {
     }
 
     /**
-     * Walks a user's flight logs in real chronological order (by
+     * Walks one aircraft's flight logs in real chronological order (by
      * blockTimeStart or timeInServiceStart, whichever pair useBlockTime
      * selects) and recomputes Out/In for every non-manual row so the chain
      * stays accurate no matter what order flights were entered in.
@@ -168,20 +168,20 @@ public class HoursService {
      * flight's own duration), preserving the duration but sliding the
      * absolute numbers to wherever this flight actually falls in time.
      *
-     * Returns the final running total, which becomes the user's displayed
+     * Returns the final running total, which becomes the aircraft's displayed
      * blockTimeHours/timeInServiceHours. Saves every row it changes; does
-     * not save the user -- the caller sets the displayed hours field itself.
+     * not save the aircraft -- the caller sets the displayed hours field itself.
      */
     @Transactional
-    public double recomputeChain(User user, boolean useBlockTime) {
-        Double baselineBoxed = useBlockTime ? user.getBlockTimeManualBaseline() : user.getTimeInServiceManualBaseline();
+    public double recomputeChain(Aircraft aircraft, boolean useBlockTime) {
+        Double baselineBoxed = useBlockTime ? aircraft.getBlockTimeManualBaseline() : aircraft.getTimeInServiceManualBaseline();
         if (baselineBoxed == null) {
-            baselineBoxed = useBlockTime ? user.getBlockTimeHours() : user.getTimeInServiceHours();
-            if (useBlockTime) user.setBlockTimeManualBaseline(baselineBoxed);
-            else user.setTimeInServiceManualBaseline(baselineBoxed);
+            baselineBoxed = useBlockTime ? aircraft.getBlockTimeHours() : aircraft.getTimeInServiceHours();
+            if (useBlockTime) aircraft.setBlockTimeManualBaseline(baselineBoxed);
+            else aircraft.setTimeInServiceManualBaseline(baselineBoxed);
         }
 
-        List<FlightLog> chain = flightLogRepository.findByUser(user).stream()
+        List<FlightLog> chain = flightLogRepository.findByAircraft(aircraft).stream()
             .filter(log -> (useBlockTime ? log.getBlockTimeOut() : log.getTimeInServiceOut()) != null
                         && (useBlockTime ? log.getBlockTimeIn()  : log.getTimeInServiceIn())  != null)
             .sorted(Comparator

@@ -15,7 +15,9 @@ import org.springframework.test.context.ActiveProfiles;
 
 import com.example.AviaryService.entity.ServiceTimeline;
 import com.example.AviaryService.entity.User;
+import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.support.TestFleet;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.services.imports.TimelineImportService.ImportResult;
 import com.example.AviaryService.util.TimelineImportRules.InputItem;
@@ -30,6 +32,7 @@ class TimelineImportToolsTest {
     @Autowired TimelineImportTools tools;
     @Autowired UserRepository userRepository;
     @Autowired ServiceTimelineRepository timelineRepository;
+    @Autowired AircraftRepository aircraftRepository;
 
     private User alice;
     private User bob;
@@ -40,6 +43,7 @@ class TimelineImportToolsTest {
         bob = saveUser("tools-bob-");
         ServiceTimeline t = new ServiceTimeline();
         t.setUser(bob);
+        t.setAircraft(aircraftRepository.findFirstByUserOrderByIdAsc(bob).orElseThrow());
         t.setItem("Bob's annual");
         t.setTimelineOrder(0);
         timelineRepository.save(t);
@@ -49,8 +53,9 @@ class TimelineImportToolsTest {
         User u = new User();
         u.setUsername(prefix + System.nanoTime());
         u.setPassword("secret-hash");
-        u.setTimeInServiceHours(500.0);
-        return userRepository.save(u);
+        userRepository.save(u);
+        TestFleet.addAircraft(aircraftRepository, userRepository, u, "", "", 0, 500.0);
+        return u;
     }
 
     private static List<InputItem> oneItem() {
@@ -66,9 +71,9 @@ class TimelineImportToolsTest {
 
     @Test
     void listOnlyShowsOwnRowsAndNoUser() throws Exception {
-        List<TimelineImportTools.TimelineRow> mine = McpTestSupport.as(alice.getUsername(), () -> tools.listServiceTimeline());
+        List<TimelineImportTools.TimelineRow> mine = McpTestSupport.as(alice.getUsername(), () -> tools.listServiceTimeline(null));
         assertEquals(0, mine.size());
-        List<TimelineImportTools.TimelineRow> bobs = McpTestSupport.as(bob.getUsername(), () -> tools.listServiceTimeline());
+        List<TimelineImportTools.TimelineRow> bobs = McpTestSupport.as(bob.getUsername(), () -> tools.listServiceTimeline(null));
         assertEquals(1, bobs.size());
         String json = new ObjectMapper().writeValueAsString(bobs);
         assertFalse(json.contains("secret-hash"));
@@ -78,7 +83,7 @@ class TimelineImportToolsTest {
     @Test
     void importToolsNeedImportScope() {
         assertThrows(AccessDeniedException.class, () -> McpTestSupport.as(alice.getUsername(), List.of("aviary.read"),
-            () -> tools.proposeTimelineImport(oneItem(), null)));
+            () -> tools.proposeTimelineImport(oneItem(), null, null)));
         assertThrows(AccessDeniedException.class, () -> McpTestSupport.as(alice.getUsername(), List.of("aviary.read"),
             () -> tools.confirmTimelineImport(1L, null)));
         assertThrows(AccessDeniedException.class, () -> McpTestSupport.as(alice.getUsername(), List.of("aviary.read"),
@@ -87,7 +92,7 @@ class TimelineImportToolsTest {
 
     @Test
     void proposeThenConfirmAsOwner() {
-        ImportResult proposed = McpTestSupport.as(alice.getUsername(), () -> tools.proposeTimelineImport(oneItem(), null));
+        ImportResult proposed = McpTestSupport.as(alice.getUsername(), () -> tools.proposeTimelineImport(oneItem(), null, null));
         assertEquals("PROPOSED", proposed.status());
 
         // Bob can't confirm Alice's proposal.
@@ -98,6 +103,6 @@ class TimelineImportToolsTest {
             () -> tools.confirmTimelineImport(proposed.proposalId(), null));
         assertEquals("IMPORTED", imported.status());
         assertEquals(1, imported.addedCount());
-        assertEquals(1, McpTestSupport.as(alice.getUsername(), () -> tools.listServiceTimeline()).size());
+        assertEquals(1, McpTestSupport.as(alice.getUsername(), () -> tools.listServiceTimeline(null)).size());
     }
 }

@@ -54,6 +54,7 @@ class ServiceTimelineMobileDragTest extends BrowserTestBase {
     private void seedTwoItems(User user) {
         ServiceTimeline alpha = new ServiceTimeline();
         alpha.setUser(user);
+        alpha.setAircraft(aircraftOf(user));
         alpha.setItem("Alpha Item");
         alpha.setIsTitle(false);
         alpha.setTimelineOrder(0);
@@ -66,6 +67,7 @@ class ServiceTimelineMobileDragTest extends BrowserTestBase {
 
         ServiceTimeline bravo = new ServiceTimeline();
         bravo.setUser(user);
+        bravo.setAircraft(aircraftOf(user));
         bravo.setItem("Bravo Item");
         bravo.setIsTitle(false);
         bravo.setTimelineOrder(1);
@@ -269,6 +271,7 @@ class ServiceTimelineMobileDragTest extends BrowserTestBase {
         for (int i = 0; i < names.length; i++) {
             ServiceTimeline t = new ServiceTimeline();
             t.setUser(user);
+            t.setAircraft(aircraftOf(user));
             t.setItem(names[i]);
             t.setIsTitle(false);
             t.setTimelineOrder(i);

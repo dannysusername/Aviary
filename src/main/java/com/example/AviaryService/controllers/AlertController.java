@@ -18,10 +18,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.AlertPreference;
 import com.example.AviaryService.entity.AlertRecipient;
 import com.example.AviaryService.entity.ServiceTimeline;
 import com.example.AviaryService.entity.User;
+import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.ServiceTimelineRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.services.alerts.AlertRecipientService;
@@ -42,13 +44,15 @@ public class AlertController {
     private final AlertRecipientService recipientService;
     private final UserRepository userRepository;
     private final ServiceTimelineRepository serviceTimelineRepository;
+    private final AircraftRepository aircraftRepository;
 
     public AlertController(AlertService alertService, AlertRecipientService recipientService,
-            UserRepository userRepository, ServiceTimelineRepository serviceTimelineRepository) {
+            UserRepository userRepository, ServiceTimelineRepository serviceTimelineRepository, AircraftRepository aircraftRepository) {
         this.alertService = alertService;
         this.recipientService = recipientService;
         this.userRepository = userRepository;
         this.serviceTimelineRepository = serviceTimelineRepository;
+        this.aircraftRepository = aircraftRepository;
     }
 
     @GetMapping("/preferences")
@@ -166,9 +170,9 @@ public class AlertController {
         long itemCount = serviceTimelineRepository.findByUserOrderByTimelineOrderAsc(user).stream()
             .filter(t -> !t.getIsTitle()).count();
         if (itemCount == 0) missing.add("Add at least one maintenance item");
-        if (isBlank(user.getTailNumber())) missing.add("Set your tail number");
-        if (isBlank(user.getOwnerName())) missing.add("Set your owner name");
-        if (user.getTimeInServiceHours() == null) missing.add("Enter aircraft hours");
+        List<Aircraft> fleet = aircraftRepository.findByUserOrderByIdAsc(user);
+        if (fleet.stream().allMatch(a -> isBlank(a.getTailNumber()))) missing.add("Set your tail number");
+        if (fleet.stream().allMatch(a -> isBlank(a.getOwnerName()))) missing.add("Set your owner name");
         m.put("readiness", Map.of("missing", missing, "ready", missing.isEmpty()));
         return m;
     }

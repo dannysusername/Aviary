@@ -189,17 +189,6 @@ input[type="checkbox"]:focus-visible {
   .fixed-header .header-right #connections-link .connections-link-text { display: none; }
 }
 
-/* Empty timeline: nudge new owners to import existing records. */
-#import-ai-prompt {
-  margin: 0 0 12px;
-  padding: 10px 14px;
-  border: 1px solid #D8E6DE;
-  border-radius: 8px;
-  background: #E6F4EE;
-  color: #5E7A6A;
-  font-size: 14px;
-}
-#import-ai-prompt a { color: #1E7A54; font-weight: 600; }
 
 .edit-hours-btn,
 .back-to-full-list-button {
@@ -2439,3 +2428,315 @@ textarea::placeholder { display: none; }
 .alert-recipient-status.status-pending  { color: #9a6700; }
 .alert-recipient-status.status-declined,
 .alert-recipient-status.status-expired  { color: #888; }
+
+/* ── Aircraft picker (specs/003-multi-aircraft-fleet/contracts/ui.md) ──
+   One panel: a dropdown under the header button on desktop, a bottom sheet
+   on phones. Author display rules would otherwise beat the [hidden] attribute. */
+.aircraft-panel[hidden],
+.aircraft-panel-backdrop[hidden],
+.aircraft-panel-view[hidden],
+.remove-aircraft-overlay[hidden] { display: none !important; }
+
+/* The plane button is the part that gives way on a narrow header: it
+   shrinks (tail number ellipsized) instead of sliding under the buttons on
+   the right. */
+.fixed-header .header-left {
+  display: flex;
+  align-items: center;
+  gap: clamp(6px, 2vw, 14px);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.fixed-header .header-right { flex: 0 0 auto; }
+
+.aircraft-picker { position: relative; min-width: 0; display: flex; }
+
+#aircraft-picker-btn {
+  position: relative;
+  overflow: hidden;                /* shrinks with the header, never spills under Share */
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  min-width: 44px;
+  max-width: min(220px, 100%);
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+#aircraft-picker-btn:hover,
+#aircraft-picker-btn[aria-expanded="true"] { background: rgba(255,255,255,0.3); }
+.aircraft-picker-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.aircraft-picker-caret { font-size: 11px; }
+.aircraft-overdue-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--primary);
+}
+
+.aircraft-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 340px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+  z-index: 3000;
+  overflow: hidden;
+}
+.aircraft-panel-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+.aircraft-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 12px 8px 16px;
+}
+.aircraft-panel-head h2 {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 700;
+}
+.aircraft-panel-close,
+.aircraft-panel-back {
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+}
+.aircraft-panel-close:hover,
+.aircraft-panel-back:hover { background: var(--surface-muted); }
+
+.add-aircraft-btn {
+  margin: 0 12px 8px;
+  min-height: 44px;
+  border: 1px dashed var(--primary);
+  border-radius: 8px;
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+:root[data-theme="dark"] .add-aircraft-btn { color: var(--text); }
+.add-aircraft-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.aircraft-limit-note { margin: 0 16px 8px; font-size: 13px; color: var(--text-muted); }
+
+.aircraft-list {
+  list-style: none;
+  overflow-y: auto;
+  padding: 0 8px 8px;
+}
+.aircraft-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 52px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--text);
+  text-decoration: none;
+}
+.aircraft-option:hover { background: var(--row-hover); }
+.aircraft-option[aria-current="true"] {
+  background: var(--primary-light);
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+.aircraft-option-text { display: flex; flex-direction: column; min-width: 0; }
+.aircraft-option-name { font-weight: 700; font-size: 15px; }
+.aircraft-option-model {
+  font-size: 13px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aircraft-option-status { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+.chip {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.chip-overdue { background: #FBE3E8; color: #A3203D; }
+.chip-due-soon { background: #FFF1D6; color: #8A5A00; }
+:root[data-theme="dark"] .chip-overdue { background: #4A1C27; color: #FFB3C2; }
+:root[data-theme="dark"] .chip-due-soon { background: #46380F; color: #FFD98A; }
+
+/* Add-aircraft form */
+.add-aircraft-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 16px 12px;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+.add-aircraft-fields label { font-size: 13px; font-weight: 600; color: var(--text-muted); margin-top: 6px; }
+.add-aircraft-fields input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-family: inherit;
+  font-size: 16px;               /* 16px stops iOS from zooming in on focus */
+}
+#new-tail-number { text-transform: uppercase; letter-spacing: 0.5px; }
+#new-tail-number[aria-invalid="true"] { border-color: var(--accent); }
+.field-error { min-height: 1em; font-size: 13px; color: var(--accent); }
+#new-aircraft-more summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--primary-dark);
+  cursor: pointer;
+}
+:root[data-theme="dark"] #new-aircraft-more summary { color: var(--text); }
+#new-aircraft-more[open] { display: flex; flex-direction: column; gap: 6px; }
+.add-aircraft-savebar {
+  position: sticky;
+  bottom: 0;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+#add-aircraft-save {
+  width: 100%;
+  min-height: 48px;
+  border: none;
+  border-radius: 8px;
+  background: var(--primary);
+  color: #fff;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+#add-aircraft-save:disabled { opacity: 0.7; cursor: progress; }
+#add-aircraft-save.saving::after { content: "…"; }
+
+/* Empty aircraft: first step is visible right away. */
+#empty-timeline { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.add-first-item-btn {
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  background: var(--primary);
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Remove aircraft: last item in the picker panel */
+.remove-aircraft-btn {
+  margin: 0 12px 12px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: none;
+  border-top: 1px solid var(--border);
+  background: none;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.remove-aircraft-btn:hover { background: var(--surface-muted); }
+.remove-aircraft-overlay .confirm-box { text-align: left; display: flex; flex-direction: column; gap: 10px; }
+.remove-aircraft-overlay h2 { font-size: 17px; }
+.remove-aircraft-overlay p { font-size: 14px; color: var(--text-muted); line-height: 1.4; }
+.remove-aircraft-overlay label { font-size: 13px; font-weight: 600; }
+#remove-aircraft-confirm {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-family: inherit;
+  font-size: 16px;
+}
+.remove-aircraft-overlay .confirm-actions { justify-content: flex-end; }
+.remove-aircraft-overlay .confirm-btn { min-height: 44px; }
+.remove-aircraft-overlay .confirm-btn.ok:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Phones: bottom sheet */
+@media screen and (max-width: 960px) {
+  .aircraft-panel-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(27, 43, 35, 0.45);
+    z-index: 2999;
+  }
+  .aircraft-panel {
+    position: fixed;
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-height: 90dvh;
+    border-radius: 16px 16px 0 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+  }
+  body.aircraft-panel-open { overflow: hidden; }
+}
+/* Room for the plane button on narrower windows: Share and Import with AI
+   show their icons only (aria-labels keep their names). */
+@media (max-width: 760px) {
+  .fixed-header .share-btn .share-label,
+  .fixed-header .share-btn .share-caret,
+  .fixed-header .share-btn svg.share-caret,
+  .fixed-header .header-right #connections-link .connections-link-text { display: none; }
+}
+@media (max-width: 420px) {
+  #aircraft-picker-btn { padding: 8px 10px; }
+  #aircraft-picker-btn .aircraft-picker-caret { display: none; }
+}
+@media print {
+  .aircraft-picker, #empty-timeline { display: none !important; }
+}

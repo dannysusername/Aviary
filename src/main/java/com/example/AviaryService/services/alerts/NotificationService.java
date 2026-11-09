@@ -9,9 +9,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.AlertRecipient;
 import com.example.AviaryService.entity.AlertSendLog;
 import com.example.AviaryService.entity.User;
+import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.AlertRecipientRepository;
 import com.example.AviaryService.repositories.AlertSendLogRepository;
 import com.example.AviaryService.services.dashboard.PdfExportService;
@@ -36,13 +38,14 @@ public class NotificationService {
     private final AlertRecipientRepository recipientRepository;
     private final AlertSendLogRepository sendLogRepository;
     private final PdfExportService pdfExportService;
+    private final AircraftRepository aircraftRepository;
 
     private final String baseUrl;
     private final String postalAddress;
 
     public NotificationService(EmailSender emailSender, SmsSender smsSender,
             AlertRecipientRepository recipientRepository, AlertSendLogRepository sendLogRepository,
-            PdfExportService pdfExportService,
+            PdfExportService pdfExportService, AircraftRepository aircraftRepository,
             @Value("${aviary.alerts.base-url:}") String baseUrl,
             @Value("${aviary.alerts.postal-address:}") String postalAddress) {
         this.emailSender = emailSender;
@@ -50,6 +53,7 @@ public class NotificationService {
         this.recipientRepository = recipientRepository;
         this.sendLogRepository = sendLogRepository;
         this.pdfExportService = pdfExportService;
+        this.aircraftRepository = aircraftRepository;
         this.baseUrl = baseUrl == null ? "" : baseUrl.replaceAll("/+$", "");
         this.postalAddress = postalAddress == null ? "" : postalAddress;
     }
@@ -64,6 +68,7 @@ public class NotificationService {
             return 0;
         }
 
+        List<Aircraft> fleet = aircraftRepository.findByUserOrderByIdAsc(user);
         byte[] pdf = null; // built lazily, once, only if an email actually goes out
         int sent = 0;
 
@@ -79,13 +84,13 @@ public class NotificationService {
                         continue;
                     }
                     if (pdf == null) {
-                        pdf = pdfExportService.generateDashboardPdf(user);
+                        pdf = pdfExportService.generateFleetPdf(fleet, java.time.LocalDate.now());
                     }
                     emailSender.sendPdf(r.getDestination(), digest.subject(),
-                        digest.body() + emailFooter(user, r),
+                        digest.body() + emailFooter(fleet, r),
                         pdf, "Aviary_Maintenance_" + java.time.LocalDate.now() + ".pdf");
                 } else {
-                    smsSender.send(r.getDestination(), smsBody(user, digest));
+                    smsSender.send(r.getDestination(), smsBody(fleet, digest));
                 }
                 recordSend(r);
                 sent++;
@@ -126,10 +131,10 @@ public class NotificationService {
         sendLogRepository.save(new AlertSendLog(r.getId(), r.getChannelEnum()));
     }
 
-    private String emailFooter(User user, AlertRecipient r) {
+    private String emailFooter(List<Aircraft> fleet, AlertRecipient r) {
         StringBuilder sb = new StringBuilder("\n\n----\n");
-        sb.append("You're receiving this because ").append(AlertText.owner(user))
-            .append(" added you to maintenance\nalerts for ").append(AlertText.tail(user))
+        sb.append("You're receiving this because ").append(AlertText.owner(fleet))
+            .append(" added you to maintenance\nalerts for ").append(AlertText.tail(fleet))
             .append(". The full dashboard is attached as a PDF.\n");
         if (!baseUrl.isBlank()) {
             sb.append("Stop these emails: ").append(baseUrl)
@@ -141,8 +146,8 @@ public class NotificationService {
         return sb.toString();
     }
 
-    private String smsBody(User user, AlertDigest digest) {
-        StringBuilder sb = new StringBuilder(orAircraft(user.getTailNumber())).append(": ");
+    private String smsBody(List<Aircraft> fleet, AlertDigest digest) {
+        StringBuilder sb = new StringBuilder(AlertText.tail(fleet)).append(": ");
         sb.append(digest.overdueCount()).append(" overdue, ")
           .append(digest.dueSoonCount()).append(" due soon.");
         if (!baseUrl.isBlank()) {
@@ -152,7 +157,4 @@ public class NotificationService {
         return sb.toString();
     }
 
-    private static String orAircraft(String tail) {
-        return tail == null || tail.isBlank() ? "your aircraft" : tail;
-    }
 }

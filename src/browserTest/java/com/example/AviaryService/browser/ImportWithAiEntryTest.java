@@ -11,8 +11,9 @@ import com.microsoft.playwright.options.LoadState;
 
 /**
  * Ways into the Import with AI page from the dashboard: the labeled header
- * control (text on desktop, named icon on a phone) and the prompt shown only
- * while the service timeline is empty.
+ * control (text on desktop, named icon on a phone). The empty-timeline
+ * "Have records in a spreadsheet?" prompt was removed; an empty aircraft
+ * shows only "Add your first maintenance item".
  */
 class ImportWithAiEntryTest extends BrowserTestBase {
 
@@ -50,16 +51,15 @@ class ImportWithAiEntryTest extends BrowserTestBase {
         assertNoSidewaysScroll(390);
     }
 
-    // ---- empty-timeline prompt (US3) ----
+    // ---- empty timeline ----
 
     @Test
-    void emptyTimelineShowsPrompt() {
+    void emptyTimelineShowsFirstItemButtonAndNoImportPrompt() {
         page.setViewportSize(1280, 800);
         loginAs(seedUser("password123"), "password123");
 
-        assertThat(page.locator("#import-ai-prompt")).isVisible();
-        page.locator("#import-ai-prompt a").click();
-        page.waitForURL(baseUrl() + "/account/connections");
+        assertThat(page.locator("#add-first-item-btn")).isVisible();
+        assertThat(page.locator("#import-ai-prompt")).hasCount(0);
     }
 
     @Test
@@ -68,7 +68,7 @@ class ImportWithAiEntryTest extends BrowserTestBase {
         loginAs(seedUser("password123"), "password123");
         page.emulateMedia(new com.microsoft.playwright.Page.EmulateMediaOptions()
             .setMedia(com.microsoft.playwright.options.Media.PRINT));
-        assertThat(page.locator("#import-ai-prompt")).isHidden();
+        assertThat(page.locator("#empty-timeline")).isHidden();
         assertThat(page.locator("#connections-link")).isHidden();
     }
 
@@ -78,12 +78,13 @@ class ImportWithAiEntryTest extends BrowserTestBase {
         String username = seedUser("password123");
         ServiceTimeline t = new ServiceTimeline();
         t.setUser(userRepository.findByUsername(username));
+        t.setAircraft(aircraftOf(userRepository.findByUsername(username)));
         t.setItem("Annual");
         t.setTimelineOrder(0);
         timelineRepository.save(t);
         loginAs(username, "password123");
 
-        assertThat(page.locator("#import-ai-prompt")).hasCount(0);
+        assertThat(page.locator("#empty-timeline")).hasCount(0);
     }
 
     @Test
@@ -91,12 +92,12 @@ class ImportWithAiEntryTest extends BrowserTestBase {
         page.setViewportSize(1280, 800);
         loginAs(seedUser("password123"), "password123");
         page.waitForLoadState(LoadState.NETWORKIDLE);
-        assertThat(page.locator("#import-ai-prompt")).isVisible();
+        assertThat(page.locator("#empty-timeline")).isVisible();
 
         page.locator(".add-row td[data-label='Item'] textarea").fill("Oil change");
         page.locator("td.add-cell form button.add-button").click();
 
         assertThat(page.locator(".sortable tr[data-id]")).hasCount(1);
-        assertThat(page.locator("#import-ai-prompt")).hasCount(0);
+        assertThat(page.locator("#empty-timeline")).hasCount(0);
     }
 }

@@ -47,6 +47,7 @@ class FlightLogTableEdgeCasesTest extends BrowserTestBase {
                               Double timeInServiceOut, Double timeInServiceIn) {
         FlightLog log = new FlightLog();
         log.setUser(user);
+        log.setAircraft(aircraftOf(user));
         log.setFromAirport(from);
         log.setToAirport(to);
         log.setBlockTimeOut(blockTimeOut);

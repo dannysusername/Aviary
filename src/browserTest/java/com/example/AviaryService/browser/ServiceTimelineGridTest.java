@@ -40,6 +40,7 @@ class ServiceTimelineGridTest extends BrowserTestBase {
     private long seedTallCycleRow(User user) {
         ServiceTimeline title = new ServiceTimeline();
         title.setUser(user);
+        title.setAircraft(aircraftOf(user));
         title.setItem("ENGINE - LEFT");
         title.setIsTitle(true);
         title.setTimelineOrder(1);
@@ -47,6 +48,7 @@ class ServiceTimelineGridTest extends BrowserTestBase {
 
         ServiceTimeline t = new ServiceTimeline();
         t.setUser(user);
+        t.setAircraft(aircraftOf(user));
         t.setItem("Oil & filter change");
         t.setIsTitle(false);
         t.setTimelineOrder(2);

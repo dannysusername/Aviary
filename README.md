@@ -16,13 +16,16 @@ A multi-user maintenance and flight-hours tracker for general-aviation aircraft 
 - **Hours tracking** — block time and time in service, each with a manual baseline "floor," so log-book activity can only ever raise the displayed hours, never silently lower them.
 - **Log book** — record flights by hand (from/to airport, block time and time in service out and in) **or import a Garmin avionics CSV** and let the app derive block time (oil pressure > 15 psi) and airborne time (groundspeed > 35 kt) for you.
 - **Aircraft info card** — make/model, tail number, owner, and serial number, editable inline.
+- **Fleets** — track up to 25 aircraft in one account. Each plane has its own info card, hours, service timeline, and log book; a picker in the header switches between them and shows which ones have items overdue or due soon.
 
-Each account is fully isolated — its own aircraft, service timeline, flight logs, and custom maintenance descriptions. Ownership is enforced server-side on every write.
+Each account is fully isolated — its own aircraft, service timelines, flight logs, and custom maintenance descriptions. Ownership is enforced server-side on every write, and every request names the aircraft it is for, so an action always lands on the plane on screen.
 
 ## Using it
 
 1. **Register** at the link above (or **log in**).
 2. **Fill in your aircraft info** — make/model, tail number, owner, serial.
+   - **More than one plane?** Tap the aircraft button in the header → **Add aircraft**, type the tail number, **Save**. You land on the new plane, ready for its first maintenance item. Switch planes from the same button; Aviary remembers the last one you looked at.
+   - Maintenance alerts stay account-wide: one email covers every plane, grouped by tail number.
 3. **Build your service timeline** — add maintenance items with a calendar or hours cycle. Rows are drag-reorderable, and you can insert title rows to group them.
 4. **Set your hours** — enter current block time and time in service manually, or let the log book keep them current.
 5. **Log flights** — add entries by hand, or upload a Garmin CSV and Aviary computes the times and updates your meters.
@@ -43,7 +46,7 @@ You sign in on Aviary's own login page; the assistant never sees your password. 
 
 **Import:**
 
-1. Give the assistant your records — paste a list or attach a spreadsheet — and ask it to import them into Aviary.
+1. Give the assistant your records — paste a list or attach a spreadsheet — and ask it to import them into Aviary. If you track more than one aircraft, say which tail number they're for (the assistant can list your aircraft).
 2. It shows you a **proposal** first: the items it will add, anything flagged for you to check (unclear dates, no due date, items you already have), and any rows it couldn't use and why.
 3. Tell it to go ahead. The items are added to the bottom of your service timeline. Nothing is added before you confirm, and existing items are never changed or deleted.
 

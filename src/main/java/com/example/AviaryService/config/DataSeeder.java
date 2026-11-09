@@ -4,8 +4,10 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.ServiceTimeline;
 import com.example.AviaryService.entity.User;
+import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.ServiceTimelineRepository;
 import com.example.AviaryService.repositories.UserRepository;
 
@@ -17,11 +19,14 @@ public class DataSeeder implements CommandLineRunner {
     private final UserRepository userRepository;
     private final ServiceTimelineRepository serviceTimelineRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AircraftRepository aircraftRepository;
 
-    public DataSeeder(UserRepository userRepository, ServiceTimelineRepository serviceTimelineRepository, PasswordEncoder passwordEncoder) {
+    public DataSeeder(UserRepository userRepository, ServiceTimelineRepository serviceTimelineRepository,
+            PasswordEncoder passwordEncoder, AircraftRepository aircraftRepository) {
         this.userRepository = userRepository;
         this.serviceTimelineRepository = serviceTimelineRepository;
         this.passwordEncoder = passwordEncoder;
+        this.aircraftRepository = aircraftRepository;
     }
 
     @Override
@@ -34,11 +39,15 @@ public class DataSeeder implements CommandLineRunner {
             return;
         }
 
-        User Daniel = new User("DanielIbarra", passwordEncoder.encode("DI"), 3000, 2500);
-        User Tomas  = new User("TomasIbarra",  passwordEncoder.encode("TI"), 3000, 2500);
+        User Daniel = new User("DanielIbarra", passwordEncoder.encode("DI"));
+        User Tomas  = new User("TomasIbarra",  passwordEncoder.encode("TI"));
 
         userRepository.save(Daniel);
         userRepository.save(Tomas);
+
+        // One aircraft each, which every timeline row below belongs to.
+        Aircraft danielPlane = firstAircraft(Daniel, 3000, 2500);
+        Aircraft tomasPlane  = firstAircraft(Tomas, 3000, 2500);
 
 
         // Tomas — aircraft at ~2480 total hours, ~25 hr/month
@@ -68,6 +77,19 @@ public class DataSeeder implements CommandLineRunner {
         d1.setTimelineOrder(1); d2.setTimelineOrder(2); d3.setTimelineOrder(3); d4.setTimelineOrder(4);
         d5.setTimelineOrder(5); d6.setTimelineOrder(6); d7.setTimelineOrder(7); d8.setTimelineOrder(8);
 
+        for (ServiceTimeline t : List.of(t1, t2, t3, t4, t5, t6, t7, t8)) t.setAircraft(tomasPlane);
+        for (ServiceTimeline d : List.of(d1, d2, d3, d4, d5, d6, d7, d8)) d.setAircraft(danielPlane);
+
         serviceTimelineRepository.saveAll(List.of(t1, t2, t3, t4, t5, t6, t7, t8, d1, d2, d3, d4, d5, d6, d7, d8));
+    }
+
+    private Aircraft firstAircraft(User user, double blockTime, double timeInService) {
+        Aircraft a = new Aircraft(user);
+        a.setBlockTimeHours(blockTime);
+        a.setTimeInServiceHours(timeInService);
+        a = aircraftRepository.save(a);
+        user.setLastViewedAircraft(a);
+        userRepository.save(user);
+        return a;
     }
 }

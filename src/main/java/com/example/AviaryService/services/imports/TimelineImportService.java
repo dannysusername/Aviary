@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.ImportProposal;
 import com.example.AviaryService.entity.OAuthAuthorizationEntity;
 import com.example.AviaryService.entity.ServiceTimeline;
@@ -67,6 +68,12 @@ public class TimelineImportService {
         static ImportResult status(String status, String message) {
             return new ImportResult(status, null, null, null, null, null, message, null, null, null, null, null);
         }
+
+        // The account has several aircraft and the call didn't name one (or
+        // named one that isn't theirs). Nothing was proposed.
+        public static ImportResult choose(String message) {
+            return status("CHOOSE_AIRCRAFT", message);
+        }
     }
 
     private final ImportProposalRepository proposalRepository;
@@ -107,9 +114,10 @@ public class TimelineImportService {
 
     // ---- propose ----
 
-    // Builds and stores a proposal. Changes nothing on the timeline. Any
-    // earlier open proposal of this owner is replaced.
-    public ImportResult propose(User user, List<InputItem> items, List<RejectedRow> rejectedBySource, String clientId) {
+    // Builds and stores a proposal for one aircraft. Changes nothing on the
+    // timeline. Any earlier open proposal of this owner FOR THE SAME AIRCRAFT
+    // is replaced; a pending proposal for another aircraft is left alone.
+    public ImportResult propose(User user, Aircraft aircraft, List<InputItem> items, List<RejectedRow> rejectedBySource, String clientId) {
         List<InputItem> input = items == null ? List.of() : items;
         List<RejectedRow> fromSource = cleanSourceRejects(rejectedBySource);
 
@@ -123,7 +131,7 @@ public class TimelineImportService {
 
         return transaction.execute(tx -> {
             LocalDate today = LocalDate.now(clock.withZone(ZoneOffset.UTC));
-            ItemResult result = TimelineImportRules.evaluate(input, existingNames(user), today);
+            ItemResult result = TimelineImportRules.evaluate(input, existingNames(aircraft), today);
             List<RejectedRow> rejected = new ArrayList<>(result.rejected());
             rejected.addAll(fromSource);
             int submitted = input.size() + fromSource.size();
@@ -136,7 +144,7 @@ public class TimelineImportService {
                     TimelineImportRules.FORMAT_EXAMPLE, null, null, null, null);
             }
 
-            for (ImportProposal old : proposalRepository.findByUserAndStatusIn(user, LIVE)) {
+            for (ImportProposal old : proposalRepository.findByUserAndAircraftAndStatusIn(user, aircraft, LIVE)) {
                 old.setStatus(ImportProposal.REPLACED);
                 proposalRepository.save(old);
             }
@@ -144,6 +152,7 @@ public class TimelineImportService {
             Instant now = clock.instant();
             ImportProposal proposal = new ImportProposal();
             proposal.setUser(user);
+            proposal.setAircraft(aircraft);
             proposal.setStatus(outcome == SubmissionOutcome.POOR_FIT ? ImportProposal.NEEDS_FIT_CONFIRMATION : ImportProposal.OPEN);
             proposal.setItemsJson(write(result.items()));
             proposal.setRejectedJson(write(rejected));
@@ -153,7 +162,7 @@ public class TimelineImportService {
             proposal.setConnectionClientId(clientId);
             proposalRepository.save(proposal);
 
-            String summary = summarize(result.items(), rejected);
+            String summary = target(aircraft) + summarize(result.items(), rejected);
             if (outcome == SubmissionOutcome.POOR_FIT) {
                 return new ImportResult("POOR_FIT", proposal.getId(), proposal.getExpiresAt().toString(), result.items(), rejected,
                     summary,
@@ -180,7 +189,7 @@ public class TimelineImportService {
             }
             List<ProposedItem> items = readItems(proposal);
             return new ImportResult("PROPOSED", proposal.getId(), proposal.getExpiresAt().toString(), items, readRejected(proposal),
-                summarize(items, readRejected(proposal)),
+                target(proposal.getAircraft()) + summarize(items, readRejected(proposal)),
                 "Continuing with only the rows that fit. Confirm when the owner says so.",
                 null, null, null, null, null);
         });
@@ -203,14 +212,16 @@ public class TimelineImportService {
                 ImportResult problem = checkUsable(proposal, false);
                 if (problem != null) return problem;
 
+                // Always the aircraft chosen at propose time; confirm can't retarget.
+                Aircraft aircraft = proposal.getAircraft();
                 List<ProposedItem> items = readItems(proposal);
-                Set<String> existing = existingNames(user);
+                Set<String> existing = existingNames(aircraft);
                 List<String> skipped = new ArrayList<>();
                 List<String> newDuplicates = new ArrayList<>();
 
                 LocalDate today = LocalDate.now(clock.withZone(ZoneOffset.UTC));
-                Double currentTis = user.getTimeInServiceHours();
-                Integer max = timelineRepository.findMaxTimelineOrderByUser(user);
+                Double currentTis = aircraft.getTimeInServiceHours();
+                Integer max = timelineRepository.findMaxTimelineOrderByAircraft(aircraft);
                 int order = max == null ? 0 : max + 1;
                 int added = 0;
 
@@ -224,7 +235,7 @@ public class TimelineImportService {
                         }
                         continue;
                     }
-                    timelineRepository.save(toRow(user, item, order++, today, currentTis));
+                    timelineRepository.save(toRow(user, aircraft, item, order++, today, currentTis));
                     added++;
                 }
 
@@ -239,10 +250,12 @@ public class TimelineImportService {
                 record.setClientId(proposal.getConnectionClientId());
                 record.setClientName(clientName(user, proposal.getConnectionClientId()));
                 record.setItemCount(added);
+                record.setAircraftLabel(aircraft.getDisplayName());
                 record.setImportedAt(now);
                 recordRepository.save(record);
 
-                String message = "Added " + added + (added == 1 ? " item" : " items") + " to the service timeline.";
+                String message = "Added " + added + (added == 1 ? " item" : " items") + " to "
+                    + aircraft.getDisplayName() + "'s service timeline.";
                 if (!skipped.isEmpty() || !newDuplicates.isEmpty()) {
                     message += " Skipped " + (skipped.size() + newDuplicates.size())
                         + " that match items already on the timeline.";
@@ -264,6 +277,9 @@ public class TimelineImportService {
             return ImportResult.status("NOT_FOUND", "No such proposal for this account.");
         }
         expireIfDue(proposal);
+        if (proposal.getAircraft() == null && !ImportProposal.CONFIRMED.equals(proposal.getStatus())) {
+            return ImportResult.status("AIRCRAFT_REMOVED", "That aircraft was removed. Start a new import.");
+        }
         return switch (proposal.getStatus()) {
             case ImportProposal.CONFIRMED -> ImportResult.status("ALREADY_CONFIRMED", "This proposal was already imported.");
             case ImportProposal.REPLACED -> ImportResult.status("REPLACED",
@@ -276,6 +292,12 @@ public class TimelineImportService {
         };
     }
 
+    // "Importing into N731KR. " -- so the owner sees the target aircraft
+    // before confirming.
+    private static String target(Aircraft aircraft) {
+        return aircraft == null ? "" : "Importing into " + aircraft.getDisplayName() + ". ";
+    }
+
     private void expireIfDue(ImportProposal proposal) {
         if (LIVE.contains(proposal.getStatus()) && !proposal.getExpiresAt().isAfter(clock.instant())) {
             proposal.setStatus(ImportProposal.EXPIRED);
@@ -283,9 +305,10 @@ public class TimelineImportService {
         }
     }
 
-    private ServiceTimeline toRow(User user, ProposedItem item, int order, LocalDate today, Double currentTis) {
+    private ServiceTimeline toRow(User user, Aircraft aircraft, ProposedItem item, int order, LocalDate today, Double currentTis) {
         ServiceTimeline row = new ServiceTimeline();
         row.setUser(user);
+        row.setAircraft(aircraft);
         row.setItem(item.item());
         row.setIsTitle(item.isTitle());
         row.setTimelineOrder(order);
@@ -314,9 +337,11 @@ public class TimelineImportService {
         return withNote.length() <= com.example.AviaryService.util.Validation.MAX_TEXT ? withNote : description;
     }
 
-    private Set<String> existingNames(User user) {
+    // Duplicate check is against the target aircraft only: the same "Annual"
+    // on another plane is not a duplicate.
+    private Set<String> existingNames(Aircraft aircraft) {
         Set<String> names = new HashSet<>();
-        for (ServiceTimeline row : timelineRepository.findByUserOrderByTimelineOrderAsc(user)) {
+        for (ServiceTimeline row : timelineRepository.findByAircraftOrderByTimelineOrderAsc(aircraft)) {
             names.add(TimelineImportRules.normalizeName(row.getItem()));
         }
         return names;

@@ -12,6 +12,8 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.example.AviaryService.config.CurrentAircraft;
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.DescriptionOption;
 import com.example.AviaryService.entity.FlightLog;
 import com.example.AviaryService.entity.ServiceTimeline;
@@ -33,6 +35,9 @@ import com.example.AviaryService.services.messaging.EmailSender;
 import com.example.AviaryService.services.flights.SubscriptionService;
 import com.example.AviaryService.services.dashboard.TimelineService;
 import com.example.AviaryService.services.account.UserService;
+import com.example.AviaryService.services.aircraft.AircraftService;
+import com.example.AviaryService.services.aircraft.AircraftValidationException;
+import com.example.AviaryService.services.aircraft.FleetSummaryService;
 import com.example.AviaryService.util.Validation;
 
 import org.apache.catalina.connector.Response;
@@ -77,6 +82,8 @@ public class UserController {
     private final OutboundEmailLimiter emailLimiter;
     private final FlightLogService flightLogService;
     private final GarminCsvService garminCsvService;
+    private final AircraftService aircraftService;
+    private final FleetSummaryService fleetSummaryService;
 
     public UserController(UserRepository userRepository, ServiceTimelineRepository serviceTimelineRepository,
             PasswordEncoder passwordEncoder, DescriptionOptionRepository descriptionOptionRepository,
@@ -87,7 +94,8 @@ public class UserController {
             com.example.AviaryService.repositories.SubscriptionRepository subscriptionRepository,
             AeroApiClient aeroApiClient, FlightSyncService flightSyncService, PdfExportService pdfExportService,
             EmailSender emailSender, OutboundEmailLimiter emailLimiter,
-            FlightLogService flightLogService, GarminCsvService garminCsvService) {
+            FlightLogService flightLogService, GarminCsvService garminCsvService,
+            AircraftService aircraftService, FleetSummaryService fleetSummaryService) {
 
         this.userRepository = userRepository;
         this.serviceTimelineRepository = serviceTimelineRepository;
@@ -108,6 +116,8 @@ public class UserController {
         this.emailLimiter = emailLimiter;
         this.flightLogService = flightLogService;
         this.garminCsvService = garminCsvService;
+        this.aircraftService = aircraftService;
+        this.fleetSummaryService = fleetSummaryService;
     }
 
     @GetMapping("/register")
@@ -129,44 +139,70 @@ public class UserController {
     @ResponseBody
     public ResponseEntity<Map<String, String>> updateUserInfo(
         @RequestBody Map<String, String> data,
+        @CurrentAircraft Aircraft aircraft,
         Authentication authentication) {
             try {
-                userService.updateUserInfo(data, authentication);
+                User user = userRepository.findByUsername(authentication.getName());
+                userService.updateUserInfo(data, user, aircraft);
                 return ResponseEntity.ok(Map.of("status", "success"));
+            } catch (AircraftValidationException e) {
+                return ResponseEntity.badRequest().body(Map.of("status", "error", "field", e.getField(), "message", e.getMessage()));
             } catch (IllegalArgumentException e) {
                 return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
             }
     }
 
     @GetMapping("/dashboard")
-    public String showDashboard(Model model, Authentication authentication) {
+    public String showDashboard(@RequestParam(name = "aircraft", required = false) Long aircraftParam,
+            Model model, Authentication authentication) {
         String username = authentication.getName();
         User user = userRepository.findByUsername(username);
+        // ?aircraft= picks the plane (404 if it isn't this account's);
+        // otherwise the last one viewed, else the first. See research.md R4.
+        Aircraft aircraft;
+        try {
+            aircraft = aircraftService.resolveForDashboard(user, aircraftParam);
+        } catch (com.example.AviaryService.services.aircraft.AircraftNotFoundException e) {
+            throw new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Aircraft not found");
+        }
+        List<Aircraft> fleet = aircraftService.listFor(user);
+        Map<Long, FleetSummaryService.Counts> counts = fleetSummaryService.summarize(user, java.time.LocalDate.now());
+        final Long currentId = aircraft.getId();
         model.addAttribute("username", username);
-        model.addAttribute("timelines", serviceTimelineRepository.findByUserOrderByTimelineOrderAsc(user));
+        model.addAttribute("aircraft", aircraft);
+        model.addAttribute("aircraftId", currentId);
+        model.addAttribute("fleet", AircraftController.fleetView(fleet, counts, currentId));
+        model.addAttribute("fleetSize", fleet.size());
+        model.addAttribute("maxAircraft", Aircraft.MAX_PER_USER);
+        // Dot on the picker button: another plane needs attention.
+        model.addAttribute("otherAircraftOverdue", counts.entrySet().stream()
+            .anyMatch(e -> !e.getKey().equals(currentId) && e.getValue().overdue() > 0));
+        model.addAttribute("aircraftRowCount", aircraftService.rowCount(aircraft));
+        model.addAttribute("aircraftFlightCount", aircraftService.flightCount(aircraft));
+        model.addAttribute("timelines", serviceTimelineRepository.findByAircraftOrderByTimelineOrderAsc(aircraft));
         model.addAttribute("descriptionOptions", descriptionOptionService.cleanupAndLoadDescriptionOptions(user));
-        model.addAttribute("blockTimeHours", user.getBlockTimeHours());
-        model.addAttribute("timeInServiceHours", user.getTimeInServiceHours());
+        model.addAttribute("blockTimeHours", aircraft.getBlockTimeHours());
+        model.addAttribute("timeInServiceHours", aircraft.getTimeInServiceHours());
 
-        model.addAttribute("makeModel", user.getMakeModel());
-        model.addAttribute("tailNumber", user.getTailNumber());
-        model.addAttribute("ownerName", user.getOwnerName());
-        model.addAttribute("makeModelSN", user.getMakeModelSN());
-        model.addAttribute("flightlogs", flightLogService.listFor(user));
-        model.addAttribute("blockTimeUpdatedAt", user.getBlockTimeUpdatedAt() != null ? user.getBlockTimeUpdatedAt().toString() : null);
-        model.addAttribute("timeInServiceUpdatedAt", user.getTimeInServiceUpdatedAt() != null ? user.getTimeInServiceUpdatedAt().toString() : null);
-        model.addAttribute("blockTimeUpdatedSource", user.getBlockTimeUpdatedSource());
-        model.addAttribute("timeInServiceUpdatedSource", user.getTimeInServiceUpdatedSource());
+        model.addAttribute("makeModel", aircraft.getMakeModel());
+        model.addAttribute("tailNumber", aircraft.getTailNumber());
+        model.addAttribute("ownerName", aircraft.getOwnerName());
+        model.addAttribute("makeModelSN", aircraft.getMakeModelSN());
+        model.addAttribute("flightlogs", flightLogService.listFor(aircraft));
+        model.addAttribute("blockTimeUpdatedAt", aircraft.getBlockTimeUpdatedAt() != null ? aircraft.getBlockTimeUpdatedAt().toString() : null);
+        model.addAttribute("timeInServiceUpdatedAt", aircraft.getTimeInServiceUpdatedAt() != null ? aircraft.getTimeInServiceUpdatedAt().toString() : null);
+        model.addAttribute("blockTimeUpdatedSource", aircraft.getBlockTimeUpdatedSource());
+        model.addAttribute("timeInServiceUpdatedSource", aircraft.getTimeInServiceUpdatedSource());
         String aeroApiKey = user.getAeroApiKey();
         boolean hasAeroApiKey = aeroApiKey != null && !aeroApiKey.isEmpty();
         model.addAttribute("aeroApiKey", hasAeroApiKey
             ? "••••" + aeroApiKey.substring(Math.max(0, aeroApiKey.length() - 4))
             : "");
         model.addAttribute("hasAeroApiKey", hasAeroApiKey);
-        model.addAttribute("flightSuggestions", flightSuggestionRepository.findByUserAndStatus(user, "pending"));
+        model.addAttribute("flightSuggestions", flightSuggestionRepository.findByAircraftAndStatus(aircraft, "pending"));
 
         com.example.AviaryService.entity.Subscription subscription =
-            subscriptionRepository.findByUser(user).orElse(null);
+            subscriptionRepository.findByAircraft(aircraft).orElse(null);
         model.addAttribute("subscriptionActive", subscription != null && subscription.isActive());
         model.addAttribute("subscriptionExists", subscription != null);
         model.addAttribute("subscribedRegistration", subscription != null ? subscription.getTailNumber() : "");
@@ -187,7 +223,7 @@ public class UserController {
     // day of the server's date; anything else falls back to the server's.
     @GetMapping("/pdf")
     public ResponseEntity<byte[]> downloadPdf(@RequestParam(required = false) String today,
-            Authentication authentication) {
+            @CurrentAircraft Aircraft aircraft, Authentication authentication) {
         User user = userRepository.findByUsername(authentication.getName());
         if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
@@ -202,7 +238,7 @@ public class UserController {
         } catch (java.time.format.DateTimeParseException ignored) {
             // bad value -> server date
         }
-        byte[] pdf = pdfExportService.generateDashboardPdf(user, asOf);
+        byte[] pdf = pdfExportService.generateDashboardPdf(aircraft, asOf);
 
         org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
         headers.setContentType(org.springframework.http.MediaType.APPLICATION_PDF);
@@ -220,7 +256,7 @@ public class UserController {
     @PostMapping("/pdf/email")
     @ResponseBody
     public ResponseEntity<Map<String, String>> emailPdf(@RequestParam String recipient,
-            Authentication authentication) {
+            @CurrentAircraft Aircraft aircraft, Authentication authentication) {
         User user = userRepository.findByUsername(authentication.getName());
         if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
@@ -234,13 +270,13 @@ public class UserController {
         }
         emailLimiter.acquire(user);
 
-        byte[] pdf = pdfExportService.generateDashboardPdf(user);
+        byte[] pdf = pdfExportService.generateDashboardPdf(aircraft);
         String filename = "Aviary_Dashboard_" + java.time.LocalDate.now() + ".pdf";
         try {
             emailSender.sendPdf(
                 recipient.trim(),
                 "Your Aviary maintenance record",
-                "Attached is the maintenance record for " + user.getTailNumber() + ".",
+                "Attached is the maintenance record for " + aircraft.getDisplayName() + ".",
                 pdf,
                 filename);
         } catch (RuntimeException e) {
@@ -284,10 +320,9 @@ public class UserController {
     public ResponseEntity<Map<String, Object>> checkNow(
             @RequestParam(required = false) String start,
             @RequestParam(required = false) String end,
-            Authentication authentication) {
-        User user = userRepository.findByUsername(authentication.getName());
+            @CurrentAircraft Aircraft aircraft, Authentication authentication) {
         com.example.AviaryService.entity.Subscription subscription =
-            subscriptionRepository.findByUser(user).orElse(null);
+            subscriptionRepository.findByAircraft(aircraft).orElse(null);
         if (subscription == null || !subscription.isActive()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Flight sync is not turned on."));
         }
@@ -309,14 +344,13 @@ public class UserController {
     @PostMapping("/subscription/settings")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> updateSubscriptionSettings(
-            @RequestBody Map<String, Object> data, Authentication authentication) {
-        User user = userRepository.findByUsername(authentication.getName());
+            @RequestBody Map<String, Object> data, @CurrentAircraft Aircraft aircraft, Authentication authentication) {
         try {
             if (!(data.get("pollIntervalDays") instanceof Number days)
                     || !(data.get("preferredCheckHour") instanceof Number hour)) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Pick a check interval and hour."));
             }
-            subscriptionService.updateSettings(user, days.intValue(), hour.intValue());
+            subscriptionService.updateSettings(aircraft, days.intValue(), hour.intValue());
             return ResponseEntity.ok(Map.of("status", "success"));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -327,9 +361,8 @@ public class UserController {
     // independent of FlightLog's lifecycle. See docs/planning/CHANGES.md.
     @GetMapping("/flightsuggestions/all")
     @ResponseBody
-    public ResponseEntity<List<Map<String, Object>>> getAllFlightSuggestions(Authentication authentication) {
-        User user = userRepository.findByUsername(authentication.getName());
-        List<Map<String, Object>> result = flightSuggestionRepository.findByUserOrderByCreatedAtDesc(user)
+    public ResponseEntity<List<Map<String, Object>>> getAllFlightSuggestions(@CurrentAircraft Aircraft aircraft) {
+        List<Map<String, Object>> result = flightSuggestionRepository.findByAircraftOrderByCreatedAtDesc(aircraft)
             .stream()
             .map(s -> {
                 Map<String, Object> m = new HashMap<>();
@@ -366,7 +399,7 @@ public class UserController {
             response.put("timeInServiceOut", flightLog.getTimeInServiceOut());
             response.put("timeInServiceStart", flightLog.getTimeInServiceStart() != null ? flightLog.getTimeInServiceStart().toString() : null);
             response.put("timeInServiceEnd", flightLog.getTimeInServiceEnd() != null ? flightLog.getTimeInServiceEnd().toString() : null);
-            response.put("newTimeInService", user.getTimeInServiceHours());
+            response.put("newTimeInService", flightLog.getAircraft().getTimeInServiceHours());
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
@@ -404,6 +437,7 @@ public class UserController {
     @PostMapping("/dashboard")
     public ResponseEntity<?> addTimeline(
             @RequestBody Map<String, String> data,
+            @CurrentAircraft Aircraft aircraft,
             Authentication authentication) {
                 
         String item = data.get("item");
@@ -419,7 +453,7 @@ public class UserController {
 
         String ajax = data.getOrDefault("ajax", "false");
         User user = userRepository.findByUsername(authentication.getName());
-        ServiceTimeline timeline = timelineService.addTimeline(data, user);
+        ServiceTimeline timeline = timelineService.addTimeline(data, user, aircraft);
 
         if ("true".equals(ajax)) {
             Map<String, Object> response = new HashMap<>();
@@ -437,7 +471,7 @@ public class UserController {
             response.put("isTitle", timeline.getIsTitle());
             return ResponseEntity.ok(response);
         } else {
-            return ResponseEntity.status(HttpStatus.FOUND).location(URI.create("/dashboard")).build();
+            return ResponseEntity.status(HttpStatus.FOUND).location(URI.create("/dashboard?aircraft=" + aircraft.getId())).build();
         }
     }
 
@@ -447,14 +481,15 @@ public class UserController {
     // docs/specs/ADSB_SYNC_SPEC.md.
     @PostMapping("/subscription/subscribe")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> subscribe(@RequestBody Map<String, String> data, Authentication authentication) {
+    public ResponseEntity<Map<String, Object>> subscribe(@RequestBody Map<String, String> data,
+            @CurrentAircraft Aircraft aircraft, Authentication authentication) {
         User user = userRepository.findByUsername(authentication.getName());
         if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
         }
         try {
             com.example.AviaryService.entity.Subscription sub =
-                subscriptionService.subscribe(user, data.get("registration"));
+                subscriptionService.subscribe(user, aircraft, data.get("registration"));
             return ResponseEntity.ok(Map.of("active", true, "registration", sub.getTailNumber()));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -463,13 +498,13 @@ public class UserController {
 
     @PostMapping("/subscription/unsubscribe")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> unsubscribe(Authentication authentication) {
+    public ResponseEntity<Map<String, Object>> unsubscribe(@CurrentAircraft Aircraft aircraft, Authentication authentication) {
         User user = userRepository.findByUsername(authentication.getName());
         if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
         }
         try {
-            subscriptionService.unsubscribe(user);
+            subscriptionService.unsubscribe(aircraft);
             return ResponseEntity.ok(Map.of("active", false));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -478,13 +513,13 @@ public class UserController {
 
     @DeleteMapping("/subscription")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> deleteSubscription(Authentication authentication) {
+    public ResponseEntity<Map<String, Object>> deleteSubscription(@CurrentAircraft Aircraft aircraft, Authentication authentication) {
         User user = userRepository.findByUsername(authentication.getName());
         if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
         }
         try {
-            subscriptionService.delete(user);
+            subscriptionService.delete(aircraft);
             return ResponseEntity.ok(Map.of("status", "success"));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -498,17 +533,18 @@ public class UserController {
             @RequestParam(required = false) Double timeInServiceToAdd,
             @RequestParam(required = false) Double newBlockTime,
             @RequestParam(required = false) Double newTimeInService,
+            @CurrentAircraft Aircraft aircraft,
             Authentication authentication) {
         try {
             User user = userRepository.findByUsername(authentication.getName());
             if (user == null) {
                 throw new IllegalArgumentException("User not found");
             }
-            hoursService.updateHours(blockTimeToAdd, timeInServiceToAdd, newBlockTime, newTimeInService, user);
+            hoursService.updateHours(blockTimeToAdd, timeInServiceToAdd, newBlockTime, newTimeInService, aircraft);
             Map<String, String> response = new HashMap<>();
             response.put("status", "success");
-            response.put("newBlockTime", String.valueOf(user.getBlockTimeHours()));
-            response.put("newTimeInService", String.valueOf(user.getTimeInServiceHours()));
+            response.put("newBlockTime", String.valueOf(aircraft.getBlockTimeHours()));
+            response.put("newTimeInService", String.valueOf(aircraft.getTimeInServiceHours()));
             return ResponseEntity.ok(response);
             
         } catch (IllegalArgumentException e) {
@@ -576,17 +612,20 @@ public class UserController {
 
     @PostMapping("/updateOrder")
     @ResponseBody
-    public void updateOrder(@RequestBody List<Long> ids, Authentication authentication) {
-        User user = userRepository.findByUsername(authentication.getName());
-        timelineService.reorder(user, ids);
+    public ResponseEntity<Map<String, Object>> updateOrder(@RequestBody List<Long> ids, @CurrentAircraft Aircraft aircraft) {
+        try {
+            timelineService.reorder(aircraft, ids);
+            return ResponseEntity.ok(Map.of("status", "success"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(errorBody(e.getMessage()));
+        }
     }
 
     // NEW: GET flight logs (for AJAX if needed)
     @GetMapping("/flightlogs")
     @ResponseBody
-    public List<FlightLog> getFlightLogs(Authentication authentication) {
-        User user = userRepository.findByUsername(authentication.getName());
-        return flightLogService.listFor(user);
+    public List<FlightLog> getFlightLogs(@CurrentAircraft Aircraft aircraft) {
+        return flightLogService.listFor(aircraft);
     }
 
     // POST to add flight log
@@ -595,6 +634,7 @@ public class UserController {
     public ResponseEntity<Map<String, Object>> addFlightLog(
             @RequestBody FlightLog newLog,
             @RequestParam(required = false, defaultValue = "false") boolean force,
+            @CurrentAircraft Aircraft aircraft,
             Authentication authentication) {
         User user = userRepository.findByUsername(authentication.getName());
         if (user == null) {
@@ -604,7 +644,7 @@ public class UserController {
 
         FlightLogService.AddedFlightLog added;
         try {
-            added = flightLogService.add(user, newLog, force);
+            added = flightLogService.add(user, aircraft, newLog, force);
         } catch (FlightLogService.InaccurateEntryException e) {
             // Not a hard error: the frontend shows this as a confirm ("Add it
             // anyway?") and resubmits with force=true if the user says yes.
@@ -636,7 +676,8 @@ public class UserController {
 
     @PostMapping(value="/logbook/upload-csv", consumes="multipart/form-data")
     @ResponseBody
-    public ResponseEntity<Map<String,Object>> uploadCsv(@RequestParam("csvfile") MultipartFile file, Authentication authentication) {
+    public ResponseEntity<Map<String,Object>> uploadCsv(@RequestParam("csvfile") MultipartFile file,
+            @CurrentAircraft Aircraft aircraft, Authentication authentication) {
         User user = userRepository.findByUsername(authentication.getName());
         if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
@@ -645,7 +686,7 @@ public class UserController {
         log.info("Received file: name={}, size={} bytes", file.getOriginalFilename(), file.getSize());
 
         try (InputStream in = file.getInputStream()) {
-            GarminCsvService.CsvParseResult result = garminCsvService.parse(in, user);
+            GarminCsvService.CsvParseResult result = garminCsvService.parse(in, aircraft);
             return result.ok()
                 ? ResponseEntity.ok(result.body())
                 : ResponseEntity.badRequest().body(result.body());

@@ -14,6 +14,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.FlightSuggestion;
 import com.example.AviaryService.entity.Subscription;
 import com.example.AviaryService.entity.User;
@@ -100,7 +101,7 @@ public class FlightSyncService {
         List<AeroApiFlight> flights = aeroApiClient.getRecentFlights(subscription.getTailNumber(), apiKey, start, end);
         int newCount = 0;
         for (AeroApiFlight flight : flights) {
-            if (saveIfNew(user, subscription.getTailNumber(), flight)) {
+            if (saveIfNew(user, subscription.getAircraft(), subscription.getTailNumber(), flight)) {
                 newCount++;
             }
         }
@@ -124,7 +125,7 @@ public class FlightSyncService {
     }
 
     @Transactional
-    boolean saveIfNew(User user, String tailNumber, AeroApiFlight flight) {
+    boolean saveIfNew(User user, Aircraft aircraft, String tailNumber, AeroApiFlight flight) {
         // Unique constraint on (user, fa_flight_id) is the real guarantee;
         // this check just avoids a doomed insert attempt in the common case.
         if (flightSuggestionRepository.findByUserAndFaFlightId(user, flight.faFlightId()).isPresent()) {
@@ -135,6 +136,8 @@ public class FlightSyncService {
             flight.actualOff(), flight.actualOn(),
             flight.origin(), flight.destination()
         );
+        // The suggestion goes to the aircraft whose subscription found it.
+        suggestion.setAircraft(aircraft);
         flightSuggestionRepository.save(suggestion);
         return true;
     }

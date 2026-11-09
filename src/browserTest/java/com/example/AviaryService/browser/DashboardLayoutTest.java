@@ -45,6 +45,7 @@ class DashboardLayoutTest extends BrowserTestBase {
         for (int i = 1; i <= 3; i++) {
             ServiceTimeline t = new ServiceTimeline();
             t.setUser(user);
+            t.setAircraft(aircraftOf(user));
             t.setItem("Row " + i);
             t.setIsTitle(false);
             t.setTimelineOrder(i);
@@ -104,6 +105,7 @@ class DashboardLayoutTest extends BrowserTestBase {
         User u = users.findByUsername(username);
         ServiceTimeline t = new ServiceTimeline();
         t.setUser(u);
+        t.setAircraft(aircraftOf(u));
         t.setItem("Oil");           // single short token — should fit one line
         t.setIsTitle(false);
         t.setTimelineOrder(1);
@@ -186,6 +188,7 @@ class DashboardLayoutTest extends BrowserTestBase {
 
         ServiceTimeline t = new ServiceTimeline();
         t.setUser(u);
+        t.setAircraft(aircraftOf(u));
         t.setItem("Magneto");
         t.setIsTitle(false);
         t.setTimelineOrder(1);
@@ -316,6 +319,7 @@ class DashboardLayoutTest extends BrowserTestBase {
         // "9600 days overdue" — the widest realistic Time Left content.
         ServiceTimeline t = new ServiceTimeline();
         t.setUser(u);
+        t.setAircraft(aircraftOf(u));
         t.setItem("Engine");
         t.setIsTitle(false);
         t.setTimelineOrder(1);
@@ -374,6 +378,7 @@ class DashboardLayoutTest extends BrowserTestBase {
         // the chevron — and we drive the +/- menu ourselves.
         ServiceTimeline t = new ServiceTimeline();
         t.setUser(u);
+        t.setAircraft(aircraftOf(u));
         t.setItem("Battery");
         t.setIsTitle(false);
         t.setTimelineOrder(1);

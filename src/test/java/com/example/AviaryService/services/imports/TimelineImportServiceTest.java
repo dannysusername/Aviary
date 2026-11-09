@@ -22,6 +22,9 @@ import com.example.AviaryService.repositories.ImportProposalRepository;
 import com.example.AviaryService.repositories.ServiceTimelineRepository;
 import com.example.AviaryService.repositories.TimelineImportRecordRepository;
 import com.example.AviaryService.repositories.UserRepository;
+import com.example.AviaryService.repositories.AircraftRepository;
+import com.example.AviaryService.support.TestFleet;
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.services.dashboard.TimelineService;
 import com.example.AviaryService.services.imports.TimelineImportService.ImportResult;
 import com.example.AviaryService.util.TimelineImportRules.InputItem;
@@ -41,6 +44,7 @@ class TimelineImportServiceTest {
     @Autowired ServiceTimelineRepository timelineRepository;
     @Autowired TimelineImportRecordRepository recordRepository;
     @Autowired UserRepository userRepository;
+    @Autowired AircraftRepository aircraftRepository;
 
     private User alice;
     private User bob;
@@ -55,13 +59,19 @@ class TimelineImportServiceTest {
         User u = new User();
         u.setUsername(prefix + System.nanoTime());
         u.setPassword("x");
-        u.setTimeInServiceHours(1000.0);
-        return userRepository.save(u);
+        userRepository.save(u);
+        TestFleet.addAircraft(aircraftRepository, userRepository, u, "", "", 0, 1000.0);
+        return u;
+    }
+
+    private Aircraft plane(User u) {
+        return aircraftRepository.findFirstByUserOrderByIdAsc(u).orElseThrow();
     }
 
     private ServiceTimeline existing(User owner, String name, int order) {
         ServiceTimeline t = new ServiceTimeline();
         t.setUser(owner);
+        t.setAircraft(plane(owner));
         t.setItem(name);
         t.setTimelineOrder(order);
         t.setLastDoneDate("2026-01-01");
@@ -89,7 +99,7 @@ class TimelineImportServiceTest {
     @Test
     void proposeLeavesTimelineUnchanged() {
         existing(alice, "Annual", 0);
-        ImportResult r = importService.propose(alice,
+        ImportResult r = importService.propose(alice, plane(alice),
             List.of(calendarItem("ELT", "2026-01-10", "12"), hoursItem("Oil", "1000", "50")), null, null);
         assertEquals("PROPOSED", r.status());
         assertNotNull(r.proposalId());
@@ -99,8 +109,8 @@ class TimelineImportServiceTest {
 
     @Test
     void secondProposalReplacesFirst() {
-        ImportResult first = importService.propose(alice, List.of(hoursItem("Oil", "1000", "50")), null, null);
-        ImportResult second = importService.propose(alice, List.of(hoursItem("Oil", "1000", "25")), null, null);
+        ImportResult first = importService.propose(alice, plane(alice), List.of(hoursItem("Oil", "1000", "50")), null, null);
+        ImportResult second = importService.propose(alice, plane(alice), List.of(hoursItem("Oil", "1000", "25")), null, null);
         assertEquals(ImportProposal.REPLACED, proposalRepository.findById(first.proposalId()).orElseThrow().getStatus());
         assertEquals(ImportProposal.OPEN, proposalRepository.findById(second.proposalId()).orElseThrow().getStatus());
         assertEquals("REPLACED", importService.confirm(alice, first.proposalId(), null).status());
@@ -108,7 +118,7 @@ class TimelineImportServiceTest {
 
     @Test
     void proposalExpiresAfter24Hours() {
-        ImportResult r = importService.propose(alice, List.of(hoursItem("Oil", "1000", "50")), null, null);
+        ImportResult r = importService.propose(alice, plane(alice), List.of(hoursItem("Oil", "1000", "50")), null, null);
         ImportProposal p = proposalRepository.findById(r.proposalId()).orElseThrow();
         assertEquals(TimelineImportService.PROPOSAL_TTL, java.time.Duration.between(p.getCreatedAt(), p.getExpiresAt()));
 
@@ -121,18 +131,18 @@ class TimelineImportServiceTest {
     @Test
     void proposalRateLimit() {
         for (int i = 0; i < TimelineImportService.PROPOSALS_PER_HOUR; i++) {
-            assertEquals("PROPOSED", importService.propose(alice, List.of(hoursItem("Oil", "1000", "50")), null, null).status());
+            assertEquals("PROPOSED", importService.propose(alice, plane(alice), List.of(hoursItem("Oil", "1000", "50")), null, null).status());
         }
-        ImportResult limited = importService.propose(alice, List.of(hoursItem("Oil", "1000", "50")), null, null);
+        ImportResult limited = importService.propose(alice, plane(alice), List.of(hoursItem("Oil", "1000", "50")), null, null);
         assertEquals("RATE_LIMITED", limited.status());
         assertNotNull(limited.retryAfterSeconds());
         // Per owner: bob is unaffected.
-        assertEquals("PROPOSED", importService.propose(bob, List.of(hoursItem("Oil", "1000", "50")), null, null).status());
+        assertEquals("PROPOSED", importService.propose(bob, plane(bob), List.of(hoursItem("Oil", "1000", "50")), null, null).status());
     }
 
     @Test
     void otherOwnerCannotUseProposal() {
-        ImportResult r = importService.propose(alice, List.of(hoursItem("Oil", "1000", "50")), null, null);
+        ImportResult r = importService.propose(alice, plane(alice), List.of(hoursItem("Oil", "1000", "50")), null, null);
         assertEquals("NOT_FOUND", importService.confirm(bob, r.proposalId(), null).status());
         assertEquals("NOT_FOUND", importService.continuePoorFit(bob, r.proposalId()).status());
         assertEquals(0, rows(bob).size());
@@ -141,7 +151,7 @@ class TimelineImportServiceTest {
 
     @Test
     void sourceRejectsAppearInProposal() {
-        ImportResult r = importService.propose(alice, List.of(hoursItem("Oil", "1000", "50")),
+        ImportResult r = importService.propose(alice, plane(alice), List.of(hoursItem("Oil", "1000", "50")),
             List.of(new RejectedRow("smudged line", "Unreadable")), null);
         assertEquals("PROPOSED", r.status());
         assertTrue(r.rejected().stream().anyMatch(x -> x.sourceRow().equals("smudged line")));
@@ -153,7 +163,7 @@ class TimelineImportServiceTest {
     void confirmAddsExactlyTheProposalAfterExistingRows() {
         existing(alice, "Annual", 0);
         existing(alice, "Transponder", 1);
-        ImportResult p = importService.propose(alice,
+        ImportResult p = importService.propose(alice, plane(alice),
             List.of(new InputItem("Engine", null, true, null, null, null, null, null, null, null, null, "ENGINE", null),
                     hoursItem("Oil", "1,000", "50"),
                     calendarItem("ELT", "2026-01-10", "12")), null, "https://assistant.example.com/oauth/client.json");
@@ -185,7 +195,7 @@ class TimelineImportServiceTest {
     void duplicatesSkippedUnlessOptedIn() {
         existing(alice, "Oil Change", 0);
         existing(alice, "Annual", 1);
-        ImportResult p = importService.propose(alice,
+        ImportResult p = importService.propose(alice, plane(alice),
             List.of(hoursItem("oil change", "1000", "50"), calendarItem("annual", "2026-02-01", "12"),
                     hoursItem("Mags", "1000", "500")), null, null);
         int annualIndex = p.items().stream().filter(i -> i.item().equals("annual")).findFirst().orElseThrow().index();
@@ -199,7 +209,7 @@ class TimelineImportServiceTest {
 
     @Test
     void matchAddedAfterProposalIsSkippedAndReported() {
-        ImportResult p = importService.propose(alice, List.of(hoursItem("Oil", "1000", "50"), hoursItem("Mags", "1000", "500")), null, null);
+        ImportResult p = importService.propose(alice, plane(alice), List.of(hoursItem("Oil", "1000", "50"), hoursItem("Mags", "1000", "500")), null, null);
         existing(alice, "OIL", 0);
         ImportResult r = importService.confirm(alice, p.proposalId(), null);
         assertEquals(1, r.addedCount());
@@ -208,7 +218,7 @@ class TimelineImportServiceTest {
 
     @Test
     void failedConfirmSavesNothing() {
-        ImportResult p = importService.propose(alice,
+        ImportResult p = importService.propose(alice, plane(alice),
             List.of(hoursItem("One", "1", "5"), hoursItem("Two", "1", "5"), hoursItem("Three", "1", "5")), null, null);
         // Corrupt item 3 in storage so its insert fails (name too long for the column).
         ImportProposal stored = proposalRepository.findById(p.proposalId()).orElseThrow();
@@ -232,7 +242,7 @@ class TimelineImportServiceTest {
 
     @Test
     void importedItemWorksWithCompleteMaintenance() {
-        ImportResult p = importService.propose(alice, List.of(hoursItem("Oil", "900", "50")), null, null);
+        ImportResult p = importService.propose(alice, plane(alice), List.of(hoursItem("Oil", "900", "50")), null, null);
         importService.confirm(alice, p.proposalId(), null);
         ServiceTimeline oil = rows(alice).get(0);
         TimelineService.CompletedMaintenance done = timelineService.completeMaintenance(alice, oil.getId());
@@ -242,7 +252,7 @@ class TimelineImportServiceTest {
 
     @Test
     void onConditionItemIsImportedAndLabeled() {
-        ImportResult p = importService.propose(alice, List.of(
+        ImportResult p = importService.propose(alice, plane(alice), List.of(
             new InputItem("Flexible Fluid Hose", "Replace", null, null, null, null, null, null, null, null, null, "hose row", true),
             new InputItem("Brake Pads", null, null, null, null, null, null, null, null, null, null, "pads row", true)),
             null, null);
@@ -267,7 +277,7 @@ class TimelineImportServiceTest {
     @Test
     void unrelatedInputCreatesNoProposal() {
         long before = proposalRepository.count();
-        ImportResult r = importService.propose(alice, List.of(junk("Banana bread: 3 bananas"), junk("Bake 350F 1 hr")), null, null);
+        ImportResult r = importService.propose(alice, plane(alice), List.of(junk("Banana bread: 3 bananas"), junk("Bake 350F 1 hr")), null, null);
         assertEquals("REJECTED", r.status());
         assertNull(r.proposalId());
         assertNotNull(r.example());
@@ -280,13 +290,13 @@ class TimelineImportServiceTest {
         long before = proposalRepository.count();
         List<InputItem> many = new java.util.ArrayList<>();
         for (int i = 0; i < 201; i++) many.add(hoursItem("Item " + i, "1", "5"));
-        assertEquals("TOO_LARGE", importService.propose(alice, many, null, null).status());
+        assertEquals("TOO_LARGE", importService.propose(alice, plane(alice), many, null, null).status());
         assertEquals(before, proposalRepository.count());
     }
 
     @Test
     void poorFitNeedsContinueBeforeConfirm() {
-        ImportResult p = importService.propose(alice,
+        ImportResult p = importService.propose(alice, plane(alice),
             List.of(hoursItem("Oil", "1000", "50"), junk("??"), junk("###")), null, null);
         assertEquals("POOR_FIT", p.status());
         assertEquals(ImportProposal.NEEDS_FIT_CONFIRMATION,

@@ -19,7 +19,10 @@ import com.example.AviaryService.entity.AlertPreference;
 import com.example.AviaryService.entity.AlertRecipient;
 import com.example.AviaryService.entity.ServiceTimeline;
 import com.example.AviaryService.entity.User;
+import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.AlertPreferenceRepository;
+import com.example.AviaryService.support.TestFleet;
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.repositories.AlertRecipientRepository;
 import com.example.AviaryService.repositories.AlertSendLogRepository;
 import com.example.AviaryService.repositories.ServiceTimelineRepository;
@@ -47,7 +50,10 @@ class AlertServiceIntegrationTest {
     @Autowired ServiceTimelineRepository serviceTimelineRepository;
     @Autowired UserRepository userRepository;
 
+    @Autowired AircraftRepository aircraftRepository;
+
     private User user;
+    private Aircraft plane;
 
     @BeforeEach
     void setUp() {
@@ -57,15 +63,14 @@ class AlertServiceIntegrationTest {
         user = new User();
         user.setUsername("alertuser-" + System.nanoTime());
         user.setPassword("x");
-        user.setTailNumber("N12345");
-        user.setOwnerName("Test Owner");
-        user.setTimeInServiceHours(1200.0);
         userRepository.save(user);
+        plane = TestFleet.addAircraft(aircraftRepository, userRepository, user, "N12345", "Test Owner", 0, 1200.0);
     }
 
     private ServiceTimeline item(String name, String dueDate, String dueHours) {
         ServiceTimeline t = new ServiceTimeline();
         t.setUser(user);
+        t.setAircraft(plane);
         t.setItem(name);
         t.setIsTitle(false);
         t.setTimelineOrder(1);
@@ -120,7 +125,7 @@ class AlertServiceIntegrationTest {
 
     @Test
     void addReceipient_blockedWithoutOwnerName() {
-        user.setOwnerName(" ");
+        plane.setOwnerName(" ");
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, 
             () -> recipientService.add(user, AlertRecipient.Channel.EMAIL, "a@example.com", null));
             assertEquals("Add your name in Aircraft Info first.", e.getMessage());
@@ -129,7 +134,7 @@ class AlertServiceIntegrationTest {
 
     @Test 
     void addRecipient_blockedWithoutTailNumber() {
-        user.setTailNumber(null);
+        plane.setTailNumber(null);
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, 
             () -> recipientService.add(user, AlertRecipient.Channel.EMAIL, "a@example.com", null));
             assertEquals("Add your tail number in Aircraft Info first.", e.getMessage());
@@ -139,13 +144,13 @@ class AlertServiceIntegrationTest {
     @Test
     void resend_blockedWithoutOwnerName() {
         AlertRecipient r = recipientService.add(user, AlertRecipient.Channel.EMAIL, "b@example.com", null);
-        user.setOwnerName(null);
+        plane.setOwnerName(null);
         assertThrows(IllegalArgumentException.class, () -> recipientService.resend(user, r.getId()));
     }
 
     @Test 
     void digest_usesBlockTimeLabels_andTailFallback() {
-        user.setTailNumber(null);
+        plane.setTailNumber(null);
         AlertDigest d = digestService.buildDigest(user, alertService.getOrCreatePrefs(user), false);
         assertTrue(d.body().contains("Block Time"));
         assertTrue(d.body().contains("Time in Service"));

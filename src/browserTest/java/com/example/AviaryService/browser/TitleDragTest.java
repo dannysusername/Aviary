@@ -39,6 +39,7 @@ class TitleDragTest extends BrowserTestBase {
     private void save(User u, String item, boolean isTitle, int order) {
         ServiceTimeline t = new ServiceTimeline();
         t.setUser(u);
+        t.setAircraft(aircraftOf(u));
         t.setItem(item);
         t.setIsTitle(isTitle);
         t.setTimelineOrder(order);

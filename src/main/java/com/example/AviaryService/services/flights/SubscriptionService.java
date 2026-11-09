@@ -3,28 +3,30 @@ package com.example.AviaryService.services.flights;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.Subscription;
 import com.example.AviaryService.entity.User;
+import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.SubscriptionRepository;
-import com.example.AviaryService.repositories.UserRepository;
 
-// Manages each user's flight-tracking subscription (one per user).
-// Always looks it up by user, not by tail number. Looking it up by tail number
-// used to miss the row when the tail number changed, so the app kept calling
-// AeroAPI for a plane the user couldn't unsubscribe from.
+// Manages each aircraft's flight-tracking subscription (one per aircraft).
+// Always looks it up by aircraft, not by tail number. Looking it up by tail
+// number used to miss the row when the tail number changed, so the app kept
+// calling AeroAPI for a plane the user couldn't unsubscribe from. The AeroAPI
+// key stays account-wide, on User.
 @Service
 public class SubscriptionService {
 
     private final SubscriptionRepository subscriptionRepository;
-    private final UserRepository userRepository;
+    private final AircraftRepository aircraftRepository;
 
-    public SubscriptionService(SubscriptionRepository subscriptionRepository, UserRepository userRepository) {
+    public SubscriptionService(SubscriptionRepository subscriptionRepository, AircraftRepository aircraftRepository) {
         this.subscriptionRepository = subscriptionRepository;
-        this.userRepository = userRepository;
+        this.aircraftRepository = aircraftRepository;
     }
 
     @Transactional
-    public Subscription subscribe(User user, String registration) {
+    public Subscription subscribe(User user, Aircraft aircraft, String registration) {
         if (user.getAeroApiKey() == null || user.getAeroApiKey().isEmpty()) {
             throw new IllegalArgumentException("Connect an AeroAPI key in Settings before turning on flight sync.");
         }
@@ -33,13 +35,14 @@ public class SubscriptionService {
             throw new IllegalArgumentException("Enter a registration number to subscribe.");
         }
 
-        Subscription sub = subscriptionRepository.findByUser(user).orElse(null);
+        Subscription sub = subscriptionRepository.findByAircraft(aircraft).orElse(null);
         if (sub != null && sub.isActive()) {
             throw new IllegalArgumentException("You're already subscribed. Unsubscribe first to change the registration.");
         }
 
         if (sub == null) {
             sub = new Subscription(user, reg);
+            sub.setAircraft(aircraft);
         } else {
             // Reactivating a kept row -- may be a different registration than
             // last time, and the schedule/lastChecked are deliberately kept.
@@ -49,19 +52,22 @@ public class SubscriptionService {
         }
         subscriptionRepository.save(sub);
 
-        // Seed the dashboard tail number only when it's empty; if the user
+        // Seed the aircraft's tail number only when it's empty; if it
         // already has a different one typed in, the client offers to line
-        // them up rather than overwriting silently.
-        if (user.getTailNumber() == null || user.getTailNumber().isBlank()) {
-            user.setTailNumber(reg);
-            userRepository.save(user);
+        // them up rather than overwriting silently. Skipped if another of
+        // this user's aircraft already uses that tail.
+        if ((aircraft.getTailNumber() == null || aircraft.getTailNumber().isBlank())
+                && !aircraftRepository.existsByUserAndTailNumberKeyAndIdNot(
+                    user, com.example.AviaryService.util.Validation.tailNumberKey(reg), aircraft.getId())) {
+            aircraft.setTailNumber(reg);
+            aircraftRepository.save(aircraft);
         }
         return sub;
     }
 
     @Transactional
-    public void unsubscribe(User user) {
-        Subscription sub = subscriptionRepository.findByUser(user)
+    public void unsubscribe(Aircraft aircraft) {
+        Subscription sub = subscriptionRepository.findByAircraft(aircraft)
             .orElseThrow(() -> new IllegalArgumentException("You don't have a subscription."));
         sub.setActive(false);
         subscriptionRepository.save(sub);
@@ -70,8 +76,8 @@ public class SubscriptionService {
     // Full removal, including the saved schedule. Must unsubscribe first, same
     // rule as editing the registration.
     @Transactional
-    public void delete(User user) {
-        Subscription sub = subscriptionRepository.findByUser(user).orElse(null);
+    public void delete(Aircraft aircraft) {
+        Subscription sub = subscriptionRepository.findByAircraft(aircraft).orElse(null);
         if (sub == null) {
             return;
         }
@@ -83,14 +89,14 @@ public class SubscriptionService {
 
     // See docs/specs/ADSB_SYNC_SPEC.md "Poll interval" for the 1-9 day / 0-23 hour bounds.
     @Transactional
-    public void updateSettings(User user, int pollIntervalDays, int preferredCheckHour) {
+    public void updateSettings(Aircraft aircraft, int pollIntervalDays, int preferredCheckHour) {
         if (pollIntervalDays < 1 || pollIntervalDays > 9) {
             throw new IllegalArgumentException("Check interval must be between 1 and 9 days.");
         }
         if (preferredCheckHour < 0 || preferredCheckHour > 23) {
             throw new IllegalArgumentException("Preferred hour must be between 0 and 23.");
         }
-        Subscription sub = subscriptionRepository.findByUser(user)
+        Subscription sub = subscriptionRepository.findByAircraft(aircraft)
             .orElseThrow(() -> new IllegalArgumentException("Turn on flight sync first."));
         sub.setPollIntervalDays(pollIntervalDays);
         sub.setPreferredCheckHour(preferredCheckHour);

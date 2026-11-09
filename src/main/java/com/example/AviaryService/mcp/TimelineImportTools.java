@@ -10,6 +10,7 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.oauth.CimdRegisteredClientRepository;
 import com.example.AviaryService.repositories.ServiceTimelineRepository;
@@ -35,17 +36,21 @@ public class TimelineImportTools {
     private final TimelineImportService importService;
     private final ServiceTimelineRepository timelineRepository;
     private final McpCurrentUser currentUser;
+    private final McpAircraftResolver aircraftResolver;
 
     public TimelineImportTools(TimelineImportService importService, ServiceTimelineRepository timelineRepository,
-                               McpCurrentUser currentUser) {
+                               McpCurrentUser currentUser, McpAircraftResolver aircraftResolver) {
         this.importService = importService;
         this.timelineRepository = timelineRepository;
         this.currentUser = currentUser;
+        this.aircraftResolver = aircraftResolver;
     }
 
     @Tool(name = "get_import_format", description = """
         How Aviary service timeline items must look, with the rules and an example. Call this first, then \
-        convert the owner's maintenance records (any format) into these items before proposing.""")
+        convert the owner's maintenance records (any format) into these items before proposing. Each aircraft \
+        has its own timeline: if list_aircraft shows more than one, ask the owner which aircraft the records \
+        are for and pass it as `aircraft`.""")
     public ImportFormat getImportFormat() {
         currentUser.requireScope(CimdRegisteredClientRepository.SCOPE_READ);
         Map<String, String> fields = new LinkedHashMap<>();
@@ -66,18 +71,20 @@ public class TimelineImportTools {
             TimelineImportRules.FORMAT_EXAMPLE);
     }
 
-    @Tool(name = "list_service_timeline", description = "The owner's current service timeline items, in order.")
-    public List<TimelineRow> listServiceTimeline() {
+    @Tool(name = "list_service_timeline", description = "One aircraft's current service timeline items, in order.")
+    public List<TimelineRow> listServiceTimeline(
+            @ToolParam(description = AIRCRAFT_PARAM, required = false) String aircraft) {
         currentUser.requireScope(CimdRegisteredClientRepository.SCOPE_READ);
         User user = currentUser.require();
+        Aircraft target = aircraftResolver.resolve(user, aircraft);
         LocalDate today = LocalDate.now();
-        return timelineRepository.findByUserOrderByTimelineOrderAsc(user).stream()
+        return timelineRepository.findByAircraftOrderByTimelineOrderAsc(target).stream()
             .map(t -> new TimelineRow(t.getId(), t.getItem(), t.getDescription(), t.getIsTitle(),
                 join(t.getLastDoneDate(), t.getLastDoneHours()),
                 join(t.getDueDateDate(), t.getDueDateHours()),
                 Formatting.formatCycle(t.getCycleCalendarValue(), t.getCycleCalendarUnit(), t.getCycleHours()),
                 t.getIsTitle() ? null
-                    : DueDates.formatTimeLeft(t.getDueDateDate(), t.getDueDateHours(), today, user.getTimeInServiceHours())))
+                    : DueDates.formatTimeLeft(t.getDueDateDate(), t.getDueDateHours(), today, target.getTimeInServiceHours())))
             .toList();
     }
 
@@ -85,14 +92,22 @@ public class TimelineImportTools {
         Preview importing service timeline items. Send every maintenance item in the owner's records -- an item \
         only needs a name. Changes nothing: returns a proposal with the items as Aviary would store them, flags \
         and notes for the owner to check, and rows that can't be imported with reasons. Show the owner the \
-        proposal before confirming. Calling this again replaces the previous proposal (use it to revise).""")
+        proposal before confirming. Calling this again for the same aircraft replaces the previous proposal \
+        (use it to revise).""")
     public ImportResult proposeTimelineImport(
             @ToolParam(description = "Items converted from the owner's records; see get_import_format") List<InputItem> items,
             @ToolParam(description = "Rows that are not maintenance items at all, each with a reason. Never put a real item here just because it has no dates.", required = false)
-            List<RejectedRow> rejectedBySource) {
+            List<RejectedRow> rejectedBySource,
+            @ToolParam(description = AIRCRAFT_PARAM, required = false) String aircraft) {
         currentUser.requireScope(CimdRegisteredClientRepository.SCOPE_IMPORT);
         User user = currentUser.require();
-        return importService.propose(user, items, rejectedBySource, currentUser.clientId());
+        Aircraft target;
+        try {
+            target = aircraftResolver.resolve(user, aircraft);
+        } catch (McpAircraftResolver.AircraftChoiceException e) {
+            return ImportResult.choose(e.getMessage());
+        }
+        return importService.propose(user, target, items, rejectedBySource, currentUser.clientId());
     }
 
     @Tool(name = "continue_poor_fit", description = """
@@ -115,6 +130,9 @@ public class TimelineImportTools {
         return importService.confirm(currentUser.require(), proposalId,
             addDuplicatesAnyway == null ? null : new HashSet<>(addDuplicatesAnyway));
     }
+
+    static final String AIRCRAFT_PARAM =
+        "Tail number or aircraftId from list_aircraft. Required when the owner has more than one aircraft.";
 
     private static String join(String date, String hours) {
         String d = date == null ? "" : date;

@@ -56,10 +56,12 @@ class OAuthFlowIntegrationTest {
     @Autowired OAuthAuthorizationRepository authorizationRepository;
     @Autowired ConnectionService connectionService;
     @Autowired com.example.AviaryService.repositories.FlightLogRepository flightLogRepository;
+    @Autowired com.example.AviaryService.repositories.AircraftRepository aircraftRepository;
     @MockitoBean CimdFetcher cimdFetcher;
 
     private final ObjectMapper json = new ObjectMapper();
     private User owner;
+    private com.example.AviaryService.entity.Aircraft plane;
 
     @BeforeEach
     void setUp() {
@@ -67,6 +69,7 @@ class OAuthFlowIntegrationTest {
         owner.setUsername("oauth-" + System.nanoTime());
         owner.setPassword("x");
         userRepository.save(owner);
+        plane = com.example.AviaryService.support.TestFleet.addAircraft(aircraftRepository, userRepository, owner);
         when(cimdFetcher.fetch(anyString())).thenReturn(new CimdFetcher.ClientMetadata(
             CLIENT_ID, "Test Assistant", List.of("http://localhost/callback")));
     }
@@ -186,6 +189,7 @@ class OAuthFlowIntegrationTest {
     void toolCallRunsAsTheTokenOwner() throws Exception {
         com.example.AviaryService.entity.FlightLog log = new com.example.AviaryService.entity.FlightLog();
         log.setUser(owner);
+        log.setAircraft(plane);
         log.setFromAirport("KPAO");
         log.setToAirport("KMRY");
         flightLogRepository.save(log);

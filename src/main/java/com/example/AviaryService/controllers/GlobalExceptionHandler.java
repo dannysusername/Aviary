@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.example.AviaryService.services.account.RateLimitedException;
+import com.example.AviaryService.services.aircraft.AircraftNotFoundException;
+import com.example.AviaryService.services.aircraft.AircraftRequiredException;
 
 // Catches errors from every controller and turns them into a clean JSON
 // error message, instead of a crash page (500). Has no URLs of its own.
@@ -25,6 +27,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(RateLimitedException.class)
     public ResponseEntity<Map<String, String>> rateLimited(RateLimitedException e) {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(body(e.getMessage()));
+    }
+
+    // An aircraft id that isn't this account's (or was removed in another tab).
+    @ExceptionHandler(AircraftNotFoundException.class)
+    public ResponseEntity<Map<String, String>> aircraftNotFound(AircraftNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body(e.getMessage()));
+    }
+
+    @ExceptionHandler(AircraftRequiredException.class)
+    public ResponseEntity<Map<String, String>> aircraftRequired(AircraftRequiredException e) {
+        return ResponseEntity.badRequest().body(body(e.getMessage()));
     }
 
     // Mostly text longer than its column. The explicit length checks catch the

@@ -1,5 +1,6 @@
 package com.example.AviaryService.browser;
 
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.UserRepository;
 import com.microsoft.playwright.options.LoadState;
@@ -67,10 +68,10 @@ class HoursTableEdgeCasesTest extends BrowserTestBase {
     @Test
     void decimalHoursRenderWithoutTruncation() {
         String username = seedUser("password");
-        User u = users.findByUsername(username);
+        Aircraft u = aircraftOf(username);
         u.setBlockTimeHours(1234.5);
         u.setTimeInServiceHours(987.6);
-        users.save(u);
+        aircraftRepository.save(u);
 
         List<String> errors = attachConsoleErrorListener();
         loginAs(username, "password");
@@ -91,10 +92,10 @@ class HoursTableEdgeCasesTest extends BrowserTestBase {
     @Test
     void veryLargeHoursValueRenders() {
         String username = seedUser("password");
-        User u = users.findByUsername(username);
+        Aircraft u = aircraftOf(username);
         u.setBlockTimeHours(99999.9);
         u.setTimeInServiceHours(99999.9);
-        users.save(u);
+        aircraftRepository.save(u);
 
         List<String> errors = attachConsoleErrorListener();
         loginAs(username, "password");
@@ -109,12 +110,12 @@ class HoursTableEdgeCasesTest extends BrowserTestBase {
     @Test
     void aircraftInfoFieldsPopulateInputs() {
         String username = seedUser("password");
-        User u = users.findByUsername(username);
+        Aircraft u = aircraftOf(username);
         u.setMakeModel("Cessna 172");
         u.setTailNumber("N12345");
         u.setOwnerName("Daniel I.");
         u.setMakeModelSN("17280342");
-        users.save(u);
+        aircraftRepository.save(u);
 
         List<String> errors = attachConsoleErrorListener();
         loginAs(username, "password");
@@ -134,10 +135,10 @@ class HoursTableEdgeCasesTest extends BrowserTestBase {
         // If the template forgot th:value escaping somewhere, "<script>" would
         // break the input and surface as a console/parse error.
         String username = seedUser("password");
-        User u = users.findByUsername(username);
+        Aircraft u = aircraftOf(username);
         u.setMakeModel("Boeing & Sons \"Best\" <model>");
         u.setTailNumber("N-1'2\"3");
-        users.save(u);
+        aircraftRepository.save(u);
 
         List<String> errors = attachConsoleErrorListener();
         loginAs(username, "password");
@@ -156,10 +157,10 @@ class HoursTableEdgeCasesTest extends BrowserTestBase {
         // Regression-shaped test: a zero value is a legitimate value and must
         // not render as blank.
         String username = seedUser("password");
-        User u = users.findByUsername(username);
+        Aircraft u = aircraftOf(username);
         u.setBlockTimeHours(0.0);
         u.setTimeInServiceHours(0.0);
-        users.save(u);
+        aircraftRepository.save(u);
 
         List<String> errors = attachConsoleErrorListener();
         loginAs(username, "password");
@@ -177,11 +178,11 @@ class HoursTableEdgeCasesTest extends BrowserTestBase {
         // The hours-updated span exposes data-updated + data-source which
         // dashboard.js reads to render the "last updated" label.
         String username = seedUser("password");
-        User u = users.findByUsername(username);
+        Aircraft u = aircraftOf(username);
         u.setBlockTimeHours(50.0);
         u.setBlockTimeUpdatedAt(java.time.Instant.parse("2025-10-01T12:00:00Z"));
         u.setBlockTimeUpdatedSource("manual");
-        users.save(u);
+        aircraftRepository.save(u);
 
         List<String> errors = attachConsoleErrorListener();
         loginAs(username, "password");

@@ -1,5 +1,6 @@
 package com.example.AviaryService.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 
@@ -64,6 +65,14 @@ public class ServiceTimeline {
     @JoinColumn(name = "user_id", nullable = false)
     @JsonBackReference
     private User user;
+
+    // The airplane this row belongs to. Nullable in the schema only so
+    // Hibernate's ddl-auto=update can add it to a populated table;
+    // AircraftBackfill fills existing rows and the services always set it.
+    @ManyToOne
+    @JoinColumn(name = "aircraft_id")
+    @JsonIgnore
+    private Aircraft aircraft;
 
     // Constructors
     public ServiceTimeline() {}
@@ -151,4 +160,6 @@ public class ServiceTimeline {
 
     public java.time.Instant getAlertLastFiredAt() { return alertLastFiredAt; }
     public void setAlertLastFiredAt(java.time.Instant alertLastFiredAt) { this.alertLastFiredAt = alertLastFiredAt; }
+    public Aircraft getAircraft() { return aircraft; }
+    public void setAircraft(Aircraft aircraft) { this.aircraft = aircraft; }
 }

@@ -19,11 +19,19 @@ public class Subscription {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long id;
 
-    // One flight-sync subscription per user. Every lookup is by user alone now,
-    // so this row is the single source of truth for "what is the poller watching".
+    // Owner, for ownership checks and the account-wide AeroAPI key. No longer
+    // unique: an account has one subscription per aircraft (see
+    // docs/migrations/2026-11-09_multi_aircraft.sql).
     @ManyToOne
-    @JoinColumn(name = "user_id", nullable = false, unique = true)
+    @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    // One flight-sync subscription per aircraft. Every lookup is by aircraft,
+    // so this row is the single source of truth for "what is the poller
+    // watching for this plane".
+    @ManyToOne
+    @JoinColumn(name = "aircraft_id", unique = true)
+    private Aircraft aircraft;
     private String tailNumber;
     private boolean active;
     private String status;
@@ -125,4 +133,6 @@ public class Subscription {
         this.preferredCheckHour = preferredCheckHour;
     }
 
+    public Aircraft getAircraft() { return aircraft; }
+    public void setAircraft(Aircraft aircraft) { this.aircraft = aircraft; }
 }
