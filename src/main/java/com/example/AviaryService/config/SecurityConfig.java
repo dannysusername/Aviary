@@ -19,7 +19,14 @@ import org.springframework.core.annotation.Order;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.introspection.OpaqueTokenIntrospector;
 
+import java.util.List;
+
+import org.springframework.http.HttpMethod;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
 import com.example.AviaryService.entity.User;
+import com.example.AviaryService.services.stats.PublicStatsProperties;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.services.account.LoginAttemptService;
 
@@ -87,8 +94,39 @@ public class SecurityConfig {
         return http.build();
     }
 
+    // /api/public/** is read by DanielIbarra.com's page from visitors' browsers
+    // (see PublicStatsController). No login, no session, no CSRF (GET only, no
+    // cookies). Every other method is refused. CORS lets only the sites in
+    // aviary.public-stats.allowed-origins read the answer from a browser.
     @Bean
     @Order(2)
+    public SecurityFilterChain publicApiFilterChain(HttpSecurity http, PublicStatsProperties statsProps) throws Exception {
+        CorsConfiguration cors = new CorsConfiguration();
+        cors.setAllowedOrigins(statsProps.allowedOrigins());
+        cors.setAllowedMethods(List.of("GET"));
+        cors.setAllowCredentials(false);
+        cors.setMaxAge(3600L);
+        UrlBasedCorsConfigurationSource corsSource = new UrlBasedCorsConfigurationSource();
+        corsSource.registerCorsConfiguration("/api/public/**", cors);
+
+        http
+            .securityMatcher("/api/public/**")
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers(HttpMethod.GET, "/api/public/**").permitAll()
+                .requestMatchers(HttpMethod.OPTIONS, "/api/public/**").permitAll()
+                .anyRequest().denyAll())
+            .cors(c -> c.configurationSource(corsSource))
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .requestCache(cache -> cache.disable())
+            .securityContext(ctx -> ctx.disable())
+            .csrf(csrf -> csrf.disable())
+            .exceptionHandling(ex -> ex.accessDeniedHandler((request, response, e) -> response.setStatus(403))
+                .authenticationEntryPoint((request, response, e) -> response.setStatus(403)));
+        return http.build();
+    }
+
+    @Bean
+    @Order(3)
     public SecurityFilterChain staticResourcesFilterChain(HttpSecurity http) throws Exception {
         http
             .securityMatcher("/css/**", "/js/**", "/images/**")
@@ -99,7 +137,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    @Order(3)
+    @Order(4)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         System.out.println("SecurityConfig loaded");
         http

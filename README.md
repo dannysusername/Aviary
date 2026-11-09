@@ -141,6 +141,24 @@ push to main
 
 **Try it locally:** run `./gradlew bootRun`, then add `http://localhost:8080/mcp` as a remote MCP server in an MCP client (or use the [MCP Inspector](https://github.com/modelcontextprotocol/inspector)) and sign in with a seeded account.
 
+## Public stats endpoint
+
+`GET /api/public/stats` feeds the live Aviary panel on [danielibarra.com](https://danielibarra.com). It's public (no login) and read-only, and it returns only totals plus up to 10 anonymous, date-only signup lines. It never returns anything about one account.
+
+```json
+{"users":11,"aircraft":12,"flights":25,"hoursFlown":0.0,"alertsSent":1,
+ "signupsLast7Days":0,"signupsLast30Days":0,
+ "recentSignups":[{"label":"New pilot joined","date":"2026-11-12"}],
+ "generatedAt":"2026-11-12T18:30:00Z"}
+```
+
+- **Cached:** counts are computed at most once every 15 minutes, and only when someone asks, so the endpoint never wakes the database on a timer. Responses carry `Cache-Control: public, max-age=300`.
+- **Rate limited:** 60 calls per IP per 10 minutes, then `429`.
+- **CORS:** only sites in `aviary.public-stats.allowed-origins` (env `AVIARY_PUBLIC_STATS_ORIGINS`, default `https://danielibarra.com,https://www.danielibarra.com`) can read it from a browser. Add `http://localhost:5050` to preview the portfolio locally.
+- **Counts:** every account is counted, test accounts included for now. Signup dates (`users.created_at`) start with accounts created after this shipped; older accounts count as users but never appear in the feed.
+
+Design and contract: [specs/004-public-aviary-stats/](specs/004-public-aviary-stats/).
+
 ## Architecture
 
 The app is a small, conventional Spring MVC project under `src/main/java/com/example/AviaryService/`:

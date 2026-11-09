@@ -2,10 +2,14 @@ package com.example.AviaryService;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.scheduling.annotation.EnableScheduling;
+
+import com.example.AviaryService.services.stats.PublicStatsProperties;
 
 @SpringBootApplication
 @EnableScheduling
+@EnableConfigurationProperties(PublicStatsProperties.class)
 public class AviaryServiceApplication {
 
 	public static void main(String[] args) {
