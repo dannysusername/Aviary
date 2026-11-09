@@ -33,6 +33,7 @@
             <div th:replace="~{fragments/assistant-hints :: hints}"></div>
             <p id="connect-next">
                 Then paste your maintenance spreadsheet or list and ask it to import into Aviary.
+                If you track more than one aircraft, tell it which tail number the records are for.
                 You'll see a preview first &mdash; nothing is added until you say so.
             </p>
         </section>
@@ -56,7 +57,7 @@
                 </span>
                 <ul class="connection-imports" th:if="${imports[c.clientId] != null}">
                     <li th:each="r : ${imports[c.clientId]}"
-                        th:text="${#temporals.format(r.importedAt, 'MMM d, yyyy', 'UTC')} + ': added ' + ${r.itemCount} + ' items'">Oct 20, 2026: added 3 items</li>
+                        th:text="${#temporals.format(r.importedAt, 'MMM d, yyyy', 'UTC')} + ': added ' + ${r.itemCount} + ' items' + (${r.aircraftLabel != null} ? ' to ' + ${r.aircraftLabel} : '')">Oct 20, 2026: added 3 items</li>
                 </ul>
                 <form method="post" th:action="@{/account/connections/{id}/disconnect(id=${c.id})}">
                     <button type="submit" class="connection-disconnect">Disconnect</button>

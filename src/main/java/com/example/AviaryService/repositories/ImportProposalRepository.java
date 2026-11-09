@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.ImportProposal;
 import com.example.AviaryService.entity.User;
 
@@ -14,4 +15,7 @@ import com.example.AviaryService.entity.User;
 public interface ImportProposalRepository extends JpaRepository<ImportProposal, Long> {
     Optional<ImportProposal> findByIdAndUser(Long id, User user);
     List<ImportProposal> findByUserAndStatusIn(User user, Collection<String> statuses);
+    // A new proposal only replaces live proposals for the same aircraft.
+    List<ImportProposal> findByUserAndAircraftAndStatusIn(User user, Aircraft aircraft, Collection<String> statuses);
+    List<ImportProposal> findByAircraft(Aircraft aircraft);
 }

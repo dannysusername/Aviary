@@ -11,15 +11,18 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.AlertPreference;
 import com.example.AviaryService.entity.ServiceTimeline;
 import com.example.AviaryService.entity.User;
+import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.ServiceTimelineRepository;
 import com.example.AviaryService.util.DueDates;
 import com.example.AviaryService.util.Formatting;
 
 // Decides what goes in a user's alert message. Checks each maintenance item
-// against the user's alert settings and writes the subject and body.
+// in the whole fleet against the user's alert settings and writes the
+// subject and body: one email for every aircraft, grouped by tail number.
 //   buildDigest(...) -- only reads; decides if anything should be sent
 //   markFired(...)   -- remembers what was alerted, so an item isn't alerted
 //                       again unless it gets worse
@@ -31,22 +34,29 @@ public class AlertDigestService {
         DateTimeFormatter.ofPattern("MMM d, yyyy h:mm a 'UTC'").withZone(ZoneOffset.UTC);
 
     private final ServiceTimelineRepository serviceTimelineRepository;
+    private final AircraftRepository aircraftRepository;
 
-    public AlertDigestService(ServiceTimelineRepository serviceTimelineRepository) {
+    public AlertDigestService(ServiceTimelineRepository serviceTimelineRepository,
+            AircraftRepository aircraftRepository) {
         this.serviceTimelineRepository = serviceTimelineRepository;
+        this.aircraftRepository = aircraftRepository;
     }
 
     public AlertDigest buildDigest(User user, AlertPreference prefs, boolean baseline) {
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
-        Double tis = user.getTimeInServiceHours();
+        List<Aircraft> fleet = aircraftRepository.findByUserOrderByIdAsc(user);
 
-        List<ServiceTimeline> rows = serviceTimelineRepository.findByUserOrderByTimelineOrderAsc(user);
+        // Every row across the fleet, grouped by aircraft. Each hours-cycle
+        // row is judged against ITS OWN aircraft's time in service, never
+        // another plane's (Constitution II).
+        List<ServiceTimeline> rows = serviceTimelineRepository.findByUserOrderByAircraftIdAscTimelineOrderAsc(user);
 
         List<Row> evaluated = new ArrayList<>();
         for (ServiceTimeline t : rows) {
             if (t.getIsTitle()) {
                 continue;
             }
+            Double tis = timeInServiceOf(t);
             AlertLevel current = DueDates.classify(
                 t.getDueDateDate(), t.getDueDateHours(), tis, today,
                 prefs.getLeadTimeDays(), prefs.getLeadTimeHours());
@@ -66,8 +76,8 @@ public class AlertDigestService {
 
         boolean shouldSend = baseline || !changed.isEmpty() || renudgeDue;
 
-        String subject = buildSubject(user, overdue, dueSoon);
-        String body = buildBody(user, evaluated, changed, baseline, overdue, dueSoon);
+        String subject = buildSubject(fleet, overdue, dueSoon);
+        String body = buildBody(fleet, evaluated, changed, baseline, overdue, dueSoon);
 
         return new AlertDigest(shouldSend, subject, body, overdue, dueSoon);
     }
@@ -76,16 +86,15 @@ public class AlertDigestService {
     // a successful send and for the baseline.
     public void markFired(User user, AlertPreference prefs) {
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
-        Double tis = user.getTimeInServiceHours();
         Instant now = Instant.now();
 
-        List<ServiceTimeline> rows = serviceTimelineRepository.findByUserOrderByTimelineOrderAsc(user);
+        List<ServiceTimeline> rows = serviceTimelineRepository.findByUserOrderByAircraftIdAscTimelineOrderAsc(user);
         for (ServiceTimeline t : rows) {
             if (t.getIsTitle()) {
                 continue;
             }
             AlertLevel current = DueDates.classify(
-                t.getDueDateDate(), t.getDueDateHours(), tis, today,
+                t.getDueDateDate(), t.getDueDateHours(), timeInServiceOf(t), today,
                 prefs.getLeadTimeDays(), prefs.getLeadTimeHours());
             t.setAlertLevel(current.stored());
             if (current != AlertLevel.OK) {
@@ -95,11 +104,16 @@ public class AlertDigestService {
         serviceTimelineRepository.saveAll(rows);
     }
 
+    private static Double timeInServiceOf(ServiceTimeline t) {
+        return t.getAircraft() == null ? null : t.getAircraft().getTimeInServiceHours();
+    }
+
     // -- rendering --
 
-    private String buildSubject(User user, int overdue, int dueSoon) {
-        String tail = user.getTailNumber() == null || user.getTailNumber().isBlank()
-            ? "Your aircraft" : user.getTailNumber();
+    private String buildSubject(List<Aircraft> fleet, int overdue, int dueSoon) {
+        String tail = fleet.size() > 1
+            ? "Your fleet"
+            : (fleet.isEmpty() ? "Your aircraft" : AlertText.tailOf(fleet.get(0), "Your aircraft"));
         if (overdue == 0 && dueSoon == 0) {
             return tail + " — maintenance status";
         }
@@ -109,15 +123,17 @@ public class AlertDigestService {
         return tail + " — " + String.join(", ", parts);
     }
 
-    private String buildBody(User user, List<Row> evaluated, List<Row> changed,
+    private String buildBody(List<Aircraft> fleet, List<Row> evaluated, List<Row> changed,
                              boolean baseline, int overdue, int dueSoon) {
         StringBuilder sb = new StringBuilder();
+        boolean multi = fleet.size() > 1;
 
-        String tail = AlertText.tail(user);
-        String makeModel = orDash(user.getMakeModel());
-        sb.append("Maintenance status for ").append(tail);
-        if (!"—".equals(makeModel)) {
-            sb.append(" (").append(makeModel).append(')');
+        sb.append("Maintenance status for ").append(AlertText.tail(fleet));
+        if (!multi && !fleet.isEmpty()) {
+            String makeModel = orDash(fleet.get(0).getMakeModel());
+            if (!"—".equals(makeModel)) {
+                sb.append(" (").append(makeModel).append(')');
+            }
         }
         sb.append("\nas of ").append(STAMP.format(Instant.now())).append("\n");
 
@@ -127,18 +143,43 @@ public class AlertDigestService {
         } else if (!changed.isEmpty()) {
             sb.append("\nWhat changed:\n");
             for (Row r : changed) {
-                sb.append("  • ").append(label(r.current)).append("  ")
-                  .append(r.row.getItem()).append(" — ").append(r.timeLeft).append('\n');
+                sb.append("  • ").append(label(r.current)).append("  ");
+                if (multi) sb.append(AlertText.tailOf(r.row.getAircraft(), "Unnamed aircraft")).append(": ");
+                sb.append(r.row.getItem()).append(" — ").append(r.timeLeft).append('\n');
             }
         }
 
         sb.append("\nFull status (").append(overdue).append(" overdue, ")
           .append(dueSoon).append(" due soon):\n");
-        List<Row> sorted = new ArrayList<>(evaluated);
-        sorted.sort(Comparator.comparingInt((Row r) -> -r.current.ordinal()));
-        if (sorted.isEmpty()) {
+        if (evaluated.isEmpty()) {
             sb.append("  (no maintenance items)\n");
         }
+
+        if (!multi) {
+            appendRows(sb, evaluated);
+            if (!fleet.isEmpty()) appendHours(sb, "Aircraft hours", fleet.get(0));
+            return sb.toString();
+        }
+
+        // One section per aircraft that has items, in fleet order.
+        for (Aircraft a : fleet) {
+            List<Row> mine = evaluated.stream()
+                .filter(r -> r.row.getAircraft() != null && a.getId().equals(r.row.getAircraft().getId()))
+                .toList();
+            if (mine.isEmpty()) continue;
+            sb.append("\n").append(AlertText.tailOf(a, "Unnamed aircraft"));
+            String makeModel = orDash(a.getMakeModel());
+            if (!"—".equals(makeModel)) sb.append(" · ").append(makeModel);
+            sb.append('\n');
+            appendRows(sb, mine);
+            appendHours(sb, "  Hours", a);
+        }
+        return sb.toString();
+    }
+
+    private static void appendRows(StringBuilder sb, List<Row> rows) {
+        List<Row> sorted = new ArrayList<>(rows);
+        sorted.sort(Comparator.comparingInt((Row r) -> -r.current.ordinal()));
         for (Row r : sorted) {
             sb.append("  ").append(String.format("%-9s", label(r.current))).append(' ')
               .append(r.row.getItem());
@@ -147,11 +188,11 @@ public class AlertDigestService {
             }
             sb.append('\n');
         }
+    }
 
-        sb.append("\nAircraft hours: Block Time ").append(hours(user.getBlockTimeHours()))
-          .append(" · Time in Service ").append(hours(user.getTimeInServiceHours())).append('\n');
-
-        return sb.toString();
+    private static void appendHours(StringBuilder sb, String label, Aircraft a) {
+        sb.append("\n").append(label).append(": Block Time ").append(hours(a.getBlockTimeHours()))
+          .append(" · Time in Service ").append(hours(a.getTimeInServiceHours())).append('\n');
     }
 
     private static String label(AlertLevel level) {

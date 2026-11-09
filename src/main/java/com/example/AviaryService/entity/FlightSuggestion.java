@@ -1,5 +1,6 @@
 package com.example.AviaryService.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.time.Instant;
 
 import jakarta.persistence.Column;
@@ -28,6 +29,14 @@ public class FlightSuggestion {
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    // The airplane this row belongs to. Nullable in the schema only so
+    // Hibernate's ddl-auto=update can add it to a populated table;
+    // AircraftBackfill fills existing rows and the services always set it.
+    @ManyToOne
+    @JoinColumn(name = "aircraft_id")
+    @JsonIgnore
+    private Aircraft aircraft;
 
     @Column(nullable = false)
     private String tailNumber;
@@ -90,4 +99,6 @@ public class FlightSuggestion {
     public void setStatus(String status) { this.status = status; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
+    public Aircraft getAircraft() { return aircraft; }
+    public void setAircraft(Aircraft aircraft) { this.aircraft = aircraft; }
 }

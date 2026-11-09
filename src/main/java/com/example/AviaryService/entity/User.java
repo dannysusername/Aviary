@@ -1,9 +1,11 @@
 package com.example.AviaryService.entity;
 
 import jakarta.persistence.*;
+import java.util.ArrayList;
 import java.util.List;
 
 import com.example.AviaryService.config.AeroApiKeyConverter;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 
 @Entity
@@ -27,44 +29,21 @@ public class User {
     @JsonManagedReference
     private List<FlightLog> flightLogs;
 
-    @Column
-    private Double blockTimeHours;
+    // The owner's fleet. Every account has at least one; the per-plane info
+    // card, hours and baselines that used to be columns here now live on
+    // Aircraft. The old users columns stay in the table, unmapped, for one
+    // release so a code rollback still finds them (AircraftBackfill reads
+    // them once). See specs/003-multi-aircraft-fleet/research.md R1, R3.
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
+    @OrderBy("id ASC")
+    @JsonIgnore
+    private List<Aircraft> aircraft = new ArrayList<>();
 
-    @Column
-    private Double timeInServiceHours;
-
-    @Column
-    private String makeModel;
-
-    @Column
-    private String tailNumber;
-
-    @Column
-    private String ownerName;
-
-    @Column
-    private String makeModelSN;
-
-    @Column
-    private java.time.Instant blockTimeUpdatedAt;
-
-    @Column
-    private java.time.Instant timeInServiceUpdatedAt;
-
-    @Column
-    private String blockTimeUpdatedSource;
-
-    @Column
-    private String timeInServiceUpdatedSource;
-
-    // Manual "floor" for the airframe meter. Any manual edit on /updateHours
-    // writes this column too; log-book activity can only raise the displayed
-    // value above this floor, never below it. See computeDisplayedHours().
-    @Column
-    private Double blockTimeManualBaseline;
-
-    @Column
-    private Double timeInServiceManualBaseline;
+    // The aircraft the dashboard opens on. Null or dangling -> first aircraft.
+    @ManyToOne
+    @JoinColumn(name = "last_viewed_aircraft_id")
+    @JsonIgnore
+    private Aircraft lastViewedAircraft;
 
     @Convert(converter = AeroApiKeyConverter.class)
     @Column
@@ -77,26 +56,7 @@ public class User {
     public User(String username, String password){
         this.username = username;
         this.password = password;
-        this.blockTimeHours = 0.0;
-        this.timeInServiceHours = 0.0;
-        this.makeModel = ""; 
-        this.tailNumber = "";
-        this.ownerName = "";
-        this.makeModelSN = "";
         this.aeroApiKey = "";
-
-    }
-
-    public User(String username, String password, double blockTimeHours, double timeInServiceHours){
-        this.username = username;
-        this.password = password;
-        this.blockTimeHours = blockTimeHours;
-        this.timeInServiceHours = timeInServiceHours;
-        this.makeModel = ""; 
-        this.tailNumber = "";
-        this.ownerName = "";
-        this.makeModelSN = "";
-
     }
 
     public long getId() {
@@ -113,22 +73,6 @@ public class User {
 
     public List<ServiceTimeline> getServiceTimeline() {
         return serviceTimeline;
-    }
-    
-    public Double getBlockTimeHours() {
-        return blockTimeHours !=null ? blockTimeHours : 0.0;
-    }
-
-    public void setBlockTimeHours(Double blockTimeHours) {
-        this.blockTimeHours = (blockTimeHours != null) ? blockTimeHours : 0.0;
-    }
-
-    public Double getTimeInServiceHours() {
-        return timeInServiceHours !=null ? timeInServiceHours : 0.0;
-    }
-
-    public void setTimeInServiceHours(Double timeInServiceHours) {
-        this.timeInServiceHours = (timeInServiceHours != null) ? timeInServiceHours : 0.0;
     }
 
     public void setId(long id) {
@@ -147,63 +91,19 @@ public class User {
         this.serviceTimeline = serviceTimeline;
     }
 
-    public String getMakeModel() { 
-        return makeModel; 
-    }
-    public void setMakeModel(String makeModel) { 
-        this.makeModel = makeModel; 
-    }
-
-    public String getTailNumber() { 
-        return tailNumber; 
-    }
-
-    public void setTailNumber(String tailNumber) { 
-        this.tailNumber = tailNumber; 
-    }
-
-    public String getOwnerName() { 
-        return ownerName; 
-    }
-    
-    public void setOwnerName(String ownerName) { 
-        this.ownerName = ownerName; 
-    }
-
-    public String getMakeModelSN() { 
-        return makeModelSN; 
-    }
-    
-    public void setMakeModelSN(String makeModelSN) { 
-        this.makeModelSN = makeModelSN; 
-    }
-
     public List<FlightLog> getFlightLogs() {
         return flightLogs;
     }
-    
+
     public void setFlightLogs(List<FlightLog> flightLogs) {
         this.flightLogs = flightLogs;
     }
 
-    public java.time.Instant getBlockTimeUpdatedAt() { return blockTimeUpdatedAt; }
-    public void setBlockTimeUpdatedAt(java.time.Instant blockTimeUpdatedAt) { this.blockTimeUpdatedAt = blockTimeUpdatedAt; }
+    public List<Aircraft> getAircraft() { return aircraft; }
+    public void setAircraft(List<Aircraft> aircraft) { this.aircraft = aircraft; }
 
-    public java.time.Instant getTimeInServiceUpdatedAt() { return timeInServiceUpdatedAt; }
-    public void setTimeInServiceUpdatedAt(java.time.Instant timeInServiceUpdatedAt) { this.timeInServiceUpdatedAt = timeInServiceUpdatedAt; }
-
-    public String getBlockTimeUpdatedSource() { return blockTimeUpdatedSource; }
-    public void setBlockTimeUpdatedSource(String blockTimeUpdatedSource) { this.blockTimeUpdatedSource = blockTimeUpdatedSource; }
-
-    public String getTimeInServiceUpdatedSource() { return timeInServiceUpdatedSource; }
-    public void setTimeInServiceUpdatedSource(String timeInServiceUpdatedSource) { this.timeInServiceUpdatedSource = timeInServiceUpdatedSource; }
-
-    // Nullable on purpose: callers must distinguish "never set" from "set to 0".
-    public Double getBlockTimeManualBaseline() { return blockTimeManualBaseline; }
-    public void setBlockTimeManualBaseline(Double blockTimeManualBaseline) { this.blockTimeManualBaseline = blockTimeManualBaseline; }
-
-    public Double getTimeInServiceManualBaseline() { return timeInServiceManualBaseline; }
-    public void setTimeInServiceManualBaseline(Double timeInServiceManualBaseline) { this.timeInServiceManualBaseline = timeInServiceManualBaseline; }
+    public Aircraft getLastViewedAircraft() { return lastViewedAircraft; }
+    public void setLastViewedAircraft(Aircraft lastViewedAircraft) { this.lastViewedAircraft = lastViewedAircraft; }
 
     public String getAeroApiKey() {
         return aeroApiKey;

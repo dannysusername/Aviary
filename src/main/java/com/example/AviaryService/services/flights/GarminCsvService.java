@@ -9,7 +9,7 @@ import java.util.Set;
 
 import org.springframework.stereotype.Service;
 
-import com.example.AviaryService.entity.User;
+import com.example.AviaryService.entity.Aircraft;
 
 // Reads a Garmin G1000 CSV file for the logbook's "Upload CSV" button and works
 // out the block time and airborne time. Only reads; nothing is saved until the
@@ -29,7 +29,7 @@ public class GarminCsvService {
     // (engine running) and airborne time, then pre-fills Out/In readings
     // from the user's current hours. Returns ok=false with an "error" entry
     // when the file isn't a Garmin CSV or no engine run is found.
-    public CsvParseResult parse(InputStream in, User user) {
+    public CsvParseResult parse(InputStream in, Aircraft aircraft) {
 
         // Block time: first → last row where oil pressure > 15 psi.
         // Mirrors the physical BlockTime meter on the Cirrus, which is oil-pressure activated.
@@ -169,9 +169,9 @@ public class GarminCsvService {
                 airStr = "H:" + airDuration.toHoursPart() + " M:" + airDuration.toMinutesPart() + " S:" + airDuration.toSecondsPart();
             }
 
-            double blockTimeOut = user.getBlockTimeHours();
+            double blockTimeOut = aircraft.getBlockTimeHours();
             double blockTimeIn  = Math.round((blockTimeOut + blockDuration.toSeconds() / 3600.0) * 100.0) / 100.0;
-            double timeInServiceOut  = user.getTimeInServiceHours();
+            double timeInServiceOut  = aircraft.getTimeInServiceHours();
             Double timeInServiceIn   = airDuration != null
                 ? Math.round((timeInServiceOut + airDuration.toSeconds() / 3600.0) * 100.0) / 100.0
                 : null;

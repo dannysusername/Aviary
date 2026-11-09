@@ -11,10 +11,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.AlertRecipient;
 import com.example.AviaryService.entity.AlertRecipient.Channel;
 import com.example.AviaryService.entity.AlertRecipient.Status;
 import com.example.AviaryService.entity.User;
+import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.AlertRecipientRepository;
 import com.example.AviaryService.services.messaging.OutboundEmailLimiter;
 
@@ -39,12 +41,14 @@ public class AlertRecipientService {
     private final AlertRecipientRepository recipientRepository;
     private final NotificationService notificationService;
     private final OutboundEmailLimiter emailLimiter;
+    private final AircraftRepository aircraftRepository;
 
     public AlertRecipientService(AlertRecipientRepository recipientRepository,
-            NotificationService notificationService, OutboundEmailLimiter emailLimiter) {
+            NotificationService notificationService, OutboundEmailLimiter emailLimiter, AircraftRepository aircraftRepository) {
         this.recipientRepository = recipientRepository;
         this.notificationService = notificationService;
         this.emailLimiter = emailLimiter;
+        this.aircraftRepository = aircraftRepository;
     }
 
     public List<AlertRecipient> list(User user) {
@@ -146,8 +150,9 @@ public class AlertRecipientService {
         String confirmUrl = base.isBlank() ? "(link unavailable -- alerts base URL not configured)"
             : base + "/alerts/confirm?token=" + r.getConfirmToken();
         String declineUrl = base.isBlank() ? "" : base + "/alerts/decline?token=" + r.getConfirmToken();
-        String tail = AlertText.tail(r.getUser());
-        String owner = AlertText.owner(r.getUser());
+        List<Aircraft> fleet = aircraftRepository.findByUserOrderByIdAsc(r.getUser());
+        String tail = AlertText.tail(fleet);
+        String owner = AlertText.owner(fleet);
 
         if (r.getChannelEnum() == Channel.EMAIL) {
             String body = ""
@@ -177,16 +182,17 @@ public class AlertRecipientService {
 
     // A recipient's emails name the owner and aircraft, so both must be set
     // before anyone is invited
-    private static void requireProfile(User user) {
-
-        if((user.getOwnerName() == null || user.getOwnerName().isBlank()) && (user.getTailNumber() == null || user.getTailNumber().isBlank())) {
+    private void requireProfile(User user) {
+        List<Aircraft> fleet = aircraftRepository.findByUserOrderByIdAsc(user);
+        boolean hasOwner = AlertText.anyOwnerName(fleet);
+        boolean hasTail = AlertText.anyTailNumber(fleet);
+        if (!hasOwner && !hasTail) {
             throw new IllegalArgumentException("Add your name AND tail number in Aircraft Info first.");
         }
-
-        if(user.getOwnerName() == null || user.getOwnerName().isBlank()) {
+        if (!hasOwner) {
             throw new IllegalArgumentException("Add your name in Aircraft Info first.");
         }
-        if(user.getTailNumber() == null || user.getTailNumber().isBlank()) {
+        if (!hasTail) {
             throw new IllegalArgumentException("Add your tail number in Aircraft Info first.");
         }
     }

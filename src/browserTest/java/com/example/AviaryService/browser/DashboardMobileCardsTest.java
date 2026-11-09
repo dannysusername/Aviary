@@ -52,6 +52,7 @@ class DashboardMobileCardsTest extends BrowserTestBase {
     private void seedData(User user) {
         ServiceTimeline title = new ServiceTimeline();
         title.setUser(user);
+        title.setAircraft(aircraftOf(user));
         title.setItem("ENGINE");
         title.setIsTitle(true);
         title.setTimelineOrder(0);
@@ -59,6 +60,7 @@ class DashboardMobileCardsTest extends BrowserTestBase {
 
         ServiceTimeline item = new ServiceTimeline();
         item.setUser(user);
+        item.setAircraft(aircraftOf(user));
         item.setItem("Annual Inspection");
         item.setIsTitle(false);
         item.setTimelineOrder(1);
@@ -73,6 +75,7 @@ class DashboardMobileCardsTest extends BrowserTestBase {
 
         FlightLog log = new FlightLog();
         log.setUser(user);
+        log.setAircraft(aircraftOf(user));
         log.setFromAirport("KSQL");
         log.setToAirport("KPAO");
         log.setBlockTimeOut(1234.5);

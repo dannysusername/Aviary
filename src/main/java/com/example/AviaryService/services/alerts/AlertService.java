@@ -13,10 +13,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.AlertPreference;
 import com.example.AviaryService.entity.AlertRecipient;
 import com.example.AviaryService.entity.AlertRecipient.Status;
 import com.example.AviaryService.entity.User;
+import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.AlertPreferenceRepository;
 import com.example.AviaryService.repositories.AlertRecipientRepository;
 import com.example.AviaryService.repositories.AlertSendLogRepository;
@@ -36,17 +38,19 @@ public class AlertService {
     private final AlertSendLogRepository sendLogRepository;
     private final AlertDigestService digestService;
     private final NotificationService notificationService;
+    private final AircraftRepository aircraftRepository;
 
     public AlertService(AlertPreferenceRepository preferenceRepository,
             AlertRecipientRepository recipientRepository,
             AlertSendLogRepository sendLogRepository,
             AlertDigestService digestService,
-            NotificationService notificationService) {
+            NotificationService notificationService, AircraftRepository aircraftRepository) {
         this.preferenceRepository = preferenceRepository;
         this.recipientRepository = recipientRepository;
         this.sendLogRepository = sendLogRepository;
         this.digestService = digestService;
         this.notificationService = notificationService;
+        this.aircraftRepository = aircraftRepository;
     }
 
     @Transactional
@@ -151,8 +155,8 @@ public class AlertService {
 
     private void sendReminder(AlertRecipient r) {
         String base = notificationService.baseUrl();
-        String tail = r.getUser().getTailNumber() == null || r.getUser().getTailNumber().isBlank()
-            ? "an aircraft" : r.getUser().getTailNumber();
+        List<Aircraft> fleet = aircraftRepository.findByUserOrderByIdAsc(r.getUser());
+        String tail = fleet.size() == 1 ? AlertText.tailOf(fleet.get(0), "an aircraft") : AlertText.tail(fleet);
         String confirmUrl = base.isBlank() ? "" : base + "/alerts/confirm?token=" + r.getConfirmToken();
         if (r.getChannelEnum() == AlertRecipient.Channel.EMAIL) {
             notificationService.sendPlainEmail(r.getDestination(),

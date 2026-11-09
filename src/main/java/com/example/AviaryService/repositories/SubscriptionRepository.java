@@ -1,16 +1,14 @@
 package com.example.AviaryService.repositories;
 
+import com.example.AviaryService.entity.Aircraft;
+import com.example.AviaryService.entity.Subscription;
+import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.Optional;
 
-import org.springframework.data.jpa.repository.JpaRepository;
-
-import com.example.AviaryService.entity.Subscription;
-import com.example.AviaryService.entity.User;
-
 public interface SubscriptionRepository extends JpaRepository<Subscription, Long> {
-
-    Optional<Subscription> findByUser(User user);
-
+    // One flight-sync subscription per aircraft.
+    Optional<Subscription> findByAircraft(Aircraft aircraft);
     List<Subscription> findByActiveTrue();
+    void deleteByAircraft(Aircraft aircraft);
 }

@@ -48,6 +48,7 @@ class ServiceTimelineMobileLayoutTest extends BrowserTestBase {
     private void seedData(User user) {
         ServiceTimeline title = new ServiceTimeline();
         title.setUser(user);
+        title.setAircraft(aircraftOf(user));
         title.setItem("ENGINE");
         title.setIsTitle(true);
         title.setTimelineOrder(0);
@@ -55,6 +56,7 @@ class ServiceTimelineMobileLayoutTest extends BrowserTestBase {
 
         ServiceTimeline item = new ServiceTimeline();
         item.setUser(user);
+        item.setAircraft(aircraftOf(user));
         item.setItem("Annual Inspection");
         item.setIsTitle(false);
         item.setTimelineOrder(1);

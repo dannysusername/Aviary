@@ -9,11 +9,12 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.FlightLog;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.FlightLogRepository;
 import com.example.AviaryService.repositories.FlightSuggestionRepository;
-import com.example.AviaryService.repositories.UserRepository;
+import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.util.Formatting;
 import com.example.AviaryService.util.Validation;
 import com.example.AviaryService.services.dashboard.HoursService;
@@ -25,15 +26,15 @@ public class FlightLogService {
 
     private final FlightLogRepository flightLogRepository;
     private final FlightSuggestionRepository flightSuggestionRepository;
-    private final UserRepository userRepository;
+    private final AircraftRepository aircraftRepository;
     private final HoursService hoursService;
 
     public FlightLogService(FlightLogRepository flightLogRepository,
             FlightSuggestionRepository flightSuggestionRepository,
-            UserRepository userRepository, HoursService hoursService) {
+            AircraftRepository aircraftRepository, HoursService hoursService) {
         this.flightLogRepository = flightLogRepository;
         this.flightSuggestionRepository = flightSuggestionRepository;
-        this.userRepository = userRepository;
+        this.aircraftRepository = aircraftRepository;
         this.hoursService = hoursService;
     }
 
@@ -52,17 +53,18 @@ public class FlightLogService {
         }
     }
 
-    // All of this user's flight logs, in chronological order.
-    public List<FlightLog> listFor(User user) {
-        return sortedByFlightTime(flightLogRepository.findByUser(user));
+    // One aircraft's flight logs, in chronological order.
+    public List<FlightLog> listFor(Aircraft aircraft) {
+        return sortedByFlightTime(flightLogRepository.findByAircraft(aircraft));
     }
 
-    // Validates and saves a new log, then recomputes the user's hours.
+    // Validates and saves a new log on one aircraft, then recomputes that
+    // aircraft's hours. Only that aircraft's flights are compared.
     // Throws IllegalArgumentException for bad input, and
     // InaccurateEntryException (unless force) when a manual reading doesn't
     // fit the user's other flights.
     @Transactional
-    public AddedFlightLog add(User user, FlightLog newLog, boolean force) {
+    public AddedFlightLog add(User user, Aircraft aircraft, FlightLog newLog, boolean force) {
         // Clamp readings to hundredths. Real meters never exceed 2dp (block
         // time 0.1, time in service 0.01), and this keeps CSV-prefilled or client-computed
         // values from carrying float artifacts into storage.
@@ -123,7 +125,7 @@ public class FlightLogService {
         // has no physical meter behind it, so there's nothing to be
         // "inaccurate": it just gets slotted into the chain below.
         if ("manual".equals(source) && !force) {
-            List<FlightLog> existingLogs = flightLogRepository.findByUser(user);
+            List<FlightLog> existingLogs = flightLogRepository.findByAircraft(aircraft);
             HoursService.AccuracyIssue blockIssue = blockTimePair
                 ? hoursService.checkAccuracy(existingLogs, newLog.getBlockTimeStart(), newLog.getBlockTimeEnd(), ho, hi, true)
                 : null;
@@ -135,13 +137,14 @@ public class FlightLogService {
             }
         }
 
-        // Force user ownership server-side regardless of what the client sent.
+        // Force ownership server-side regardless of what the client sent.
         newLog.setUser(user);
+        newLog.setAircraft(aircraft);
         FlightLog savedLog = flightLogRepository.save(newLog);
-        return new AddedFlightLog(savedLog, recomputeHours(user));
+        return new AddedFlightLog(savedLog, recomputeHours(aircraft));
     }
 
-    // Deletes one of the user's logs and recomputes their hours. Throws
+    // Deletes one of the user's logs and recomputes its aircraft's hours. Throws
     // IllegalArgumentException if it doesn't exist, SecurityException if
     // it belongs to someone else.
     @Transactional
@@ -164,23 +167,24 @@ public class FlightLogService {
                 });
         }
 
+        Aircraft aircraft = log.getAircraft();
         flightLogRepository.delete(log);
-        return recomputeHours(user);
+        return recomputeHours(aircraft);
     }
 
     // Re-derives both hour totals from the log chain and stamps them as
     // coming from the flight log.
-    private HourTotals recomputeHours(User user) {
-        double newBlockTime = hoursService.recomputeChain(user, /*useBlockTime=*/true);
-        double newTimeInService  = hoursService.recomputeChain(user, /*useBlockTime=*/false);
-        user.setBlockTimeHours(newBlockTime);
-        user.setTimeInServiceHours(newTimeInService);
+    private HourTotals recomputeHours(Aircraft aircraft) {
+        double newBlockTime = hoursService.recomputeChain(aircraft, /*useBlockTime=*/true);
+        double newTimeInService  = hoursService.recomputeChain(aircraft, /*useBlockTime=*/false);
+        aircraft.setBlockTimeHours(newBlockTime);
+        aircraft.setTimeInServiceHours(newTimeInService);
         Instant flightNow = Instant.now();
-        user.setBlockTimeUpdatedAt(flightNow);
-        user.setBlockTimeUpdatedSource("flightlog");
-        user.setTimeInServiceUpdatedAt(flightNow);
-        user.setTimeInServiceUpdatedSource("flightlog");
-        userRepository.save(user);
+        aircraft.setBlockTimeUpdatedAt(flightNow);
+        aircraft.setBlockTimeUpdatedSource("flightlog");
+        aircraft.setTimeInServiceUpdatedAt(flightNow);
+        aircraft.setTimeInServiceUpdatedSource("flightlog");
+        aircraftRepository.save(aircraft);
         return new HourTotals(newBlockTime, newTimeInService);
     }
 

@@ -48,6 +48,7 @@ class ServiceTimelineTableEdgeCasesTest extends BrowserTestBase {
                                      String lastDone, String dueDate, String timeLeft) {
         ServiceTimeline t = new ServiceTimeline();
         t.setUser(user);
+        t.setAircraft(aircraftOf(user));
         t.setItem(item);
         t.setIsTitle(false);
         t.setTimelineOrder(order);
@@ -81,6 +82,7 @@ class ServiceTimelineTableEdgeCasesTest extends BrowserTestBase {
 
         ServiceTimeline title = new ServiceTimeline();
         title.setUser(u);
+        title.setAircraft(aircraftOf(u));
         title.setItem("100-Hour Inspections");
         title.setIsTitle(true);
         title.setTimelineOrder(1);

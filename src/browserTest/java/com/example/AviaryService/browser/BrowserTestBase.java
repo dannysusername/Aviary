@@ -1,7 +1,9 @@
 package com.example.AviaryService.browser;
 
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.ServiceTimeline;
 import com.example.AviaryService.entity.User;
+import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserContext;
@@ -42,6 +44,9 @@ public abstract class BrowserTestBase {
     @Autowired
     protected PasswordEncoder passwordEncoder;
 
+    @Autowired
+    protected AircraftRepository aircraftRepository;
+
     private static final AtomicInteger USER_COUNTER = new AtomicInteger();
 
     @BeforeAll
@@ -79,7 +84,20 @@ public abstract class BrowserTestBase {
         user.setUsername(username);
         user.setPassword(passwordEncoder.encode(rawPassword));
         userRepository.save(user);
+        // Every account has an aircraft; seeded rows attach to it via aircraftOf().
+        Aircraft aircraft = aircraftRepository.save(new Aircraft(user));
+        user.setLastViewedAircraft(aircraft);
+        userRepository.save(user);
         return username;
+    }
+
+    /** The user's first (in these tests, only) aircraft. */
+    protected Aircraft aircraftOf(User user) {
+        return aircraftRepository.findFirstByUserOrderByIdAsc(user).orElseThrow();
+    }
+
+    protected Aircraft aircraftOf(String username) {
+        return aircraftOf(userRepository.findByUsername(username));
     }
 
     /**

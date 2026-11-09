@@ -22,7 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.AviaryService.entity.AlertRecipient;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.AlertPreferenceRepository;
+import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.AlertRecipientRepository;
+import com.example.AviaryService.support.TestFleet;
 import com.example.AviaryService.repositories.AlertSendLogRepository;
 import com.example.AviaryService.repositories.UserRepository;
 
@@ -37,6 +39,7 @@ class AlertControllerTest {
     @Autowired AlertRecipientRepository recipientRepository;
     @Autowired AlertPreferenceRepository preferenceRepository;
     @Autowired AlertSendLogRepository sendLogRepository;
+    @Autowired AircraftRepository aircraftRepository;
 
     @BeforeEach
     void setUp() {
@@ -46,10 +49,8 @@ class AlertControllerTest {
             User u = new User();
             u.setUsername("alertuser");
             u.setPassword("x");
-            u.setTailNumber("N999AV");
-            u.setOwnerName("Test Owner");
-            u.setTimeInServiceHours(500.0);
             userRepository.save(u);
+            TestFleet.addAircraft(aircraftRepository, userRepository, u, "N999AV", "Test Owner", 0, 500.0);
         }
     }
 

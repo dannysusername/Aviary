@@ -19,7 +19,7 @@ import org.thymeleaf.context.Context;
 
 import com.example.AviaryService.entity.FlightLog;
 import com.example.AviaryService.entity.ServiceTimeline;
-import com.example.AviaryService.entity.User;
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.repositories.FlightLogRepository;
 import com.example.AviaryService.repositories.ServiceTimelineRepository;
 import com.example.AviaryService.util.DueDates;
@@ -46,27 +46,46 @@ public class PdfExportService {
         this.flightLogRepository = flightLogRepository;
     }
 
-    public byte[] generateDashboardPdf(User user) {
-        return generateDashboardPdf(user, LocalDate.now());
+    public byte[] generateDashboardPdf(Aircraft aircraft) {
+        return generateDashboardPdf(aircraft, LocalDate.now());
     }
 
     // `today` drives Time Left, so the PDF matches what the user's own browser
     // shows (the server may be a day ahead/behind in UTC).
-    public byte[] generateDashboardPdf(User user, LocalDate today) {
+    public byte[] generateDashboardPdf(Aircraft aircraft, LocalDate today) {
         Context context = new Context();
-        context.setVariable("makeModel", user.getMakeModel());
-        context.setVariable("tailNumber", user.getTailNumber());
-        context.setVariable("ownerName", user.getOwnerName());
-        context.setVariable("makeModelSN", user.getMakeModelSN());
-        context.setVariable("blockTimeHours", formatHoursOrBlank(user.getBlockTimeHours()));
-        context.setVariable("timeInServiceHours", formatHoursOrBlank(user.getTimeInServiceHours()));
+        context.setVariable("makeModel", aircraft.getMakeModel());
+        context.setVariable("tailNumber", aircraft.getTailNumber());
+        context.setVariable("ownerName", aircraft.getOwnerName());
+        context.setVariable("makeModelSN", aircraft.getMakeModelSN());
+        context.setVariable("blockTimeHours", formatHoursOrBlank(aircraft.getBlockTimeHours()));
+        context.setVariable("timeInServiceHours", formatHoursOrBlank(aircraft.getTimeInServiceHours()));
         context.setVariable("generatedAt", DateTimeFormatter.ofPattern("MMM d, yyyy h:mm a")
             .withZone(ZoneOffset.UTC).format(Instant.now()) + " UTC");
-        context.setVariable("timelineRows", buildTimelineRows(user, today));
-        context.setVariable("logRows", buildLogRows(user));
+        context.setVariable("timelineRows", buildTimelineRows(aircraft, today));
+        context.setVariable("logRows", buildLogRows(aircraft));
 
         String html = templateEngine.process("pdf-export", context);
         return renderPdf(html);
+    }
+
+    // Alert emails cover the whole fleet but carry one attachment: each
+    // aircraft's report, one after another, merged into a single PDF.
+    public byte[] generateFleetPdf(List<Aircraft> fleet, LocalDate today) {
+        if (fleet.size() == 1) {
+            return generateDashboardPdf(fleet.get(0), today);
+        }
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            org.apache.pdfbox.multipdf.PDFMergerUtility merger = new org.apache.pdfbox.multipdf.PDFMergerUtility();
+            for (Aircraft aircraft : fleet) {
+                merger.addSource(new org.apache.pdfbox.io.RandomAccessReadBuffer(generateDashboardPdf(aircraft, today)));
+            }
+            merger.setDestinationStream(out);
+            merger.mergeDocuments(org.apache.pdfbox.io.IOUtils.createMemoryOnlyStreamCache());
+            return out.toByteArray();
+        } catch (java.io.IOException e) {
+            throw new RuntimeException("Failed to generate fleet PDF: " + e.getMessage(), e);
+        }
     }
 
     // openhtmltopdf-pdfbox parses its input as XML, not HTML5 -- feed it the
@@ -85,9 +104,9 @@ public class PdfExportService {
         }
     }
 
-    private List<Map<String, Object>> buildTimelineRows(User user, LocalDate today) {
-        return serviceTimelineRepository.findByUserOrderByTimelineOrderAsc(user).stream()
-            .map(t -> timelineRowData(t, today, user.getTimeInServiceHours()))
+    private List<Map<String, Object>> buildTimelineRows(Aircraft aircraft, LocalDate today) {
+        return serviceTimelineRepository.findByAircraftOrderByTimelineOrderAsc(aircraft).stream()
+            .map(t -> timelineRowData(t, today, aircraft.getTimeInServiceHours()))
             .collect(Collectors.toList());
     }
 
@@ -107,8 +126,8 @@ public class PdfExportService {
         return row;
     }
 
-    private List<Map<String, Object>> buildLogRows(User user) {
-        List<FlightLog> logs = flightLogRepository.findByUser(user).stream()
+    private List<Map<String, Object>> buildLogRows(Aircraft aircraft) {
+        List<FlightLog> logs = flightLogRepository.findByAircraft(aircraft).stream()
             .sorted(Comparator
                 .<FlightLog, Instant>comparing(log -> {
                     Instant start = log.getBlockTimeStart() != null ? log.getBlockTimeStart() : log.getTimeInServiceStart();

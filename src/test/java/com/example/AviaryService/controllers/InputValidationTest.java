@@ -27,7 +27,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.AviaryService.entity.AlertRecipient;
 import com.example.AviaryService.entity.ServiceTimeline;
 import com.example.AviaryService.entity.User;
+import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.AlertRecipientRepository;
+import com.example.AviaryService.support.TestFleet;
 import com.example.AviaryService.repositories.ServiceTimelineRepository;
 import com.example.AviaryService.repositories.UserRepository;
 
@@ -45,6 +47,7 @@ class InputValidationTest {
     @Autowired ServiceTimelineRepository serviceTimelineRepository;
     @Autowired AlertRecipientRepository recipientRepository;
     @Autowired PasswordEncoder passwordEncoder;
+    @Autowired AircraftRepository aircraftRepository;
 
     @BeforeEach
     void setUp() {
@@ -52,11 +55,8 @@ class InputValidationTest {
             User u = new User();
             u.setUsername(USER);
             u.setPassword("x");
-            u.setOwnerName("Test Owner");
-            u.setTailNumber("N12345");
-            u.setBlockTimeHours(100.0);
-            u.setTimeInServiceHours(90.0);
             userRepository.save(u);
+            TestFleet.addAircraft(aircraftRepository, userRepository, u, "N12345", "Test Owner", 100.0, 90.0);
         }
     }
 
@@ -97,7 +97,8 @@ class InputValidationTest {
             .andExpect(status().isBadRequest());
         mockMvc.perform(post("/updateHours").with(user(USER)).with(csrf()).param("blockTimeToAdd", "-500"))
             .andExpect(status().isBadRequest());
-        assertEquals(100.0, userRepository.findByUsername(USER).getBlockTimeHours(), 0.0001);
+        assertEquals(100.0, aircraftRepository.findFirstByUserOrderByIdAsc(userRepository.findByUsername(USER))
+            .orElseThrow().getBlockTimeHours(), 0.0001);
     }
 
     // ── Timeline rows ──

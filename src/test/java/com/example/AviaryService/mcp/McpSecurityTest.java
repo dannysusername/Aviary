@@ -24,7 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.AviaryService.entity.FlightLog;
 import com.example.AviaryService.entity.User;
+import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.FlightLogRepository;
+import com.example.AviaryService.support.TestFleet;
 import com.example.AviaryService.repositories.UserRepository;
 
 // /mcp is closed to anyone without a valid Aviary-issued token, and a tool
@@ -38,6 +40,7 @@ class McpSecurityTest {
     @Autowired MockMvc mvc;
     @Autowired UserRepository userRepository;
     @Autowired FlightLogRepository flightLogRepository;
+    @Autowired AircraftRepository aircraftRepository;
     @Autowired FlightTools flightTools;
     @Autowired McpCurrentUser currentUser;
 
@@ -50,6 +53,7 @@ class McpSecurityTest {
         bob = saveUser("bob-");
         FlightLog log = new FlightLog();
         log.setUser(bob);
+        log.setAircraft(aircraftRepository.findFirstByUserOrderByIdAsc(bob).orElseThrow());
         log.setFromAirport("KSFO");
         log.setToAirport("KLAX");
         flightLogRepository.save(log);
@@ -59,7 +63,9 @@ class McpSecurityTest {
         User u = new User();
         u.setUsername(prefix + System.nanoTime());
         u.setPassword("x");
-        return userRepository.save(u);
+        userRepository.save(u);
+        TestFleet.addAircraft(aircraftRepository, userRepository, u);
+        return u;
     }
 
     @Test
@@ -88,13 +94,13 @@ class McpSecurityTest {
 
     @Test
     void flightToolsOnlySeeTheTokenOwnersFlights() {
-        assertEquals(0, McpTestSupport.as(alice.getUsername(), () -> flightTools.listFlights()).size());
-        assertEquals(1, McpTestSupport.as(bob.getUsername(), () -> flightTools.listFlights()).size());
+        assertEquals(0, McpTestSupport.as(alice.getUsername(), () -> flightTools.listFlights(null)).size());
+        assertEquals(1, McpTestSupport.as(bob.getUsername(), () -> flightTools.listFlights(null)).size());
     }
 
     @Test
     void noSignedInUserMeansNoAccess() {
-        assertThrows(AccessDeniedException.class, () -> flightTools.listFlights());
+        assertThrows(AccessDeniedException.class, () -> flightTools.listFlights(null));
     }
 
     @Test

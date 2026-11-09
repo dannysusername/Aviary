@@ -3,28 +3,34 @@ package com.example.AviaryService.services.account;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.springframework.security.core.Authentication;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 
+import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.User;
+import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.UserRepository;
+import com.example.AviaryService.services.aircraft.AircraftValidationException;
 import com.example.AviaryService.util.Validation;
 
 // User accounts. Registers new users (checking the username and password
-// rules) and saves changes to a user's info, like tail number and AeroAPI key.
+// rules) and saves the info card (on one aircraft) and the account-wide
+// AeroAPI key.
 @Service
 public class UserService {
     
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AircraftRepository aircraftRepository;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder,
+            AircraftRepository aircraftRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.aircraftRepository = aircraftRepository;
     }
 
     @Transactional
@@ -46,40 +52,53 @@ public class UserService {
         }
         User user = new User(username, passwordEncoder.encode(password));
         userRepository.save(user);
+        // Every account starts with one empty aircraft, so the first-run
+        // dashboard looks the same as before fleets existed.
+        Aircraft first = aircraftRepository.save(new Aircraft(user));
+        user.setLastViewedAircraft(first);
+        userRepository.save(user);
         return "redirect:/login";
     }
 
+    // Info card fields go on the aircraft the dashboard is showing; the
+    // AeroAPI key is account-wide. Throws IllegalArgumentException (or its
+    // AircraftValidationException subclass) for bad input.
     @Transactional
-    public void updateUserInfo (Map<String, String> data,
-        Authentication authentication) {
-            User user = userRepository.findByUsername(authentication.getName());
-            if (user == null) {
-                throw new IllegalArgumentException("User not found");
+    public void updateUserInfo(Map<String, String> data, User user, Aircraft aircraft) {
+        if (user == null) {
+            throw new IllegalArgumentException("User not found");
+        }
+
+        Validation.maxLength("Make/model", data.get("makeModel"));
+        Validation.maxLength("Owner name", data.get("ownerName"));
+        Validation.maxLength("Serial number", data.get("makeModelSN"));
+        // Stored encrypted (AeroApiKeyConverter), which roughly doubles the
+        // length, so the plain key has a tighter limit than the column.
+        Validation.maxLength("AeroAPI key", data.get("aeroApiKey"), 100);
+
+        if (data.containsKey("tailNumber")) {
+            String tailNumber = data.get("tailNumber");
+            try {
+                Validation.requireValidTailNumber(tailNumber, false);
+            } catch (IllegalArgumentException e) {
+                throw new AircraftValidationException("tailNumber", e.getMessage());
             }
-
-            Validation.maxLength("Make/model", data.get("makeModel"));
-            Validation.maxLength("Tail number", data.get("tailNumber"));
-            Validation.maxLength("Owner name", data.get("ownerName"));
-            Validation.maxLength("Serial number", data.get("makeModelSN"));
-            // Stored encrypted (AeroApiKeyConverter), which roughly doubles the
-            // length, so the plain key has a tighter limit than the column.
-            Validation.maxLength("AeroAPI key", data.get("aeroApiKey"), 100);
-
-            // Update fields if provided in the request
-            if (data.containsKey("makeModel")) user.setMakeModel(data.get("makeModel"));
-            // Normalize to uppercase, matching how SubscriptionService stores the
-            // subscribed registration, so the dashboard-vs-subscription mismatch
-            // check compares like for like.
-            if (data.containsKey("tailNumber")) {
-                String tailNumber = data.get("tailNumber");
-                user.setTailNumber(tailNumber == null ? null : tailNumber.trim().toUpperCase());
+            String key = Validation.tailNumberKey(tailNumber);
+            if (key != null && aircraftRepository.existsByUserAndTailNumberKeyAndIdNot(user, key, aircraft.getId())) {
+                throw new AircraftValidationException("tailNumber", "You already have an aircraft with this tail number.");
             }
-            if (data.containsKey("ownerName")) user.setOwnerName(data.get("ownerName"));
-            if (data.containsKey("makeModelSN")) user.setMakeModelSN(data.get("makeModelSN"));
-            if (data.containsKey("aeroApiKey")) user.setAeroApiKey(data.get("aeroApiKey"));
+            // Upper-cased (Aircraft.setTailNumber), matching how
+            // SubscriptionService stores the subscribed registration, so the
+            // dashboard-vs-subscription mismatch check compares like for like.
+            aircraft.setTailNumber(tailNumber);
+        }
+        if (data.containsKey("makeModel")) aircraft.setMakeModel(data.get("makeModel"));
+        if (data.containsKey("ownerName")) aircraft.setOwnerName(data.get("ownerName"));
+        if (data.containsKey("makeModelSN")) aircraft.setMakeModelSN(data.get("makeModelSN"));
+        if (data.containsKey("aeroApiKey")) user.setAeroApiKey(data.get("aeroApiKey"));
 
-            userRepository.save(user);
-
+        aircraftRepository.save(aircraft);
+        userRepository.save(user);
     }
 
 }
