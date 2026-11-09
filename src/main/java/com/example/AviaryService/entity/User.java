@@ -1,6 +1,8 @@
 package com.example.AviaryService.entity;
 
 import jakarta.persistence.*;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -48,6 +50,22 @@ public class User {
     @Convert(converter = AeroApiKeyConverter.class)
     @Column
     private String aeroApiKey;
+
+    // When the account was created. Set once on first save, never changed.
+    // Null for accounts made before this was recorded (2026-11): those aren't
+    // given guessed dates. Feeds the public signup feed (specs/004-public-aviary-stats).
+    @Column(name = "created_at", updatable = false)
+    @JsonIgnore
+    private Instant createdAt;
+
+    @PrePersist
+    void onCreate() {
+        if (createdAt == null) {
+            // Microseconds: what the database keeps. Linux clocks give
+            // nanoseconds, so without this the saved value reads back different.
+            createdAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
+        }
+    }
 
     public User(){
 
@@ -104,6 +122,10 @@ public class User {
 
     public Aircraft getLastViewedAircraft() { return lastViewedAircraft; }
     public void setLastViewedAircraft(Aircraft lastViewedAircraft) { this.lastViewedAircraft = lastViewedAircraft; }
+
+    public Instant getCreatedAt() { return createdAt; }
+    // Tests only: lets a test place a signup at a known moment.
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 
     public String getAeroApiKey() {
         return aeroApiKey;
