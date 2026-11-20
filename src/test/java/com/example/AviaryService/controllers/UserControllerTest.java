@@ -80,6 +80,7 @@ class UserControllerTest {
         jdbc.update("DELETE FROM flight_suggestions");
         jdbc.update("DELETE FROM subscriptions");
         jdbc.update("DELETE FROM import_proposals");
+        jdbc.update("DELETE FROM timeline_import_records");
         aircraftRepository.deleteAll();
         userRepository.deleteAll();
 

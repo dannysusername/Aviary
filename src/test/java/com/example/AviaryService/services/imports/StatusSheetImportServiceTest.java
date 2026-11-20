@@ -246,8 +246,8 @@ class StatusSheetImportServiceTest {
         importService.confirm(alice, p.proposalId(), null);
         StatusSheetItem oil = rows(alice).get(0);
         StatusSheetService.CompletedMaintenance done = statusSheetService.completeMaintenance(alice, oil.getId());
-        assertEquals("1000", done.lastDone());
-        assertEquals("1050", done.dueDate());
+        assertEquals("1000.0", done.lastDone());
+        assertEquals("1050.0", done.dueDate());
     }
 
     @Test

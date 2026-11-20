@@ -3,6 +3,85 @@ console.log('dashboard.js loaded');
 // One debounce timer per row / per aircraft-info field. A single shared timer
 // meant editing a second row (or field) within 500ms cancelled the first save.
 const rowSaveTimers = new Map();
+// Spec 007: per row, whether the owner edited the Due Date date / hours since
+// the last save went out (kept across the 500ms debounce).
+const rowDueTouched = new Map();
+
+// Hours with 1-3 decimals: "25" -> "25.0", "25.12345" -> "25.123" (half up).
+// Same rule as DueDateAutoFill.formatHours on the server. null if not a number.
+function formatSheetHours(raw) {
+    const s = String(raw ?? '').trim();
+    if (!/^(\d+(\.\d*)?|\.\d+)$/.test(s)) return null;
+    let [i, f = ''] = s.split('.');
+    i = i.replace(/^0+(?=\d)/, '') || '0';
+    if (f.length > 3) {
+        const n = BigInt(i + f.slice(0, 3)) + (f[3] >= '5' ? 1n : 0n);
+        const str = n.toString().padStart(4, '0');
+        i = str.slice(0, -3);
+        f = str.slice(-3);
+    }
+    f = f.replace(/0+$/, '') || '0';
+    return `${i}.${f}`;
+}
+
+// Shows what the server saved for a row (spec 007): an auto-filled Due Date
+// appears right after Last Done is entered, no reload. Never rewrites a box
+// the owner is typing in.
+function applySavedRow(row, saved) {
+    if (!row || !saved || saved.status !== 'success') return;
+    const lastCell = row.querySelector('td:nth-child(5) .input-with-dropdown');
+    const dueCell = row.querySelector('td:nth-child(6) .input-with-dropdown');
+    const focused = document.activeElement;
+
+    if (dueCell && !dueCell.contains(focused)) {
+        const shownDate = dueCell.querySelector('input[type="date"]')?.value || '';
+        const shownHours = dueCell.querySelector('input[type="text"].extra-input')?.value || '';
+        const newDate = saved.dueDateDate || '';
+        const newHours = saved.dueDateHours || '';
+        if (shownDate !== newDate || shownHours !== newHours) {
+            repaintDateHoursCell(row, 'dueDate', [newDate, newHours].filter(Boolean).join(' '));
+        }
+    }
+    const lastHoursInput = lastCell?.querySelector('input[type="text"].extra-input');
+    if (lastHoursInput && lastHoursInput !== focused && saved.lastDoneHours != null
+            && lastHoursInput.value !== saved.lastDoneHours) {
+        lastHoursInput.value = saved.lastDoneHours;
+    }
+
+    row.setAttribute('data-lastDoneDate', saved.lastDoneDate || '');
+    row.setAttribute('data-lastDoneHours', saved.lastDoneHours || '');
+    row.setAttribute('data-dueDateDate', saved.dueDateDate || '');
+    row.setAttribute('data-dueDateHours', saved.dueDateHours || '');
+
+    const tl = row.querySelector('td:nth-child(7) .time-left');
+    if (tl && saved.timeLeft) setTimeLeftText(tl, saved.timeLeft);
+
+    const lastTd = row.querySelector('td:nth-child(5)');
+    let note = lastTd?.querySelector('.row-warning');
+    const warnings = Array.isArray(saved.warnings) ? saved.warnings : [];
+    if (warnings.length && lastTd) {
+        if (!note) {
+            note = document.createElement('div');
+            note.className = 'row-warning no-print';
+            note.setAttribute('role', 'status');
+            lastTd.appendChild(note);
+        }
+        note.textContent = warnings.join(' ');
+    } else if (note) {
+        note.remove();
+    }
+}
+
+// Tidy Status Sheet hours when the owner leaves the box (never mid-typing).
+document.addEventListener('focusout', (e) => {
+    const el = e.target;
+    if (!(el instanceof HTMLInputElement) || !el.matches('.input-with-dropdown input.extra-input[type="text"]')) return;
+    const formatted = formatSheetHours(el.value);
+    if (formatted !== null && formatted !== el.value) {
+        el.value = formatted;
+        if (el.closest('.auto-save-row')) autoSave(el);
+    }
+});
 const userInfoSaveTimers = new Map();
 let previousHobbsTimeHours = document.getElementById('current-hobbs-time')?.value || 0;
 let previousTimeInServiceHours = document.getElementById('current-time-in-service')?.value || 0;
@@ -273,6 +352,16 @@ function autoSave(input) {
         data.timeLeft = timeLeftSpan.textContent;
     }
 
+    // Spec 007: remember (until the save goes out) whether the owner edited the
+    // Due Date date or hours themselves, so the server never overwrites it.
+    const dueCell = row.querySelector('td:nth-child(6)');
+    const touched = rowDueTouched.get(id) || { date: false, hours: false };
+    if (dueCell && dueCell.contains(input)) {
+        if (input.type === 'date') touched.date = true;
+        else if (input.type === 'text') touched.hours = true;
+    }
+    rowDueTouched.set(id, touched);
+
     clearTimeout(rowSaveTimers.get(id));
     //status.textContent = '...';
     //status.className = 'save-status saving';
@@ -282,13 +371,16 @@ function autoSave(input) {
         const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
         const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
 
-        console.log(data);
+        const sentTouched = rowDueTouched.get(id) || { date: false, hours: false };
+        rowDueTouched.delete(id);
+        data.dueDateTouched = sentTouched.date;
+        data.dueHoursTouched = sentTouched.hours;
+
         axios.post(`/update/${id}`, data, {
             headers: { [csrfHeader]: csrfToken }
         })
         .then(response => {
-            
-            console.log ('Row id: ' + id + ' saved ✓');
+            applySavedRow(row, response.data);
         })
         .catch(error => {
             //status.textContent = '✖';

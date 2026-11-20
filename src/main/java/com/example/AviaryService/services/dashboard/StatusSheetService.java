@@ -16,6 +16,7 @@ import com.example.AviaryService.entity.User;
 import com.example.AviaryService.entity.DTO.StatusSheetItemUpdateDTO;
 import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.repositories.UserRepository;
+import com.example.AviaryService.util.DueDateAutoFill;
 import com.example.AviaryService.util.DueDates;
 import com.example.AviaryService.util.Formatting;
 import com.example.AviaryService.util.Parsing;
@@ -60,10 +61,23 @@ public class StatusSheetService {
             statusSheetItem.setCycleCalendarUnit(Parsing.normalizeCalendarUnit(data.get("cycleCalendarUnit")));
             statusSheetItem.setCycleHours(Parsing.parseDoubleOrNull(data.get("cycleHours")));
             statusSheetItem.setLastDoneDate(blankToNull(data.get("lastDoneDate")));
-            statusSheetItem.setLastDoneHours(blankToNull(data.get("lastDoneHours")));
-            statusSheetItem.setDueDateDate(blankToNull(data.get("dueDateDate")));
-            statusSheetItem.setDueDateHours(blankToNull(data.get("dueDateHours")));
-            statusSheetItem.setTimeLeft(timeLeft);
+            statusSheetItem.setLastDoneHours(DueDateAutoFill.normalizeHours(data.get("lastDoneHours")));
+            // New row: a Due Date the owner typed is theirs; a blank one fills
+            // from Last Done + cycle (spec 007).
+            DueDateAutoFill.Cycle cycleNow = cycleOf(statusSheetItem);
+            String typedDueDate = blankToNull(data.get("dueDateDate"));
+            String typedDueHours = DueDateAutoFill.normalizeHours(data.get("dueDateHours"));
+            DueDateAutoFill.Resolved date = DueDateAutoFill.resolveDate(null, null, null, null,
+                statusSheetItem.getLastDoneDate(), cycleNow, typedDueDate, typedDueDate != null);
+            DueDateAutoFill.Resolved hours = DueDateAutoFill.resolveHours(null, null, null, null,
+                statusSheetItem.getLastDoneHours(), cycleNow, typedDueHours, typedDueHours != null);
+            statusSheetItem.setDueDateDate(date.value());
+            statusSheetItem.setDueDateAuto(date.auto());
+            statusSheetItem.setDueDateHours(hours.value());
+            statusSheetItem.setDueHoursAuto(hours.auto());
+            statusSheetItem.setTimeLeft(aircraft == null ? timeLeft : DueDates.formatTimeLeft(
+                statusSheetItem.getDueDateDate(), statusSheetItem.getDueDateHours(), LocalDate.now(),
+                aircraft.getTimeInServiceHours()));
         }
         statusSheetItem.setUser(user);
         statusSheetItem.setAircraft(aircraft);
@@ -101,14 +115,45 @@ public class StatusSheetService {
         // Structured cycle fields. The client sends them on every save so
         // null actually means "clear it" here — distinguish empty/null on
         // the client if you ever want partial updates.
+        // Snapshot before applying the edit: auto-fill compares old and new.
+        DueDateAutoFill.Cycle storedCycle = cycleOf(statusSheetItem);
+        String storedLastDoneDate = statusSheetItem.getLastDoneDate();
+        String storedLastDoneHours = statusSheetItem.getLastDoneHours();
+        String storedDueDate = statusSheetItem.getDueDateDate();
+        String storedDueHours = statusSheetItem.getDueDateHours();
+
         statusSheetItem.setCycleCalendarValue(updateDTO.getCycleCalendarValue());
         statusSheetItem.setCycleCalendarUnit(Parsing.normalizeCalendarUnit(updateDTO.getCycleCalendarUnit()));
         statusSheetItem.setCycleHours(updateDTO.getCycleHours());
-        statusSheetItem.setLastDoneDate(updateDTO.getLastDoneDate());
-        statusSheetItem.setLastDoneHours(updateDTO.getLastDoneHours());
-        statusSheetItem.setDueDateDate(updateDTO.getDueDateDate());
-        statusSheetItem.setDueDateHours(updateDTO.getDueDateHours());
-        statusSheetItem.setTimeLeft(updateDTO.getTimeLeft());
+        DueDateAutoFill.Cycle newCycle = cycleOf(statusSheetItem);
+
+        String newLastDoneDate = blankToNull(updateDTO.getLastDoneDate());
+        String newLastDoneHours = hoursIfChanged(storedLastDoneHours, updateDTO.getLastDoneHours());
+        statusSheetItem.setLastDoneDate(newLastDoneDate);
+        statusSheetItem.setLastDoneHours(newLastDoneHours);
+
+        boolean legacyClient = updateDTO.getDueDateTouched() == null && updateDTO.getDueHoursTouched() == null;
+        if (legacyClient) {
+            // Older dashboard.js (no touched flags): save what it sent, as before.
+            statusSheetItem.setDueDateDate(blankToNull(updateDTO.getDueDateDate()));
+            statusSheetItem.setDueDateHours(hoursIfChanged(storedDueHours, updateDTO.getDueDateHours()));
+        } else {
+            boolean dateTouched = Boolean.TRUE.equals(updateDTO.getDueDateTouched());
+            boolean hoursTouched = Boolean.TRUE.equals(updateDTO.getDueHoursTouched());
+            DueDateAutoFill.Resolved date = DueDateAutoFill.resolveDate(
+                storedLastDoneDate, storedCycle, storedDueDate, statusSheetItem.getDueDateAuto(),
+                newLastDoneDate, newCycle, updateDTO.getDueDateDate(), dateTouched);
+            DueDateAutoFill.Resolved hours = DueDateAutoFill.resolveHours(
+                storedLastDoneHours, storedCycle, storedDueHours, statusSheetItem.getDueHoursAuto(),
+                newLastDoneHours, newCycle,
+                hoursTouched ? hoursIfChanged(storedDueHours, updateDTO.getDueDateHours()) : null, hoursTouched);
+            statusSheetItem.setDueDateDate(date.value());
+            statusSheetItem.setDueDateAuto(date.auto());
+            statusSheetItem.setDueDateHours(hours.value());
+            statusSheetItem.setDueHoursAuto(hours.auto());
+        }
+        statusSheetItem.setTimeLeft(DueDates.formatTimeLeft(statusSheetItem.getDueDateDate(),
+            statusSheetItem.getDueDateHours(), LocalDate.now(), currentTimeInService(statusSheetItem)));
 
         return statusSheetItemRepository.save(statusSheetItem);
     }
@@ -179,10 +224,12 @@ public class StatusSheetService {
         if (hasCalendar) {
             statusSheetItem.setLastDoneDate(today.toString());
             statusSheetItem.setDueDateDate(dueDateLd != null ? dueDateLd.toString() : null);
+            statusSheetItem.setDueDateAuto(true);
         }
         if (hasHours) {
-            statusSheetItem.setLastDoneHours(Formatting.formatHours(currentTimeInService));
-            statusSheetItem.setDueDateHours(dueHours != null ? Formatting.formatHours(dueHours) : null);
+            statusSheetItem.setLastDoneHours(DueDateAutoFill.formatHours(currentTimeInService));
+            statusSheetItem.setDueDateHours(DueDateAutoFill.formatHours(dueHours));
+            statusSheetItem.setDueHoursAuto(true);
         }
         // Same text the dashboard computes, from the row's saved due date/hours.
         String timeLeftStr = DueDates.formatTimeLeft(
@@ -210,6 +257,39 @@ public class StatusSheetService {
     private static String joinParts(String date, String hours) {
         return Stream.of(date, hours)
             .filter(s -> s != null && !s.isEmpty()).collect(Collectors.joining(" "));
+    }
+
+    private static DueDateAutoFill.Cycle cycleOf(StatusSheetItem i) {
+        return new DueDateAutoFill.Cycle(i.getCycleCalendarValue(), i.getCycleCalendarUnit(), i.getCycleHours());
+    }
+
+    // Hours text the owner did not change (including legacy text like
+    // "1200 TT") is kept exactly as stored. A changed value must be a number
+    // and is saved in the 25.0 format (spec 007).
+    private static String hoursIfChanged(String stored, String submitted) {
+        if (DueDateAutoFill.sameText(stored, submitted)) {
+            return stored;
+        }
+        return DueDateAutoFill.normalizeHours(submitted);
+    }
+
+    private static Double currentTimeInService(StatusSheetItem i) {
+        return i.getAircraft() != null ? i.getAircraft().getTimeInServiceHours() : null;
+    }
+
+    // Typo checks shown on the row; the Due Date still fills (spec 007).
+    public List<String> warningsFor(StatusSheetItem i) {
+        List<String> warnings = new java.util.ArrayList<>();
+        LocalDate last = DueDateAutoFill.validDate(i.getLastDoneDate());
+        if (last != null && last.isAfter(LocalDate.now())) {
+            warnings.add("Last Done is in the future. Check the date.");
+        }
+        java.math.BigDecimal lastHours = DueDateAutoFill.parseHours(i.getLastDoneHours());
+        Double tis = currentTimeInService(i);
+        if (lastHours != null && tis != null && lastHours.doubleValue() > tis) {
+            warnings.add("Last Done hours are above current Time in Service. Check the hours.");
+        }
+        return warnings;
     }
 
     // Store "" as null so an empty input matches a never-set field.

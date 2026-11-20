@@ -116,8 +116,8 @@ public class PdfExportService {
         row.put("item", t.getItem());
         row.put("description", t.getDescription());
         row.put("cycle", Formatting.formatCycle(t.getCycleCalendarValue(), t.getCycleCalendarUnit(), t.getCycleHours()));
-        row.put("lastDone", joinNonBlank(t.getLastDoneDate(), withHrs(t.getLastDoneHours())));
-        row.put("dueDate", joinNonBlank(t.getDueDateDate(), withHrs(t.getDueDateHours())));
+        row.put("lastDone", joinNonBlank(t.getLastDoneDate(), withHrs(t.getLastDoneHoursDisplay())));
+        row.put("dueDate", joinNonBlank(t.getDueDateDate(), withHrs(t.getDueDateHoursDisplay())));
         // Computed now, not the stored timeLeft column -- that's only as fresh
         // as the last edit to the row.
         String timeLeft = DueDates.formatTimeLeft(t.getDueDateDate(), t.getDueDateHours(), today, currentTimeInService);

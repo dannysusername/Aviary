@@ -38,6 +38,7 @@ import com.example.AviaryService.services.account.UserService;
 import com.example.AviaryService.services.aircraft.AircraftService;
 import com.example.AviaryService.services.aircraft.AircraftValidationException;
 import com.example.AviaryService.services.aircraft.FleetSummaryService;
+import com.example.AviaryService.util.DueDateAutoFill;
 import com.example.AviaryService.util.Validation;
 
 import org.apache.catalina.connector.Response;
@@ -567,14 +568,24 @@ public class UserController {
 
     @PostMapping("/update/{id}")
     @ResponseBody
-    public ResponseEntity<Map<String, String>> updateStatusSheet(
+    public ResponseEntity<Map<String, Object>> updateStatusSheet(
             @PathVariable Long id,
             @RequestBody StatusSheetItemUpdateDTO updateDTO,
             Authentication authentication) {
         try {
             User user = userRepository.findByUsername(authentication.getName());
-            statusSheetService.updateStatusSheet(user, id, updateDTO);
-            return ResponseEntity.ok(Map.of("status", "success"));
+            StatusSheetItem saved = statusSheetService.updateStatusSheet(user, id, updateDTO);
+            // The saved row, so the dashboard shows an auto-filled Due Date
+            // right away without a reload (spec 007).
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("lastDoneDate", saved.getLastDoneDate());
+            response.put("lastDoneHours", DueDateAutoFill.displayHours(saved.getLastDoneHours()));
+            response.put("dueDateDate", saved.getDueDateDate());
+            response.put("dueDateHours", DueDateAutoFill.displayHours(saved.getDueDateHours()));
+            response.put("timeLeft", saved.getTimeLeft());
+            response.put("warnings", statusSheetService.warningsFor(saved));
+            return ResponseEntity.ok(response);
         } catch (SecurityException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(Map.of("status", "error", "message", e.getMessage()));

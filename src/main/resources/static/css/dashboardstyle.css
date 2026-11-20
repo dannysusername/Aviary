@@ -2797,3 +2797,11 @@ textarea::placeholder { display: none; }
 }
 /* Status Sheet tab info mark sits between the two tab buttons. */
 .tabs .info-mark { align-self: center; margin-left: 0; margin-right: 4px; }
+/* Spec 007: typo check under Last Done (e.g. a future date). */
+.row-warning {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: #9A5B00;
+}
+:root[data-theme="dark"] .row-warning { color: #F0B65A; }

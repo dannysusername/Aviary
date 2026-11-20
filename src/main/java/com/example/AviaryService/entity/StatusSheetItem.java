@@ -51,6 +51,27 @@ public class StatusSheetItem {
     @Column
     private Double cycleHours;
 
+    // Spec 007: whether the Due Date date / hours were auto-filled from Last
+    // Done + cycle (TRUE), typed by the owner (FALSE), or unknown (null, rows
+    // from before the feature; see DueDateAutoFill).
+    @Column
+    private Boolean dueDateAuto;
+
+    @Column
+    private Boolean dueHoursAuto;
+
+    // Display-only (spec 007): hours with 1-3 decimals ("25" shows as "25.0").
+    // Stored text is not changed; legacy non-numeric text is shown as stored.
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public String getLastDoneHoursDisplay() { return com.example.AviaryService.util.DueDateAutoFill.displayHours(lastDoneHours); }
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public String getDueDateHoursDisplay() { return com.example.AviaryService.util.DueDateAutoFill.displayHours(dueDateHours); }
+
+    public Boolean getDueDateAuto() { return dueDateAuto; }
+    public void setDueDateAuto(Boolean v) { this.dueDateAuto = v; }
+    public Boolean getDueHoursAuto() { return dueHoursAuto; }
+    public void setDueHoursAuto(Boolean v) { this.dueHoursAuto = v; }
+
     // Maintenance-alerts state (docs/specs/ALERTS_SPEC.md). alertLevel is the level
     // this item was last alerted at -- null / "DUE_SOON" / "OVERDUE" -- so the
     // daily sweep only fires when an item gets worse (or an overdue item is due

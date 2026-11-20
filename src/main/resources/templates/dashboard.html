@@ -406,7 +406,7 @@
                                 <td class="delete-cell"><span class="delete-icon no-print" onclick="deleteRow(this)"><i class="fa-solid fa-trash-can fa-xl"></i></span></td>
                             </tr>
                             <!-- Regular item row -->
-                            <tr th:unless="${statusSheetItem.isTitle}" th:data-id="${statusSheetItem.id}" th:data-lastDoneDate="${statusSheetItem.lastDoneDate}" th:data-lastDoneHours="${statusSheetItem.lastDoneHours}" th:data-dueDateDate="${statusSheetItem.dueDateDate}" th:data-dueDateHours="${statusSheetItem.dueDateHours}" class="auto-save-row">                           
+                            <tr th:unless="${statusSheetItem.isTitle}" th:data-id="${statusSheetItem.id}" th:data-lastDoneDate="${statusSheetItem.lastDoneDate}" th:data-lastDoneHours="${statusSheetItem.lastDoneHoursDisplay}" th:data-dueDateDate="${statusSheetItem.dueDateDate}" th:data-dueDateHours="${statusSheetItem.dueDateHoursDisplay}" class="auto-save-row">                           
                                 <td class = "grip-cell"><span class="grip-icon no-print"><i class="fa-solid fa-grip-vertical"></i></span></td>
                                 <td data-label="Item"><textarea name="item" rows="1" th:text="${statusSheetItem.item}" oninput="autoSave(this)" class="no-print"></textarea><i class="fa-solid fa-chevron-down card-caret no-print"></i>
                                     <span class="print-only" th:text="${statusSheetItem.item}"></span></td>
@@ -471,7 +471,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <span class="print-only" th:text="${statusSheetItem.lastDoneDate != null ? statusSheetItem.lastDoneDate : (statusSheetItem.lastDoneHours != null ? statusSheetItem.lastDoneHours + ' hrs' : '')}"></span>
+                                    <span class="print-only" th:text="${statusSheetItem.lastDoneDate != null ? statusSheetItem.lastDoneDate : (statusSheetItem.lastDoneHours != null ? statusSheetItem.lastDoneHoursDisplay + ' hrs' : '')}"></span>
                                 </td>
                                 <td data-label="Due Date">
                                     <div class="input-with-dropdown no-print">
@@ -487,7 +487,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <span class="print-only" th:text="${statusSheetItem.dueDateDate != null ? statusSheetItem.dueDateDate : (statusSheetItem.dueDateHours != null ? statusSheetItem.dueDateHours + ' hrs' : '')}"></span>
+                                    <span class="print-only" th:text="${statusSheetItem.dueDateDate != null ? statusSheetItem.dueDateDate : (statusSheetItem.dueDateHours != null ? statusSheetItem.dueDateHoursDisplay + ' hrs' : '')}"></span>
                                 </td>
                                 <td data-label="Time Left"><div class="time-left" th:text="${statusSheetItem.timeLeft != null ? statusSheetItem.timeLeft : ''}"></div></td>
                                 <!--<td class="status-cell"><span class="save-status no-print">✓</span></td>-->
