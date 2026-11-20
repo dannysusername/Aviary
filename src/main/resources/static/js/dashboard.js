@@ -6,6 +6,9 @@ const rowSaveTimers = new Map();
 // Spec 007: per row, whether the owner edited the Due Date date / hours since
 // the last save went out (kept across the 500ms debounce).
 const rowDueTouched = new Map();
+// The pending (debounced) save per row, and the save currently in flight.
+const rowPendingSends = new Map();
+const rowInFlight = new Map();
 
 // Hours with 1-3 decimals: "25" -> "25.0", "25.12345" -> "25.123" (half up).
 // Same rule as DueDateAutoFill.formatHours on the server. null if not a number.
@@ -186,6 +189,93 @@ function showConfirm(message, confirmLabel = 'Confirm') {
     });
 }
 
+
+// A confirm box with several actions (spec 007: roll-forward box). choices =
+// [{ key, label, hint, disabled, primary }]. Resolves with the chosen key, or
+// null for Cancel / Esc / click outside. Disabled choices stay visible with
+// their hint so the owner sees why.
+function showChoice(message, choices) {
+    return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.className = 'confirm-overlay';
+        const box = document.createElement('div');
+        box.className = 'confirm-box choice-box';
+        box.setAttribute('role', 'dialog');
+        box.setAttribute('aria-modal', 'true');
+        const msg = document.createElement('div');
+        msg.className = 'confirm-message';
+        msg.textContent = message;
+        box.appendChild(msg);
+
+        const list = document.createElement('div');
+        list.className = 'choice-list';
+        choices.forEach(c => {
+            const item = document.createElement('div');
+            item.className = 'choice-item';
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'confirm-btn ' + (c.primary ? 'ok' : 'choice-secondary');
+            btn.dataset.choice = c.key;
+            btn.textContent = c.label;
+            if (c.disabled) btn.disabled = true;
+            item.appendChild(btn);
+            if (c.hint) {
+                const hint = document.createElement('div');
+                hint.className = 'choice-hint';
+                hint.textContent = c.hint;
+                item.appendChild(hint);
+            }
+            btn.addEventListener('click', () => close(c.key));
+            list.appendChild(item);
+        });
+        box.appendChild(list);
+
+        const actions = document.createElement('div');
+        actions.className = 'confirm-actions';
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'confirm-btn cancel';
+        cancel.textContent = 'Cancel';
+        cancel.addEventListener('click', () => close(null));
+        actions.appendChild(cancel);
+        box.appendChild(actions);
+
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+        requestAnimationFrame(() => overlay.classList.add('show'));
+
+        function onKey(e) { if (e.key === 'Escape') close(null); }
+        function close(result) {
+            overlay.classList.remove('show');
+            setTimeout(() => overlay.remove(), 150);
+            document.removeEventListener('keydown', onKey);
+            resolve(result);
+        }
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(null); });
+        document.addEventListener('keydown', onKey);
+    });
+}
+
+// "2021-01-01" -> "01/01/2021" by hand, so a time zone can never shift the day.
+function formatPlainDate(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+    return m ? `${m[2]}/${m[3]}/${m[1]}` : (iso || '');
+}
+
+// "Reset to cycle" from the roll-forward box: Due Date = Last Done + cycle.
+async function resetDueToCycle(row, id) {
+    try {
+        const csrfToken  = document.querySelector('meta[name="_csrf"]').getAttribute('content');
+        const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
+        const response = await axios.post(`/resetDueToCycle/${id}`, {}, {
+            headers: { [csrfHeader]: csrfToken, 'Content-Type': 'application/json' }
+        });
+        applySavedRow(row, response.data);
+        showToast('Due Date reset to the cycle.', 'success');
+    } catch (error) {
+        showToast(error?.response?.data?.message || 'Could not reset the Due Date.', 'error');
+    }
+}
 
 // ── "Last updated" formatting for the My Hours card ──
 function relativeTime(date) {
@@ -370,8 +460,9 @@ function autoSave(input) {
     //status.textContent = '...';
     //status.className = 'save-status saving';
 
-    rowSaveTimers.set(id, setTimeout(() => {
+    const send = () => {
         rowSaveTimers.delete(id);
+        rowPendingSends.delete(id);
         const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
         const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
 
@@ -380,19 +471,33 @@ function autoSave(input) {
         data.dueDateTouched = sentTouched.date;
         data.dueHoursTouched = sentTouched.hours;
 
-        axios.post(`/update/${id}`, data, {
+        const p = axios.post(`/update/${id}`, data, {
             headers: { [csrfHeader]: csrfToken }
         })
         .then(response => {
             applySavedRow(row, response.data);
         })
         .catch(error => {
-            //status.textContent = '✖';
-            //status.className = 'save-status error';
             console.error('Error saving:', error.response ? error.response.data : error);
             showToast(error.response?.data?.message || 'Could not save that change. Check your connection and try again.', 'error');
-        });
-    }, 500));
+        })
+        .finally(() => { if (rowInFlight.get(id) === p) rowInFlight.delete(id); });
+        rowInFlight.set(id, p);
+        return p;
+    };
+    rowPendingSends.set(id, send);
+    rowSaveTimers.set(id, setTimeout(send, 500));
+}
+
+// Finish this row's pending save now (skip the 500ms wait) and wait for any
+// save already on its way, so a following action sees what is on screen.
+function flushRowSave(id) {
+    const pending = rowPendingSends.get(id);
+    if (pending) {
+        clearTimeout(rowSaveTimers.get(id));
+        return pending();
+    }
+    return rowInFlight.get(id) || Promise.resolve();
 }
 
 async function loadAeroApiUsage() {
@@ -546,10 +651,25 @@ async function completeMaintenance(button) {
         showToast('Could not identify row.', 'error');
         return;
     }
-    const confirmed = await showConfirm(
-        'Mark this maintenance as just completed? This will reset Last Done to today / current hours and roll Due Date forward by the cycle.',
-        'Mark complete');
-    if (!confirmed) return;
+    // Make sure the server has what is on screen before previewing (spec 007).
+    await flushRowSave(id);
+    let preview = null;
+    try {
+        preview = (await axios.get(`/statusSheet/${id}/cyclePreview`)).data;
+    } catch (e) {
+        preview = { canReset: false, reason: 'Could not load the cycle date.' };
+    }
+    const resetValue = [preview.dueDateDate ? formatPlainDate(preview.dueDateDate) : null,
+                        preview.dueDateHours ? `${preview.dueDateHours} hrs` : null].filter(Boolean).join(' · ');
+    const choice = await showChoice('Mark this maintenance complete, or reset the Due Date?', [
+        { key: 'complete', label: 'Mark complete', primary: true,
+          hint: 'Last Done becomes today / current hours, and Due Date rolls forward by the cycle.' },
+        { key: 'reset', label: resetValue ? `Reset to cycle (${resetValue})` : 'Reset to cycle',
+          disabled: !preview.canReset,
+          hint: preview.canReset ? 'Keeps Last Done. Due Date goes back to Last Done + cycle.' : preview.reason }
+    ]);
+    if (choice === 'reset') { await resetDueToCycle(row, id); return; }
+    if (choice !== 'complete') return;
     try {
         const csrfToken  = document.querySelector('meta[name="_csrf"]').getAttribute('content');
         const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');

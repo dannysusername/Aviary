@@ -2805,3 +2805,11 @@ textarea::placeholder { display: none; }
   color: #9A5B00;
 }
 :root[data-theme="dark"] .row-warning { color: #F0B65A; }
+/* Spec 007: roll-forward box with two choices (Mark complete / Reset to cycle). */
+.choice-box { max-width: 400px; }
+.choice-list { display: flex; flex-direction: column; gap: 14px; margin-bottom: 16px; text-align: left; }
+.choice-item .confirm-btn { width: 100%; min-height: 44px; }
+.confirm-btn.choice-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+.confirm-btn.choice-secondary:hover:not(:disabled) { background: var(--primary-light); }
+.choice-item .confirm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.choice-hint { margin-top: 4px; font-size: 12px; line-height: 1.35; color: var(--text-muted); }

@@ -245,6 +245,52 @@ public class StatusSheetService {
             timeLeftStr);
     }
 
+    // What "Reset to cycle" would set (spec 007): Due Date = stored Last Done +
+    // cycle, for each part that can be computed. canReset is false when there
+    // is nothing to count from or the Due Date already matches.
+    public record CyclePreview(String dueDateDate, String dueDateHours, boolean canReset, String reason) {}
+
+    public CyclePreview cyclePreview(User user, Long id) {
+        return previewOf(getOwned(user, id));
+    }
+
+    private static CyclePreview previewOf(StatusSheetItem i) {
+        DueDateAutoFill.Cycle cycle = cycleOf(i);
+        String date = DueDateAutoFill.expectedDueDate(i.getLastDoneDate(), cycle);
+        String hours = DueDateAutoFill.expectedDueHours(i.getLastDoneHours(), cycle);
+        if (date == null && hours == null) {
+            return new CyclePreview(null, null, false, "Enter Last Done first");
+        }
+        boolean dateDiffers = date != null && !DueDateAutoFill.sameDate(i.getDueDateDate(), date);
+        boolean hoursDiffers = hours != null && !DueDateAutoFill.sameHours(i.getDueDateHours(), hours);
+        if (!dateDiffers && !hoursDiffers) {
+            return new CyclePreview(date, hours, false, "Due Date already matches the cycle");
+        }
+        return new CyclePreview(date, hours, true, null);
+    }
+
+    // "Reset to cycle": keeps Last Done, sets each computable Due Date part to
+    // Last Done + cycle and hands it back to auto-fill.
+    @Transactional
+    public StatusSheetItem resetDueToCycle(User user, Long id) {
+        StatusSheetItem i = getOwned(user, id);
+        CyclePreview p = previewOf(i);
+        if (!p.canReset()) {
+            throw new IllegalArgumentException(p.reason());
+        }
+        if (p.dueDateDate() != null) {
+            i.setDueDateDate(p.dueDateDate());
+            i.setDueDateAuto(true);
+        }
+        if (p.dueDateHours() != null) {
+            i.setDueDateHours(p.dueDateHours());
+            i.setDueHoursAuto(true);
+        }
+        i.setTimeLeft(DueDates.formatTimeLeft(i.getDueDateDate(), i.getDueDateHours(), LocalDate.now(),
+            currentTimeInService(i)));
+        return statusSheetItemRepository.save(i);
+    }
+
     private StatusSheetItem getOwned(User user, Long id) {
         StatusSheetItem statusSheetItem = statusSheetItemRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Invalid Status Sheet item ID: " + id));

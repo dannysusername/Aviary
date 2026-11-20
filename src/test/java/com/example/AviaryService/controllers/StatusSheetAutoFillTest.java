@@ -169,4 +169,73 @@ class StatusSheetAutoFillTest {
         assertEquals("1100.0", saved.getDueDateHours());
         assertTrue(saved.getDueHoursAuto());
     }
+
+    // ── Roll-forward box: "Reset to cycle" ─────────────────────────────
+
+    @Test
+    void previewOffersTheCycleDateWhenATypedDueDateDiffers() throws Exception {
+        StatusSheetItem i = row(1, "MONTHS", null, null, null);
+        save(i, body(i, "2020-12-01", null, "2021-03-15", null, true, false));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/statusSheet/" + i.getId() + "/cyclePreview")
+                .with(user(owner.getUsername())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.canReset").value(true))
+            .andExpect(jsonPath("$.dueDateDate").value("2021-01-01"));
+
+        mvc.perform(post("/resetDueToCycle/" + i.getId()).with(user(owner.getUsername())).with(csrf()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.dueDateDate").value("2021-01-01"))
+            .andExpect(jsonPath("$.lastDoneDate").value("2020-12-01"));
+        StatusSheetItem saved = items.findById(i.getId()).orElseThrow();
+        assertEquals("2021-01-01", saved.getDueDateDate());
+        assertTrue(saved.getDueDateAuto(), "after reset the Due Date follows the cycle again");
+
+        // ...and keeps following it.
+        save(i, body(saved, "2021-02-01", null, "2021-01-01", null, false, false))
+            .andExpect(jsonPath("$.dueDateDate").value("2021-03-01"));
+    }
+
+    @Test
+    void previewIsGrayedWhenNothingToReset() throws Exception {
+        StatusSheetItem i = row(1, "MONTHS", null, null, null);
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/statusSheet/" + i.getId() + "/cyclePreview")
+                .with(user(owner.getUsername())))
+            .andExpect(jsonPath("$.canReset").value(false))
+            .andExpect(jsonPath("$.reason").value("Enter Last Done first"));
+
+        save(i, body(i, "2020-12-01", null, null, null, false, false));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/statusSheet/" + i.getId() + "/cyclePreview")
+                .with(user(owner.getUsername())))
+            .andExpect(jsonPath("$.canReset").value(false))
+            .andExpect(jsonPath("$.reason").value("Due Date already matches the cycle"));
+        mvc.perform(post("/resetDueToCycle/" + i.getId()).with(user(owner.getUsername())).with(csrf()))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void resetHandlesBothPartsAndLegacyHoursCountAsMatching() throws Exception {
+        StatusSheetItem i = row(1, "MONTHS", 100.0, "2021-03-15", "1300");
+        i.setLastDoneDate("2020-12-01");
+        i.setLastDoneHours("1200");
+        items.save(i);
+        mvc.perform(post("/resetDueToCycle/" + i.getId()).with(user(owner.getUsername())).with(csrf()))
+            .andExpect(jsonPath("$.dueDateDate").value("2021-01-01"))
+            .andExpect(jsonPath("$.dueDateHours").value("1300.0"));
+    }
+
+    @Test
+    void anotherAccountCannotPreviewOrResetMyRow() throws Exception {
+        StatusSheetItem mine = row(1, "MONTHS", null, "2021-03-15", null);
+        User other = new User();
+        other.setUsername("intruder-" + UUID.randomUUID());
+        other.setPassword("x");
+        other = users.save(other);
+        TestFleet.addAircraft(aircraft, users, other);
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/statusSheet/" + mine.getId() + "/cyclePreview")
+                .with(user(other.getUsername())))
+            .andExpect(status().isForbidden());
+        mvc.perform(post("/resetDueToCycle/" + mine.getId()).with(user(other.getUsername())).with(csrf()))
+            .andExpect(status().isForbidden());
+        assertEquals("2021-03-15", items.findById(mine.getId()).orElseThrow().getDueDateDate());
+    }
 }

@@ -191,12 +191,12 @@ public final class DueDateAutoFill {
         return !sameText(storedLastDone, newLastDone) || !Objects.equals(storedCycle, newCycle);
     }
 
-    static boolean sameDate(String a, String b) {
+    public static boolean sameDate(String a, String b) {
         LocalDate da = validDate(a), db = validDate(b);
         return da != null && da.equals(db);
     }
 
-    static boolean sameHours(String a, String b) {
+    public static boolean sameHours(String a, String b) {
         BigDecimal ha = parseHours(a), hb = parseHours(b);
         return ha != null && hb != null && ha.setScale(3, RoundingMode.HALF_UP).compareTo(hb.setScale(3, RoundingMode.HALF_UP)) == 0;
     }

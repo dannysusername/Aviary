@@ -31,6 +31,8 @@
 | GET | `/dashboard` | — | `dashboard` view | loads Status Sheet items, flight logs, hours, aircraft info for the auth user |
 | POST | `/dashboard` | JSON Status Sheet fields | row JSON or 302 | adds a Status Sheet row; assigns next `statusSheetOrder` |
 | POST | `/update/{id}` | `StatusSheetItemUpdateDTO` (+ `dueDateTouched`, `dueHoursTouched`) | saved row JSON: `lastDoneDate`, `lastDoneHours`, `dueDateDate`, `dueDateHours`, `timeLeft`, `warnings` | update of a Status Sheet row. Ownership checked (403 if not owner). Auto-fills the Due Date from Last Done + cycle (spec 007, `DueDateAutoFill`); hours must be numbers (400 "Hours must be a number, e.g. 25.0"). Both touched flags missing = older dashboard.js, saved as sent. |
+| GET | `/statusSheet/{id}/cyclePreview` | — | `{dueDateDate, dueDateHours, canReset, reason}` | what "Reset to cycle" would set (Last Done + cycle). Ownership checked (403). |
+| POST | `/resetDueToCycle/{id}` | — | saved row JSON (same as `/update`) | sets Due Date = Last Done + cycle, keeps Last Done, marks it auto again. 400 with the reason when there is nothing to reset. Ownership checked (403). |
 | DELETE | `/delete/{id}` | — | 200 / 403 / 404 | deletes a Status Sheet row. Ownership checked (403 if not owner) |
 | POST | `/updateOrder` | `List<Long>` ids | void | reorders Status Sheet items; user-scoped, matches ids with `.equals` |
 | POST | `/updateUserInfo` | JSON aircraft fields | status JSON | updates makeModel/tailNumber/ownerName/makeModelSN for auth user |

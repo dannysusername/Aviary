@@ -575,17 +575,7 @@ public class UserController {
         try {
             User user = userRepository.findByUsername(authentication.getName());
             StatusSheetItem saved = statusSheetService.updateStatusSheet(user, id, updateDTO);
-            // The saved row, so the dashboard shows an auto-filled Due Date
-            // right away without a reload (spec 007).
-            Map<String, Object> response = new HashMap<>();
-            response.put("status", "success");
-            response.put("lastDoneDate", saved.getLastDoneDate());
-            response.put("lastDoneHours", DueDateAutoFill.displayHours(saved.getLastDoneHours()));
-            response.put("dueDateDate", saved.getDueDateDate());
-            response.put("dueDateHours", DueDateAutoFill.displayHours(saved.getDueDateHours()));
-            response.put("timeLeft", saved.getTimeLeft());
-            response.put("warnings", statusSheetService.warningsFor(saved));
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(savedRow(saved));
         } catch (SecurityException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(Map.of("status", "error", "message", e.getMessage()));
@@ -597,6 +587,54 @@ public class UserController {
         }
     }
 
+
+    // The saved row, so the dashboard shows an auto-filled Due Date right away
+    // without a reload (spec 007). Same shape for /update and /resetDueToCycle.
+    private Map<String, Object> savedRow(StatusSheetItem saved) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("lastDoneDate", saved.getLastDoneDate());
+        response.put("lastDoneHours", DueDateAutoFill.displayHours(saved.getLastDoneHours()));
+        response.put("dueDateDate", saved.getDueDateDate());
+        response.put("dueDateHours", DueDateAutoFill.displayHours(saved.getDueDateHours()));
+        response.put("timeLeft", saved.getTimeLeft());
+        response.put("warnings", statusSheetService.warningsFor(saved));
+        return response;
+    }
+
+    // What the "Reset to cycle" choice in the roll-forward box would set.
+    @GetMapping("/statusSheet/{id}/cyclePreview")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> cyclePreview(@PathVariable Long id, Authentication authentication) {
+        try {
+            User user = userRepository.findByUsername(authentication.getName());
+            StatusSheetService.CyclePreview p = statusSheetService.cyclePreview(user, id);
+            Map<String, Object> body = new HashMap<>();
+            body.put("dueDateDate", p.dueDateDate());
+            body.put("dueDateHours", p.dueDateHours());
+            body.put("canReset", p.canReset());
+            body.put("reason", p.reason());
+            return ResponseEntity.ok(body);
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("status", "error", "message", e.getMessage()));
+        } catch (java.util.NoSuchElementException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    // "Reset to cycle": Due Date = Last Done + cycle, Last Done unchanged.
+    @PostMapping("/resetDueToCycle/{id}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> resetDueToCycle(@PathVariable Long id, Authentication authentication) {
+        try {
+            User user = userRepository.findByUsername(authentication.getName());
+            return ResponseEntity.ok(savedRow(statusSheetService.resetDueToCycle(user, id)));
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("status", "error", "message", e.getMessage()));
+        } catch (IllegalArgumentException | java.util.NoSuchElementException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
 
     @DeleteMapping("/delete/{id}")
     @ResponseBody

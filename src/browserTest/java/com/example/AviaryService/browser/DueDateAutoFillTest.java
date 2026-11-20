@@ -116,4 +116,37 @@ class DueDateAutoFillTest extends BrowserTestBase {
         assertThat(due).hasCount(0);
         if (!errors.isEmpty()) throw new AssertionError("Console errors: " + errors);
     }
+
+    @Test
+    void rollForwardBoxOffersResetToCycleForATypedDueDate() {
+        String username = seedUser("password");
+        StatusSheetItem item = seed(username, 1, "MONTHS", null, "2020-12-01", null);
+        List<String> errors = open(username);
+
+        Locator row = page.locator("tr.auto-save-row[data-id='" + item.getId() + "']");
+        Locator due = row.locator("td:nth-child(6) input[type='date']");
+        row.locator("td:nth-child(5) input[type='date']").fill("2020-12-01");
+        assertThat(due).hasValue("2021-01-01", new com.microsoft.playwright.assertions.LocatorAssertions.HasValueOptions().setTimeout(5000));
+
+        // Owner types their own Due Date, then opens the box right away
+        // (before the 500ms save would have gone out on its own).
+        due.fill("2021-03-15");
+        row.locator(".complete-btn").click();
+
+        Locator reset = page.locator(".choice-box button[data-choice='reset']");
+        assertThat(reset).hasText("Reset to cycle (01/01/2021)");
+        assertThat(reset).isEnabled();
+        assertThat(page.locator(".choice-box button[data-choice='complete']")).isEnabled();
+        reset.click();
+
+        assertThat(due).hasValue("2021-01-01", new com.microsoft.playwright.assertions.LocatorAssertions.HasValueOptions().setTimeout(5000));
+        assertThat(row.locator("td:nth-child(5) input[type='date']")).hasValue("2020-12-01");
+
+        // Now it matches: Reset is grayed out with the reason.
+        row.locator(".complete-btn").click();
+        assertThat(reset).isDisabled();
+        assertThat(page.locator(".choice-box")).containsText("Due Date already matches the cycle");
+        page.keyboard().press("Escape");
+        if (!errors.isEmpty()) throw new AssertionError("Console errors: " + errors);
+    }
 }
