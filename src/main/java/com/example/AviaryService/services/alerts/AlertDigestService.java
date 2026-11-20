@@ -191,7 +191,7 @@ public class AlertDigestService {
     }
 
     private static void appendHours(StringBuilder sb, String label, Aircraft a) {
-        sb.append("\n").append(label).append(": Block Time ").append(hours(a.getBlockTimeHours()))
+        sb.append("\n").append(label).append(": Hobbs Time ").append(hours(a.getHobbsTimeHours()))
           .append(" · Time in Service ").append(hours(a.getTimeInServiceHours())).append('\n');
     }
 

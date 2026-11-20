@@ -41,7 +41,7 @@ class HoursTableEdgeCasesTest extends BrowserTestBase {
 
     @Test
     void freshUserShowsZeroHoursAndEmptyAircraftInfo() {
-        // User with no edits — getBlockTimeHours/getTimeInServiceHours default to 0.0,
+        // User with no edits — getHobbsTimeHours/getTimeInServiceHours default to 0.0,
         // aircraft info fields are null.
         String username = seedUser("password");
         List<String> errors = attachConsoleErrorListener();
@@ -49,10 +49,10 @@ class HoursTableEdgeCasesTest extends BrowserTestBase {
         loginAs(username, "password");
         page.waitForLoadState(LoadState.NETWORKIDLE);
 
-        // Hours block always renders "Block Time: 0.0" / "Time in Service: 0.0" for
+        // Hours block always renders "Hobbs Time: 0.0" / "Time in Service: 0.0" for
         // a brand-new user because the getters coalesce null → 0.0.
-        assertThat(page.locator("#current-block-time-display")).containsText("Block Time:");
-        assertThat(page.locator("#current-block-time-display")).containsText("0");
+        assertThat(page.locator("#current-hobbs-time-display")).containsText("Hobbs Time:");
+        assertThat(page.locator("#current-hobbs-time-display")).containsText("0");
         assertThat(page.locator("#current-time-in-service-display")).containsText("Time in Service:");
         assertThat(page.locator("#current-time-in-service-display")).containsText("0");
 
@@ -69,7 +69,7 @@ class HoursTableEdgeCasesTest extends BrowserTestBase {
     void decimalHoursRenderWithoutTruncation() {
         String username = seedUser("password");
         Aircraft u = aircraftOf(username);
-        u.setBlockTimeHours(1234.5);
+        u.setHobbsTimeHours(1234.5);
         u.setTimeInServiceHours(987.6);
         aircraftRepository.save(u);
 
@@ -79,11 +79,11 @@ class HoursTableEdgeCasesTest extends BrowserTestBase {
 
         // The display string is built by Thymeleaf string-concat which uses
         // Double.toString(); 1234.5 should appear verbatim.
-        assertThat(page.locator("#current-block-time-display")).containsText("1234.5");
+        assertThat(page.locator("#current-hobbs-time-display")).containsText("1234.5");
         assertThat(page.locator("#current-time-in-service-display")).containsText("987.6");
 
         // The "Edit" form input mirrors the same value.
-        assertThat(page.locator("#current-block-time")).hasValue("1234.5");
+        assertThat(page.locator("#current-hobbs-time")).hasValue("1234.5");
         assertThat(page.locator("#current-time-in-service")).hasValue("987.6");
 
         assertNoConsoleErrors(errors);
@@ -93,7 +93,7 @@ class HoursTableEdgeCasesTest extends BrowserTestBase {
     void veryLargeHoursValueRenders() {
         String username = seedUser("password");
         Aircraft u = aircraftOf(username);
-        u.setBlockTimeHours(99999.9);
+        u.setHobbsTimeHours(99999.9);
         u.setTimeInServiceHours(99999.9);
         aircraftRepository.save(u);
 
@@ -101,7 +101,7 @@ class HoursTableEdgeCasesTest extends BrowserTestBase {
         loginAs(username, "password");
         page.waitForLoadState(LoadState.NETWORKIDLE);
 
-        assertThat(page.locator("#current-block-time-display")).containsText("99999.9");
+        assertThat(page.locator("#current-hobbs-time-display")).containsText("99999.9");
         assertThat(page.locator("#current-time-in-service-display")).containsText("99999.9");
 
         assertNoConsoleErrors(errors);
@@ -158,7 +158,7 @@ class HoursTableEdgeCasesTest extends BrowserTestBase {
         // not render as blank.
         String username = seedUser("password");
         Aircraft u = aircraftOf(username);
-        u.setBlockTimeHours(0.0);
+        u.setHobbsTimeHours(0.0);
         u.setTimeInServiceHours(0.0);
         aircraftRepository.save(u);
 
@@ -166,9 +166,9 @@ class HoursTableEdgeCasesTest extends BrowserTestBase {
         loginAs(username, "password");
         page.waitForLoadState(LoadState.NETWORKIDLE);
 
-        // "Block Time: 0.0" must include the "0" — not "Block Time: ".
-        assertThat(page.locator("#current-block-time-display")).containsText("Block Time:");
-        assertThat(page.locator("#current-block-time-display")).containsText("0");
+        // "Hobbs Time: 0.0" must include the "0" — not "Hobbs Time: ".
+        assertThat(page.locator("#current-hobbs-time-display")).containsText("Hobbs Time:");
+        assertThat(page.locator("#current-hobbs-time-display")).containsText("0");
 
         assertNoConsoleErrors(errors);
     }
@@ -179,18 +179,18 @@ class HoursTableEdgeCasesTest extends BrowserTestBase {
         // dashboard.js reads to render the "last updated" label.
         String username = seedUser("password");
         Aircraft u = aircraftOf(username);
-        u.setBlockTimeHours(50.0);
-        u.setBlockTimeUpdatedAt(java.time.Instant.parse("2025-10-01T12:00:00Z"));
-        u.setBlockTimeUpdatedSource("manual");
+        u.setHobbsTimeHours(50.0);
+        u.setHobbsTimeUpdatedAt(java.time.Instant.parse("2025-10-01T12:00:00Z"));
+        u.setHobbsTimeUpdatedSource("manual");
         aircraftRepository.save(u);
 
         List<String> errors = attachConsoleErrorListener();
         loginAs(username, "password");
         page.waitForLoadState(LoadState.NETWORKIDLE);
 
-        assertThat(page.locator("#block-time-updated"))
+        assertThat(page.locator("#hobbs-time-updated"))
                 .hasAttribute("data-source", "manual");
-        assertThat(page.locator("#block-time-updated"))
+        assertThat(page.locator("#hobbs-time-updated"))
                 .hasAttribute("data-updated", "2025-10-01T12:00:00Z");
 
         assertNoConsoleErrors(errors);

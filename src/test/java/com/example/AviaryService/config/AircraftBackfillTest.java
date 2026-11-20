@@ -139,13 +139,13 @@ class AircraftBackfillTest {
         assertEquals("Cirrus SR22", a.getMakeModel());
         assertEquals("Pat Owner", a.getOwnerName());
         assertEquals("3517", a.getMakeModelSN());
-        assertEquals(1532.4, a.getBlockTimeHours(), 1e-9);
+        assertEquals(1532.4, a.getHobbsTimeHours(), 1e-9);
         assertEquals(1418.7, a.getTimeInServiceHours(), 1e-9);
-        assertEquals(1500.0, a.getBlockTimeManualBaseline(), 1e-9);
+        assertEquals(1500.0, a.getHobbsTimeManualBaseline(), 1e-9);
         assertEquals(1400.0, a.getTimeInServiceManualBaseline(), 1e-9);
-        assertEquals(Instant.parse("2026-10-01T12:00:00Z"), a.getBlockTimeUpdatedAt());
+        assertEquals(Instant.parse("2026-10-01T12:00:00Z"), a.getHobbsTimeUpdatedAt());
         assertEquals(Instant.parse("2026-10-02T12:00:00Z"), a.getTimeInServiceUpdatedAt());
-        assertEquals("manual", a.getBlockTimeUpdatedSource());
+        assertEquals("manual", a.getHobbsTimeUpdatedSource());
         assertEquals("flightlog", a.getTimeInServiceUpdatedSource());
 
         for (String table : List.of("service_timelines", "flight_logs", "flight_suggestions", "subscriptions", "import_proposals")) {

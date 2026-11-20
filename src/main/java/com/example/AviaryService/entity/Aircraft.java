@@ -45,8 +45,8 @@ public class Aircraft {
     @Column
     private String makeModelSN;
 
-    @Column
-    private Double blockTimeHours;
+    @Column(name = "block_time_hours")
+    private Double hobbsTimeHours;
 
     @Column
     private Double timeInServiceHours;
@@ -54,20 +54,20 @@ public class Aircraft {
     // Manual "floor" for each meter. Any manual edit on /updateHours writes
     // this too; log-book activity can only raise the displayed value above
     // it, never below. Nullable on purpose: "never set" differs from "0".
-    @Column
-    private Double blockTimeManualBaseline;
+    @Column(name = "block_time_manual_baseline")
+    private Double hobbsTimeManualBaseline;
 
     @Column
     private Double timeInServiceManualBaseline;
 
-    @Column
-    private Instant blockTimeUpdatedAt;
+    @Column(name = "block_time_updated_at")
+    private Instant hobbsTimeUpdatedAt;
 
     @Column
     private Instant timeInServiceUpdatedAt;
 
-    @Column
-    private String blockTimeUpdatedSource;
+    @Column(name = "block_time_updated_source")
+    private String hobbsTimeUpdatedSource;
 
     @Column
     private String timeInServiceUpdatedSource;
@@ -79,7 +79,7 @@ public class Aircraft {
 
     public Aircraft(User user) {
         this.user = user;
-        this.blockTimeHours = 0.0;
+        this.hobbsTimeHours = 0.0;
         this.timeInServiceHours = 0.0;
         this.tailNumber = "";
         this.makeModel = "";
@@ -122,26 +122,26 @@ public class Aircraft {
     public String getMakeModelSN() { return makeModelSN; }
     public void setMakeModelSN(String makeModelSN) { this.makeModelSN = makeModelSN; }
 
-    public Double getBlockTimeHours() { return blockTimeHours != null ? blockTimeHours : 0.0; }
-    public void setBlockTimeHours(Double blockTimeHours) { this.blockTimeHours = blockTimeHours != null ? blockTimeHours : 0.0; }
+    public Double getHobbsTimeHours() { return hobbsTimeHours != null ? hobbsTimeHours : 0.0; }
+    public void setHobbsTimeHours(Double hobbsTimeHours) { this.hobbsTimeHours = hobbsTimeHours != null ? hobbsTimeHours : 0.0; }
 
     public Double getTimeInServiceHours() { return timeInServiceHours != null ? timeInServiceHours : 0.0; }
     public void setTimeInServiceHours(Double timeInServiceHours) { this.timeInServiceHours = timeInServiceHours != null ? timeInServiceHours : 0.0; }
 
-    public Double getBlockTimeManualBaseline() { return blockTimeManualBaseline; }
-    public void setBlockTimeManualBaseline(Double v) { this.blockTimeManualBaseline = v; }
+    public Double getHobbsTimeManualBaseline() { return hobbsTimeManualBaseline; }
+    public void setHobbsTimeManualBaseline(Double v) { this.hobbsTimeManualBaseline = v; }
 
     public Double getTimeInServiceManualBaseline() { return timeInServiceManualBaseline; }
     public void setTimeInServiceManualBaseline(Double v) { this.timeInServiceManualBaseline = v; }
 
-    public Instant getBlockTimeUpdatedAt() { return blockTimeUpdatedAt; }
-    public void setBlockTimeUpdatedAt(Instant v) { this.blockTimeUpdatedAt = v; }
+    public Instant getHobbsTimeUpdatedAt() { return hobbsTimeUpdatedAt; }
+    public void setHobbsTimeUpdatedAt(Instant v) { this.hobbsTimeUpdatedAt = v; }
 
     public Instant getTimeInServiceUpdatedAt() { return timeInServiceUpdatedAt; }
     public void setTimeInServiceUpdatedAt(Instant v) { this.timeInServiceUpdatedAt = v; }
 
-    public String getBlockTimeUpdatedSource() { return blockTimeUpdatedSource; }
-    public void setBlockTimeUpdatedSource(String v) { this.blockTimeUpdatedSource = v; }
+    public String getHobbsTimeUpdatedSource() { return hobbsTimeUpdatedSource; }
+    public void setHobbsTimeUpdatedSource(String v) { this.hobbsTimeUpdatedSource = v; }
 
     public String getTimeInServiceUpdatedSource() { return timeInServiceUpdatedSource; }
     public void setTimeInServiceUpdatedSource(String v) { this.timeInServiceUpdatedSource = v; }

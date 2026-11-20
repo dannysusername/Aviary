@@ -103,7 +103,7 @@ class AircraftServiceTest {
     void newAircraftStartsEmptyAndBecomesTheViewedOne() {
         Aircraft a = aircraftService.create(owner, "n731kr", "Piper PA-28", "", null);
         assertEquals("N731KR", a.getTailNumber());
-        assertEquals(0.0, a.getBlockTimeHours());
+        assertEquals(0.0, a.getHobbsTimeHours());
         assertEquals(0.0, a.getTimeInServiceHours());
         assertTrue(timelineRepository.findByAircraftOrderByTimelineOrderAsc(a).isEmpty());
         assertTrue(flightLogRepository.findByAircraft(a).isEmpty());

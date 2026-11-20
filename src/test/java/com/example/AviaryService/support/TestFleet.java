@@ -12,11 +12,11 @@ public final class TestFleet {
     private TestFleet() {}
 
     public static Aircraft addAircraft(AircraftRepository aircraftRepository, UserRepository userRepository,
-            User user, String tail, String ownerName, double blockTime, double timeInService) {
+            User user, String tail, String ownerName, double hobbsTime, double timeInService) {
         Aircraft a = new Aircraft(user);
         a.setTailNumber(tail);
         a.setOwnerName(ownerName);
-        a.setBlockTimeHours(blockTime);
+        a.setHobbsTimeHours(hobbsTime);
         a.setTimeInServiceHours(timeInService);
         a = aircraftRepository.save(a);
         if (user.getLastViewedAircraft() == null) {

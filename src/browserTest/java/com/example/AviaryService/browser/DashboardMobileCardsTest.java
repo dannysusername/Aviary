@@ -78,8 +78,8 @@ class DashboardMobileCardsTest extends BrowserTestBase {
         log.setAircraft(aircraftOf(user));
         log.setFromAirport("KSQL");
         log.setToAirport("KPAO");
-        log.setBlockTimeOut(1234.5);
-        log.setBlockTimeIn(1236.1);
+        log.setHobbsTimeOut(1234.5);
+        log.setHobbsTimeIn(1236.1);
         log.setTimeInServiceOut(1100.2);
         log.setTimeInServiceIn(1101.5);
         flightLogs.save(log);

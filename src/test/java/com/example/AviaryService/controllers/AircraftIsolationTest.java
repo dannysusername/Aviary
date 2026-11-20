@@ -100,10 +100,10 @@ class AircraftIsolationTest {
         mvc.perform(post("/addflightlog").with(user(owner.getUsername())).with(csrf())
                 .header("X-Aircraft-Id", b.getId())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"blockTimeOut\":500.0,\"blockTimeIn\":502.0,\"timeInServiceOut\":500.0,\"timeInServiceIn\":501.5}"))
+                .content("{\"hobbsTimeOut\":500.0,\"hobbsTimeIn\":502.0,\"timeInServiceOut\":500.0,\"timeInServiceIn\":501.5}"))
             .andExpect(status().isOk());
-        assertEquals(502.0, aircraftRepository.findById(b.getId()).orElseThrow().getBlockTimeHours(), 1e-9);
-        assertEquals(100.0, aircraftRepository.findById(a.getId()).orElseThrow().getBlockTimeHours(), 1e-9);
+        assertEquals(502.0, aircraftRepository.findById(b.getId()).orElseThrow().getHobbsTimeHours(), 1e-9);
+        assertEquals(100.0, aircraftRepository.findById(a.getId()).orElseThrow().getHobbsTimeHours(), 1e-9);
         assertTrue(flightLogRepository.findByAircraft(a).isEmpty());
     }
 
@@ -155,9 +155,9 @@ class AircraftIsolationTest {
             post("/dashboard").contentType(json).content("{\"item\":\"x\",\"ajax\":\"true\"}"),
             post("/updateOrder").contentType(json).content("[]"),
             post("/updateUserInfo").contentType(json).content("{\"makeModel\":\"hacked\"}"),
-            post("/updateHours").param("newBlockTime", "1"),
+            post("/updateHours").param("newHobbsTime", "1"),
             get("/flightlogs"),
-            post("/addflightlog").contentType(json).content("{\"blockTimeOut\":1.0,\"blockTimeIn\":2.0}"),
+            post("/addflightlog").contentType(json).content("{\"hobbsTimeOut\":1.0,\"hobbsTimeIn\":2.0}"),
             multipart("/logbook/upload-csv").file(new MockMultipartFile("csvfile", "a.csv", "text/csv", new byte[0])),
             get("/pdf"),
             post("/pdf/email").param("recipient", "a@example.com"),
@@ -198,7 +198,7 @@ class AircraftIsolationTest {
     private void assertUntouched() {
         Aircraft after = aircraftRepository.findById(a.getId()).orElseThrow();
         assertEquals("", after.getMakeModel());
-        assertEquals(100.0, after.getBlockTimeHours(), 1e-9);
+        assertEquals(100.0, after.getHobbsTimeHours(), 1e-9);
         assertTrue(timelineRepository.findByAircraftOrderByTimelineOrderAsc(a).isEmpty());
         assertTrue(flightLogRepository.findByAircraft(a).isEmpty());
     }

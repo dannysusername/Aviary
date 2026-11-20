@@ -149,12 +149,12 @@ class AlertServiceIntegrationTest {
     }
 
     @Test 
-    void digest_usesBlockTimeLabels_andTailFallback() {
+    void digest_usesHobbsTimeLabels_andTailFallback() {
         plane.setTailNumber(null);
         AlertDigest d = digestService.buildDigest(user, alertService.getOrCreatePrefs(user), false);
-        assertTrue(d.body().contains("Block Time"));
+        assertTrue(d.body().contains("Hobbs Time"));
         assertTrue(d.body().contains("Time in Service"));
-        assertFalse(d.body().contains("Hobbs"));
+        assertFalse(d.body().contains("Block Time"));
         assertTrue(d.body().contains("Maintenance status for your aircraft"));
     }
 

@@ -4,7 +4,7 @@ console.log('dashboard.js loaded');
 // meant editing a second row (or field) within 500ms cancelled the first save.
 const rowSaveTimers = new Map();
 const userInfoSaveTimers = new Map();
-let previousBlockTimeHours = document.getElementById('current-block-time')?.value || 0;
+let previousHobbsTimeHours = document.getElementById('current-hobbs-time')?.value || 0;
 let previousTimeInServiceHours = document.getElementById('current-time-in-service')?.value || 0;
 // True from a successful CSV parse until the next Add (or a fresh upload) --
 // tells the server this Out/In pair was computed from CSV data, not typed by
@@ -141,7 +141,7 @@ function renderUpdatedFromData(elId) {
     if (el) el.textContent = formatUpdated(el.getAttribute('data-updated'), el.getAttribute('data-source'));
 }
 
-// When a Block Time / Time in Service reading was actually taken -- distinct
+// When a Hobbs Time / Time in Service reading was actually taken -- distinct
 // from formatUpdated above, which is "when this field was last edited."
 function formatLogTimestamp(iso) {
     if (!iso) return '';
@@ -197,8 +197,8 @@ function buildLogRowHtml(log) {
     return `
         <td data-label="From"><span class="print-only">${escapeHtml(log.fromAirport)}</span><input type="text" name="fromAirport" class="no-print" value="${escapeHtml(log.fromAirport)}" readonly></td>
         <td data-label="To"><span class="print-only">${escapeHtml(log.toAirport)}</span><input type="text" name="toAirport" class="no-print" value="${escapeHtml(log.toAirport)}" readonly><i class="fa-solid fa-chevron-down card-caret no-print"></i></td>
-        <td data-label="Block Time Out"><span class="print-only">${log.blockTimeOut ?? ''}</span><input type="number" name="blockTimeOut" class="no-print" value="${log.blockTimeOut ?? ''}" readonly step="0.1"><span class="log-timestamp">${formatLogTimestamp(log.blockTimeStart)}</span></td>
-        <td data-label="Block Time In"><span class="print-only">${log.blockTimeIn ?? ''}</span><input type="number" name="blockTimeIn" class="no-print" value="${log.blockTimeIn ?? ''}" readonly step="0.1"><span class="log-timestamp">${formatLogTimestamp(log.blockTimeEnd)}</span></td>
+        <td data-label="Hobbs Time Out"><span class="print-only">${log.hobbsTimeOut ?? ''}</span><input type="number" name="hobbsTimeOut" class="no-print" value="${log.hobbsTimeOut ?? ''}" readonly step="0.1"><span class="log-timestamp">${formatLogTimestamp(log.hobbsTimeStart)}</span></td>
+        <td data-label="Hobbs Time In"><span class="print-only">${log.hobbsTimeIn ?? ''}</span><input type="number" name="hobbsTimeIn" class="no-print" value="${log.hobbsTimeIn ?? ''}" readonly step="0.1"><span class="log-timestamp">${formatLogTimestamp(log.hobbsTimeEnd)}</span></td>
         <td data-label="Time in Service Out"><span class="print-only">${log.timeInServiceOut ?? ''}</span><input type="number" name="timeInServiceOut" class="no-print" value="${log.timeInServiceOut ?? ''}" readonly step="0.1"><span class="log-timestamp">${formatLogTimestamp(log.timeInServiceStart)}</span></td>
         <td data-label="Time in Service In"><span class="print-only">${log.timeInServiceIn ?? ''}</span><input type="number" name="timeInServiceIn" class="no-print" value="${log.timeInServiceIn ?? ''}" readonly step="0.1"><span class="log-timestamp">${formatLogTimestamp(log.timeInServiceEnd)}</span></td>
         <td class="delete-cell no-print" data-label=""><button class="delete-log-icon"><i class="fa-solid fa-trash-can fa-xl"></i></button></td>
@@ -873,10 +873,10 @@ document.addEventListener('DOMContentLoaded', () => {
     scheduleMidnightUpdate();
 
     // My Hours "last updated" lines (initial render from server data)
-    renderUpdatedFromData('block-time-updated');
+    renderUpdatedFromData('hobbs-time-updated');
     renderUpdatedFromData('time-in-service-updated');
 
-    // Flight log rows: when each Block Time/Time in Service reading was taken
+    // Flight log rows: when each Hobbs Time/Time in Service reading was taken
     renderLogTimestamps();
 
     // Cycle hours come from the server as a Double ("500.0"); show whole
@@ -1059,7 +1059,7 @@ document.addEventListener('DOMContentLoaded', () => {
             button.closest('.type-dropdown').style.display = 'none';
         } else if (event.target.classList.contains('edit-hours-btn')) {
             document.getElementById('add-time-in-service').value = '';
-            document.getElementById('add-block-time').value = '';
+            document.getElementById('add-hobbs-time').value = '';
             const editSection = document.querySelector('.edit-hours-section');
             editSection.style.display = editSection.style.display === 'flex' ? 'none' : 'flex';
         }
@@ -1242,19 +1242,19 @@ document.addEventListener('DOMContentLoaded', () => {
         options.forEach(option => option.onclick = () => selectOption(option));
     });
 
-    let previousBlockTimeHours = 0;
+    let previousHobbsTimeHours = 0;
     let previousTimeInServiceHours = 0;
 
     // One timer per field. A single shared timer meant that typing in TimeInService
-    // within 500ms of typing in BlockTime cancelled the pending BlockTime save.
-    let blockTimeout;
+    // within 500ms of typing in HobbsTime cancelled the pending HobbsTime save.
+    let hobbsTimeout;
     let timeInServiceTimeout;
 
     // The typed value still waiting out the 500ms debounce, or null if none.
-    let pendingBlockTimeSet = null;
+    let pendingHobbsTimeSet = null;
     let pendingTimeInServiceSet = null;
 
-    const currentBlockTimeHoursInput = document.getElementById('current-block-time');
+    const currentHobbsTimeHoursInput = document.getElementById('current-hobbs-time');
     const currentTimeInServiceHoursInput = document.getElementById('current-time-in-service');
 
     function csrfHeaders() {
@@ -1266,23 +1266,23 @@ document.addEventListener('DOMContentLoaded', () => {
     // Sends "set hours to exactly this". Returns a promise so callers can wait
     // for it to land before doing anything else.
     async function sendSetHours(kind, value) {
-        const isBlockTime = kind === 'blockTime';
-        const input = isBlockTime ? currentBlockTimeHoursInput : currentTimeInServiceHoursInput;
-        const displayId = isBlockTime ? 'current-block-time-display' : 'current-time-in-service-display';
-        const label = isBlockTime ? 'Block Time' : 'Time in Service';
-        const previous = isBlockTime ? previousBlockTimeHours : previousTimeInServiceHours;
+        const isHobbsTime = kind === 'hobbsTime';
+        const input = isHobbsTime ? currentHobbsTimeHoursInput : currentTimeInServiceHoursInput;
+        const displayId = isHobbsTime ? 'current-hobbs-time-display' : 'current-time-in-service-display';
+        const label = isHobbsTime ? 'Hobbs Time' : 'Time in Service';
+        const previous = isHobbsTime ? previousHobbsTimeHours : previousTimeInServiceHours;
 
         const params = new URLSearchParams();
-        params.append(isBlockTime ? 'newBlockTime' : 'newTimeInService', parseFloat(value));
+        params.append(isHobbsTime ? 'newHobbsTime' : 'newTimeInService', parseFloat(value));
 
         try {
             const response = await axios.post('/updateHours', params, { headers: csrfHeaders() });
             if (response.data.status === 'success') {
-                if (isBlockTime) previousBlockTimeHours = value; else previousTimeInServiceHours = value;
+                if (isHobbsTime) previousHobbsTimeHours = value; else previousTimeInServiceHours = value;
                 document.getElementById(displayId).textContent = `${label}: ${value}`;
-                markUpdatedNow(isBlockTime ? 'block-time-updated' : 'time-in-service-updated', 'manual');
+                markUpdatedNow(isHobbsTime ? 'hobbs-time-updated' : 'time-in-service-updated', 'manual');
                 console.log(`${label} hours updated successfully:`,
-                    isBlockTime ? response.data.newBlockTime : response.data.newTimeInService);
+                    isHobbsTime ? response.data.newHobbsTime : response.data.newTimeInService);
                 return true;
             }
             console.error(`Failed to update ${label} hours:`, response.data.message);
@@ -1299,31 +1299,31 @@ document.addEventListener('DOMContentLoaded', () => {
     // Called before "add hours" so a delayed set can never land afterwards and
     // overwrite the addition.
     async function flushPendingHours() {
-        clearTimeout(blockTimeout);
+        clearTimeout(hobbsTimeout);
         clearTimeout(timeInServiceTimeout);
-        const blockTime = pendingBlockTimeSet;
+        const hobbsTime = pendingHobbsTimeSet;
         const timeInService = pendingTimeInServiceSet;
-        pendingBlockTimeSet = null;
+        pendingHobbsTimeSet = null;
         pendingTimeInServiceSet = null;
-        if (blockTime !== null) await sendSetHours('blockTime', blockTime);
+        if (hobbsTime !== null) await sendSetHours('hobbsTime', hobbsTime);
         if (timeInService !== null) await sendSetHours('timeInService', timeInService);
     }
 
-    if (currentBlockTimeHoursInput) {
-        previousBlockTimeHours = currentBlockTimeHoursInput.value || 0;
-        currentBlockTimeHoursInput.addEventListener('input', function() {
+    if (currentHobbsTimeHoursInput) {
+        previousHobbsTimeHours = currentHobbsTimeHoursInput.value || 0;
+        currentHobbsTimeHoursInput.addEventListener('input', function() {
             updateAllTimeLeft();
             updateAddRowTimeLeft();
-            clearTimeout(blockTimeout);
-            const newBlockTimeHours = this.value.trim();
-            if (newBlockTimeHours === '' || isNaN(parseFloat(newBlockTimeHours))) {
-                pendingBlockTimeSet = null;
+            clearTimeout(hobbsTimeout);
+            const newHobbsTimeHours = this.value.trim();
+            if (newHobbsTimeHours === '' || isNaN(parseFloat(newHobbsTimeHours))) {
+                pendingHobbsTimeSet = null;
                 return;
             }
-            pendingBlockTimeSet = newBlockTimeHours;
-            blockTimeout = setTimeout(() => {
-                pendingBlockTimeSet = null;
-                sendSetHours('blockTime', newBlockTimeHours);
+            pendingHobbsTimeSet = newHobbsTimeHours;
+            hobbsTimeout = setTimeout(() => {
+                pendingHobbsTimeSet = null;
+                sendSetHours('hobbsTime', newHobbsTimeHours);
             }, 500);
         });
     }
@@ -1641,9 +1641,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.addEventListener('click', function(event) {
         
-        if (event.target.id === 'add-block-time-btn') {
-            const blockTimeToAdd = document.getElementById('add-block-time').value.trim();
-            addBlockTimeHours(blockTimeToAdd);
+        if (event.target.id === 'add-hobbs-time-btn') {
+            const hobbsTimeToAdd = document.getElementById('add-hobbs-time').value.trim();
+            addHobbsTimeHours(hobbsTimeToAdd);
 
         } else if (event.target.id === 'add-time-in-service-btn') {
             const timeInServiceToAdd = document.getElementById('add-time-in-service').value.trim();
@@ -1808,10 +1808,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     });
     
-    async function addBlockTimeHours(blockTimeToAdd) {
-        if (blockTimeToAdd && !isNaN(blockTimeToAdd)) {
+    async function addHobbsTimeHours(hobbsTimeToAdd) {
+        if (hobbsTimeToAdd && !isNaN(hobbsTimeToAdd)) {
             await flushPendingHours();
-            await updateHours({ blockTimeToAdd: parseFloat(blockTimeToAdd) });
+            await updateHours({ hobbsTimeToAdd: parseFloat(hobbsTimeToAdd) });
         }
     }
     
@@ -1840,13 +1840,13 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     
             if (response.data.status === 'success') {
-                const { newBlockTime, newTimeInService } = response.data;
+                const { newHobbsTime, newTimeInService } = response.data;
     
-                if (newBlockTime !== undefined) {
-                    document.getElementById('current-block-time').value = newBlockTime;
-                    document.getElementById('current-block-time-display').textContent = `Block Time: ${newBlockTime}`;
-                    previousBlockTimeHours = newBlockTime;
-                    console.log('Block time updated successfully:', newBlockTime);
+                if (newHobbsTime !== undefined) {
+                    document.getElementById('current-hobbs-time').value = newHobbsTime;
+                    document.getElementById('current-hobbs-time-display').textContent = `Hobbs Time: ${newHobbsTime}`;
+                    previousHobbsTimeHours = newHobbsTime;
+                    console.log('Hobbs time updated successfully:', newHobbsTime);
                 }
     
                 if (newTimeInService !== undefined) {
@@ -1856,7 +1856,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log('Time in Service updated successfully:', newTimeInService);
                 }
     
-                if ('blockTimeToAdd' in updateParams) markUpdatedNow('block-time-updated', 'manual');
+                if ('hobbsTimeToAdd' in updateParams) markUpdatedNow('hobbs-time-updated', 'manual');
                 if ('timeInServiceToAdd' in updateParams) markUpdatedNow('time-in-service-updated', 'manual');
 
                 // Update time left displays if needed (from your existing functions)
@@ -2356,18 +2356,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { [csrfHeader]: csrfToken }
                 });
                 allSuggestionsStale = true; // deleting can reset a suggestion back to pending
-                const { newBlockTime, newTimeInService } = deleteResponse.data;
-                if (newBlockTime !== undefined) {
-                    document.getElementById('current-block-time').value = newBlockTime;
-                    document.getElementById('current-block-time-display').textContent = `Block Time: ${newBlockTime}`;
-                    previousBlockTimeHours = newBlockTime;
+                const { newHobbsTime, newTimeInService } = deleteResponse.data;
+                if (newHobbsTime !== undefined) {
+                    document.getElementById('current-hobbs-time').value = newHobbsTime;
+                    document.getElementById('current-hobbs-time-display').textContent = `Hobbs Time: ${newHobbsTime}`;
+                    previousHobbsTimeHours = newHobbsTime;
                 }
                 if (newTimeInService !== undefined) {
                     document.getElementById('current-time-in-service').value = newTimeInService;
                     document.getElementById('current-time-in-service-display').textContent = `Time in Service: ${newTimeInService}`;
                     previousTimeInServiceHours = newTimeInService;
                 }
-                markUpdatedNow('block-time-updated', 'flightlog');
+                markUpdatedNow('hobbs-time-updated', 'flightlog');
                 markUpdatedNow('time-in-service-updated', 'flightlog');
 
                 // A delete can shift other rows' Out/In too (see
@@ -2385,8 +2385,8 @@ document.addEventListener('DOMContentLoaded', () => {
     async function submitAddFlightLog(force) {
         // Read raw strings first so an empty input stays null (not 0), letting
         // the server enforce the "complete pair" rule cleanly.
-        const rawBlockTimeIn  = parseFloat(parseFloat(document.getElementById('blockTimeIn').value.trim()).toFixed(2));
-        const rawBlockTimeOut = parseFloat(parseFloat(document.getElementById('blockTimeOut').value.trim()).toFixed(2));
+        const rawHobbsTimeIn  = parseFloat(parseFloat(document.getElementById('hobbsTimeIn').value.trim()).toFixed(2));
+        const rawHobbsTimeOut = parseFloat(parseFloat(document.getElementById('hobbsTimeOut').value.trim()).toFixed(2));
         const rawTimeInServiceIn   = parseFloat(parseFloat(document.getElementById('timeInServiceIn').value.trim()).toFixed(2));
         const rawTimeInServiceOut  = parseFloat(parseFloat(document.getElementById('timeInServiceOut').value.trim()).toFixed(2));
         const numOrNull = (s) => (s === '' || isNaN(parseFloat(s))) ? null : parseFloat(s);
@@ -2394,12 +2394,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = {
             fromAirport: document.getElementById('fromAirport').value,
             toAirport: document.getElementById('toAirport').value,
-            blockTimeOut: numOrNull(rawBlockTimeOut),
-            blockTimeIn:  numOrNull(rawBlockTimeIn),
+            hobbsTimeOut: numOrNull(rawHobbsTimeOut),
+            hobbsTimeIn:  numOrNull(rawHobbsTimeIn),
             timeInServiceOut:  numOrNull(rawTimeInServiceOut),
             timeInServiceIn:   numOrNull(rawTimeInServiceIn),
-            blockTimeStart: datetimeLocalToIso(document.getElementById('blockTimeStart').value),
-            blockTimeEnd: datetimeLocalToIso(document.getElementById('blockTimeEnd').value),
+            hobbsTimeStart: datetimeLocalToIso(document.getElementById('hobbsTimeStart').value),
+            hobbsTimeEnd: datetimeLocalToIso(document.getElementById('hobbsTimeEnd').value),
             timeInServiceStart: datetimeLocalToIso(document.getElementById('timeInServiceStart').value),
             timeInServiceEnd: datetimeLocalToIso(document.getElementById('timeInServiceEnd').value),
             source: csvPrefilled ? 'csv' : 'manual',
@@ -2428,28 +2428,28 @@ document.addEventListener('DOMContentLoaded', () => {
             await refreshLogbookRows();
 
             // Update hours display from backend-calculated totals
-            if (log.newBlockTime !== undefined && log.newBlockTime !== null) {
-                document.getElementById('current-block-time').value = log.newBlockTime;
-                document.getElementById('current-block-time-display').textContent = `Block Time: ${log.newBlockTime}`;
-                previousBlockTimeHours = log.newBlockTime;
+            if (log.newHobbsTime !== undefined && log.newHobbsTime !== null) {
+                document.getElementById('current-hobbs-time').value = log.newHobbsTime;
+                document.getElementById('current-hobbs-time-display').textContent = `Hobbs Time: ${log.newHobbsTime}`;
+                previousHobbsTimeHours = log.newHobbsTime;
             }
             if (log.newTimeInService !== undefined && log.newTimeInService !== null) {
                 document.getElementById('current-time-in-service').value = log.newTimeInService;
                 document.getElementById('current-time-in-service-display').textContent = `Time in Service: ${log.newTimeInService}`;
                 previousTimeInServiceHours = log.newTimeInService;
             }
-            markUpdatedNow('block-time-updated', 'flightlog');
+            markUpdatedNow('hobbs-time-updated', 'flightlog');
             markUpdatedNow('time-in-service-updated', 'flightlog');
 
             // Clear inputs
             document.getElementById('fromAirport').value = '';
             document.getElementById('toAirport').value = '';
-            document.getElementById('blockTimeIn').value = '';
-            document.getElementById('blockTimeOut').value = '';
+            document.getElementById('hobbsTimeIn').value = '';
+            document.getElementById('hobbsTimeOut').value = '';
             document.getElementById('timeInServiceIn').value = '';
             document.getElementById('timeInServiceOut').value = '';
-            document.getElementById('blockTimeStart').value = '';
-            document.getElementById('blockTimeEnd').value = '';
+            document.getElementById('hobbsTimeStart').value = '';
+            document.getElementById('hobbsTimeEnd').value = '';
             document.getElementById('timeInServiceStart').value = '';
             document.getElementById('timeInServiceEnd').value = '';
             csvPrefilled = false;
@@ -2501,18 +2501,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 allSuggestionsStale = true; // deleting can reset a suggestion back to pending
                 console.log(`Log ${id} deleted`);
-                const { newBlockTime, newTimeInService } = deleteResponse.data;
-                if (newBlockTime !== undefined) {
-                    document.getElementById('current-block-time').value = newBlockTime;
-                    document.getElementById('current-block-time-display').textContent = `Block Time: ${newBlockTime}`;
-                    previousBlockTimeHours = newBlockTime;
+                const { newHobbsTime, newTimeInService } = deleteResponse.data;
+                if (newHobbsTime !== undefined) {
+                    document.getElementById('current-hobbs-time').value = newHobbsTime;
+                    document.getElementById('current-hobbs-time-display').textContent = `Hobbs Time: ${newHobbsTime}`;
+                    previousHobbsTimeHours = newHobbsTime;
                 }
                 if (newTimeInService !== undefined) {
                     document.getElementById('current-time-in-service').value = newTimeInService;
                     document.getElementById('current-time-in-service-display').textContent = `Time in Service: ${newTimeInService}`;
                     previousTimeInServiceHours = newTimeInService;
                 }
-                markUpdatedNow('block-time-updated', 'flightlog');
+                markUpdatedNow('hobbs-time-updated', 'flightlog');
                 markUpdatedNow('time-in-service-updated', 'flightlog');
                 updateAllTimeLeft();
                 updateAddRowTimeLeft();
@@ -2567,12 +2567,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = response.data;
             showToast("CSV parsed successfully", 'info');
 
-            document.getElementById("blockTimeOut").value = data.blockTimeOut ?? '';
-            document.getElementById("blockTimeIn").value = data.blockTimeIn ?? '';
+            document.getElementById("hobbsTimeOut").value = data.hobbsTimeOut ?? '';
+            document.getElementById("hobbsTimeIn").value = data.hobbsTimeIn ?? '';
             document.getElementById("timeInServiceOut").value = data.timeInServiceOut ?? '';
             document.getElementById("timeInServiceIn").value = data.timeInServiceIn ?? '';
-            document.getElementById("blockTimeStart").value = isoToDatetimeLocal(data.blockTimeStart);
-            document.getElementById("blockTimeEnd").value = isoToDatetimeLocal(data.blockTimeEnd);
+            document.getElementById("hobbsTimeStart").value = isoToDatetimeLocal(data.hobbsTimeStart);
+            document.getElementById("hobbsTimeEnd").value = isoToDatetimeLocal(data.hobbsTimeEnd);
             document.getElementById("timeInServiceStart").value = isoToDatetimeLocal(data.timeInServiceStart);
             document.getElementById("timeInServiceEnd").value = isoToDatetimeLocal(data.timeInServiceEnd);
             csvPrefilled = true;
@@ -2588,9 +2588,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const errorMessage = error.response?.data?.error || 'Upload failed';
             showToast(errorMessage, 'error');
 
-            console.log(errorData?.error);        // "Could not detect airtime or block time"
-            console.log(errorData?.blockStart);   // ISO instant string
-            console.log(errorData?.blockEnd);
+            console.log(errorData?.error);        // "Could not detect airtime or Hobbs time"
+            console.log(errorData?.hobbsStart);   // ISO instant string
+            console.log(errorData?.hobbsEnd);
             console.log(errorData?.airborneStart);
             console.log(errorData?.airborneEnd);
 
@@ -2968,4 +2968,38 @@ document.addEventListener('DOMContentLoaded', function () {
             okBtn.disabled = false;
         }
     });
+});
+
+// Info marks (My Hours). Hover and keyboard focus are handled in CSS; this
+// adds tap-to-toggle for touch screens, closes on tap outside or Esc, and
+// nudges the tooltip sideways so it never runs off a narrow screen.
+function placeInfoTip(mark) {
+    const r = mark.getBoundingClientRect();
+    const vw = document.documentElement.clientWidth;
+    const half = Math.min(260, vw - 32) / 2;
+    const center = r.left + r.width / 2;
+    let shift = 0;
+    if (center - half < 16) shift = 16 - (center - half);
+    else if (center + half > vw - 16) shift = (vw - 16) - (center + half);
+    mark.style.setProperty('--tip-shift', shift + 'px');
+}
+document.addEventListener('mouseover', (e) => {
+    const mark = e.target.closest('.info-mark');
+    if (mark) placeInfoTip(mark);
+});
+document.addEventListener('focusin', (e) => {
+    const mark = e.target.closest('.info-mark');
+    if (mark) placeInfoTip(mark);
+});
+document.addEventListener('click', (e) => {
+    const mark = e.target.closest('.info-mark');
+    document.querySelectorAll('.info-mark.open').forEach((m) => {
+        if (m !== mark) m.classList.remove('open');
+    });
+    if (mark) { placeInfoTip(mark); mark.classList.toggle('open'); }
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.info-mark.open').forEach((m) => m.classList.remove('open'));
+    }
 });

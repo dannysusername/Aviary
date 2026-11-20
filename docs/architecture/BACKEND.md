@@ -34,16 +34,16 @@
 | DELETE | `/delete/{id}` | — | 200 / 403 / 404 | deletes a timeline row. Ownership checked (403 if not owner) |
 | POST | `/updateOrder` | `List<Long>` ids | void | reorders timelines; user-scoped, matches ids with `.equals` |
 | POST | `/updateUserInfo` | JSON aircraft fields | status JSON | updates makeModel/tailNumber/ownerName/makeModelSN for auth user |
-| POST | `/updateHours` | `blockTimeToAdd`/`timeInServiceToAdd`/`newBlockTime`/`newTimeInService` | hours JSON | set-or-add block time / time in service. 400 for NaN/Infinity, a negative set value, or an add that would go below 0 (checked before anything changes) |
+| POST | `/updateHours` | `hobbsTimeToAdd`/`timeInServiceToAdd`/`newHobbsTime`/`newTimeInService` | hours JSON | set-or-add Hobbs time / time in service. 400 for NaN/Infinity, a negative set value, or an add that would go below 0 (checked before anything changes) |
 | GET | `/flightlogs` | — | `List<FlightLog>` JSON | auth user's logs |
 | POST | `/addflightlog` | `FlightLog` JSON | log + new totals JSON | recomputes hours via `calculateMergedHours` |
 | DELETE | `/deleteflightlog/{id}` | — | status + new totals | **ownership checked** (403 if not owner) |
 | DELETE | `/deleteOption/{id}` | — | text | description option; **ownership checked** (403 if not owner) |
 
 ## Key logic
-- **`calculateMergedHours(logs, useBlockTime)`** — sums flight time across all logs by **merging overlapping intervals** so overlapping flights don't double-count. Block time uses `blockTimeOut`/`blockTimeIn`; time in service uses `timeInServiceOut`/`timeInServiceIn`. Result is written back to `User.blockTimeHours`/`timeInServiceHours` on add/delete of a log.
+- **`calculateMergedHours(logs, useHobbsTime)`** — sums flight time across all logs by **merging overlapping intervals** so overlapping flights don't double-count. Hobbs time uses `hobbsTimeOut`/`hobbsTimeIn`; time in service uses `timeInServiceOut`/`timeInServiceIn`. Result is written back to `User.hobbsTimeHours`/`timeInServiceHours` on add/delete of a log.
 - **`saveCustomDescriptionOption`** — persists a user's custom Service Timeline "Description" values so they reappear in the dropdown.
-- **Hours "last updated" stamps:** `/updateHours` sets `blockTimeUpdatedAt`/`timeInServiceUpdatedAt` (UTC `Instant`) + `*UpdatedSource = "manual"` for whichever value changed; `/addflightlog` and `/deleteflightlog` set both with source `"flightlog"`. `GET /dashboard` passes the 4 values (timestamps as ISO strings) to the view, which renders them in the browser's local time.
+- **Hours "last updated" stamps:** `/updateHours` sets `hobbsTimeUpdatedAt`/`timeInServiceUpdatedAt` (UTC `Instant`) + `*UpdatedSource = "manual"` for whichever value changed; `/addflightlog` and `/deleteflightlog` set both with source `"flightlog"`. `GET /dashboard` passes the 4 values (timestamps as ISO strings) to the view, which renders them in the browser's local time.
 
 ## Time Left + PDF
 - `DueDates.formatTimeLeft(dueDate, dueHours, today, currentTimeInService)` is the one server-side Time Left formatter (smart format, see [FRONTEND](FRONTEND.md)). Used by `PdfExportService` (computed at render time — the stored `timeLeft` column goes stale) and `/completeMaintenance/{id}`.

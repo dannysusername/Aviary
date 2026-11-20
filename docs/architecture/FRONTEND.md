@@ -12,7 +12,7 @@ Each stylesheet defines the same CSS-variable palette (`--primary` green `#2C9B6
 
 ## Dashboard structure
 - Fixed header (logo, **Share** menu, logout, settings gear). Share is a popover card (`.share-dropdown`, toggled via `hidden` + `aria-expanded` by `setShareOpen()` in `dashboard.js`): Print, Download PDF, then a divider and Email/Text marked with a "Soon" pill (`.share-coming-soon`). Closes on outside click, Escape, or picking an item; Arrow keys move between items. Styled with theme tokens so it works in dark mode.
-- "My Hours" card: shows block time and time in service, each with a small muted "last updated" line under it (`.hours-block` / `.hours-updated`) — local date + time + relative ("2 days ago") + source ("you edited it" / "from a flight log"). Edit panel can **set** or **add** hours.
+- "My Hours" card: shows Hobbs time and time in service, each with a small muted "last updated" line under it (`.hours-block` / `.hours-updated`) — local date + time + relative ("2 days ago") + source ("you edited it" / "from a flight log"). Edit panel can **set** or **add** hours.
 - Two tabs: **Service Timeline** and **Log Book**.
 - Service Timeline table: drag-reorder (SortableJS via grip handle), title rows vs item rows, a custom Description dropdown (with add/remove custom options), and a Calendar/Clock picker for Last Done / Due Date. "Time Left" is computed client-side.
 - Log Book table: existing rows are **readonly**; an add-row appends a flight.

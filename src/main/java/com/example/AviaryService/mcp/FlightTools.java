@@ -15,7 +15,7 @@ import com.example.AviaryService.services.flights.FlightLogService;
 public class FlightTools {
 
     //Only what the AI needs, never include the user (it holds the password hash)
-    public record FlightSummary(Long id, String from, String to, Double blockTimeOut, Double blockTimeIn) {}
+    public record FlightSummary(Long id, String from, String to, Double hobbsTimeOut, Double hobbsTimeIn) {}
 
     private final FlightLogService flightLogService;
     private final McpCurrentUser currentUser;
@@ -35,7 +35,7 @@ public class FlightTools {
         currentUser.requireScope("aviary.read");
         User user = currentUser.require();
         return flightLogService.listFor(aircraftResolver.resolve(user, aircraft)).stream()
-            .map(f -> new FlightSummary(f.getId(), f.getFromAirport(), f.getToAirport(), f.getBlockTimeOut(), f.getBlockTimeIn()))
+            .map(f -> new FlightSummary(f.getId(), f.getFromAirport(), f.getToAirport(), f.getHobbsTimeOut(), f.getHobbsTimeIn()))
         .toList();
     }
 

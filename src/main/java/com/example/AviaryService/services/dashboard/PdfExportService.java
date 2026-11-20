@@ -58,7 +58,7 @@ public class PdfExportService {
         context.setVariable("tailNumber", aircraft.getTailNumber());
         context.setVariable("ownerName", aircraft.getOwnerName());
         context.setVariable("makeModelSN", aircraft.getMakeModelSN());
-        context.setVariable("blockTimeHours", formatHoursOrBlank(aircraft.getBlockTimeHours()));
+        context.setVariable("hobbsTimeHours", formatHoursOrBlank(aircraft.getHobbsTimeHours()));
         context.setVariable("timeInServiceHours", formatHoursOrBlank(aircraft.getTimeInServiceHours()));
         context.setVariable("generatedAt", DateTimeFormatter.ofPattern("MMM d, yyyy h:mm a")
             .withZone(ZoneOffset.UTC).format(Instant.now()) + " UTC");
@@ -130,7 +130,7 @@ public class PdfExportService {
         List<FlightLog> logs = flightLogRepository.findByAircraft(aircraft).stream()
             .sorted(Comparator
                 .<FlightLog, Instant>comparing(log -> {
-                    Instant start = log.getBlockTimeStart() != null ? log.getBlockTimeStart() : log.getTimeInServiceStart();
+                    Instant start = log.getHobbsTimeStart() != null ? log.getHobbsTimeStart() : log.getTimeInServiceStart();
                     return start == null ? Instant.MAX : start;
                 })
                 .thenComparing(FlightLog::getId))
@@ -139,12 +139,12 @@ public class PdfExportService {
         List<Map<String, Object>> rows = new ArrayList<>();
         for (FlightLog log : logs) {
             Map<String, Object> row = new HashMap<>();
-            Instant start = log.getBlockTimeStart() != null ? log.getBlockTimeStart() : log.getTimeInServiceStart();
+            Instant start = log.getHobbsTimeStart() != null ? log.getHobbsTimeStart() : log.getTimeInServiceStart();
             row.put("date", start == null ? "" : FLIGHT_DATE.format(start));
             row.put("fromAirport", log.getFromAirport());
             row.put("toAirport", log.getToAirport());
-            row.put("blockTimeOut", formatHoursOrBlank(log.getBlockTimeOut()));
-            row.put("blockTimeIn", formatHoursOrBlank(log.getBlockTimeIn()));
+            row.put("hobbsTimeOut", formatHoursOrBlank(log.getHobbsTimeOut()));
+            row.put("hobbsTimeIn", formatHoursOrBlank(log.getHobbsTimeIn()));
             row.put("timeInServiceOut", formatHoursOrBlank(log.getTimeInServiceOut()));
             row.put("timeInServiceIn", formatHoursOrBlank(log.getTimeInServiceIn()));
             rows.add(row);

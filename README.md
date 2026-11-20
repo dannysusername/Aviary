@@ -13,8 +13,8 @@ No install, no setup, nothing to download. Register a username + password and yo
 A multi-user maintenance and flight-hours tracker for general-aviation aircraft owners:
 
 - **Service timeline** — track every recurring maintenance item (annual, transponder/pitot-static tests, VOR checks, oil changes, etc.) on a **calendar cycle** (days/months/years) *or* an **engine-hours cycle**. Each row shows last-done, next-due, and live "time left," and a one-click **Complete Maintenance** button rolls the dates and hours forward automatically.
-- **Hours tracking** — block time and time in service, each with a manual baseline "floor," so log-book activity can only ever raise the displayed hours, never silently lower them.
-- **Log book** — record flights by hand (from/to airport, block time and time in service out and in) **or import a Garmin avionics CSV** and let the app derive block time (oil pressure > 15 psi) and airborne time (groundspeed > 35 kt) for you.
+- **Hours tracking** — Hobbs time and time in service, each with a manual baseline "floor," so log-book activity can only ever raise the displayed hours, never silently lower them.
+- **Log book** — record flights by hand (from/to airport, Hobbs time and time in service out and in) **or import a Garmin avionics CSV** and let the app derive Hobbs time (oil pressure > 15 psi) and airborne time (groundspeed > 35 kt) for you.
 - **Aircraft info card** — make/model, tail number, owner, and serial number, editable inline.
 - **Fleets** — track up to 25 aircraft in one account. Each plane has its own info card, hours, service timeline, and log book; a picker in the header switches between them and shows which ones have items overdue or due soon.
 
@@ -27,7 +27,7 @@ Each account is fully isolated — its own aircraft, service timelines, flight l
    - **More than one plane?** Tap the aircraft button in the header → **Add aircraft**, type the tail number, **Save**. You land on the new plane, ready for its first maintenance item. Switch planes from the same button; Aviary remembers the last one you looked at.
    - Maintenance alerts stay account-wide: one email covers every plane, grouped by tail number.
 3. **Build your service timeline** — add maintenance items with a calendar or hours cycle. Rows are drag-reorderable, and you can insert title rows to group them.
-4. **Set your hours** — enter current block time and time in service manually, or let the log book keep them current.
+4. **Set your hours** — enter current Hobbs time and time in service manually, or let the log book keep them current.
 5. **Log flights** — add entries by hand, or upload a Garmin CSV and Aviary computes the times and updates your meters.
 
 ## Connect an AI assistant

@@ -152,7 +152,7 @@ input[type="checkbox"]:focus-visible {
 .fixed-header #subscribe,
 .edit-hours-btn,
 .back-to-full-list-button,
-#add-block-time-btn,
+#add-hobbs-time-btn,
 #add-time-in-service-btn,
 .add-button,
 .add-log-button,
@@ -327,13 +327,13 @@ input[type="checkbox"]:focus-visible {
 .section-filter-label strong { color: var(--text); }
 
 
-#add-block-time-btn,
+#add-hobbs-time-btn,
 #add-time-in-service-btn {
   background: var(--primary);
   color: #fff;
   padding: 5px 10px;
 }
-#add-block-time-btn:hover, #add-time-in-service-btn:hover { background: var(--primary-dark); }
+#add-hobbs-time-btn:hover, #add-time-in-service-btn:hover { background: var(--primary-dark); }
 
 /* Utility actions — quiet outline style so they don't compete with the
    page's real work (the timeline and log book). */
@@ -385,7 +385,7 @@ input[type="checkbox"]:focus-visible {
   flex-wrap: wrap;
 }
 
-.current-block-time-display,
+.current-hobbs-time-display,
 .current-time-in-service-display {
   font-size: 15px;
   font-weight: 600;
@@ -397,6 +397,12 @@ input[type="checkbox"]:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.hours-label-row {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
 }
 
 .hours-updated {
@@ -2046,7 +2052,7 @@ textarea::placeholder { display: none; }
   .logbook-table thead { display: none; }
   .logbook-table tbody#logbook-body { display: flex; flex-direction: column; gap: 8px; margin: 0; }
 
-  /* Option C: each log = 2-col grid (From|To, Block Time Out|In, Time in Service Out|In) */
+  /* Option C: each log = 2-col grid (From|To, Hobbs Time Out|In, Time in Service Out|In) */
   .logbook-table tr.log-row,
   .logbook-table tr.add-log-row {
     display: grid;
@@ -2739,4 +2745,53 @@ textarea::placeholder { display: none; }
 }
 @media print {
   .aircraft-picker, #empty-timeline { display: none !important; }
+}
+
+/* Info marks next to Hobbs Time / Time in Service (My Hours). The tooltip
+   text comes from data-tip; it shows on hover, keyboard focus, or tap
+   (.open, toggled in dashboard.js). */
+.info-mark {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.9em;
+  cursor: help;
+  vertical-align: middle;
+}
+.info-mark:focus-visible { outline: 2px solid var(--text-muted); outline-offset: 2px; border-radius: 50%; }
+.info-mark::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 6px);
+  transform: translateX(calc(-50% + var(--tip-shift, 0px)));
+  width: max-content;
+  max-width: min(260px, calc(100vw - 32px));
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: normal;
+  line-height: 1.35;
+  text-align: left;
+  white-space: normal;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  z-index: 50;
+  display: none;
+  pointer-events: none;
+}
+.info-mark:hover::after,
+.info-mark:focus-visible::after,
+.info-mark.open::after { display: block; }
+/* Phones: the info marks add ~17px per hours block. Tighter column spacing
+   keeps both blocks on one line, so My Hours doesn't grow taller. */
+@media (max-width: 480px) {
+  .hours-display-and-editbutton-container { column-gap: 12px; }
 }

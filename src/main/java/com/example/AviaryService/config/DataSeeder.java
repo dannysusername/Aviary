@@ -83,9 +83,9 @@ public class DataSeeder implements CommandLineRunner {
         serviceTimelineRepository.saveAll(List.of(t1, t2, t3, t4, t5, t6, t7, t8, d1, d2, d3, d4, d5, d6, d7, d8));
     }
 
-    private Aircraft firstAircraft(User user, double blockTime, double timeInService) {
+    private Aircraft firstAircraft(User user, double hobbsTime, double timeInService) {
         Aircraft a = new Aircraft(user);
-        a.setBlockTimeHours(blockTime);
+        a.setHobbsTimeHours(hobbsTime);
         a.setTimeInServiceHours(timeInService);
         a = aircraftRepository.save(a);
         user.setLastViewedAircraft(a);

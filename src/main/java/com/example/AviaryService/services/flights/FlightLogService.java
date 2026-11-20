@@ -38,8 +38,8 @@ public class FlightLogService {
         this.hoursService = hoursService;
     }
 
-    // The user's Block Time and Time in Service totals after a log change.
-    public record HourTotals(double blockTime, double timeInService) {}
+    // The user's Hobbs Time and Time in Service totals after a log change.
+    public record HourTotals(double hobbsTime, double timeInService) {}
 
     // A saved log plus the totals it produced.
     public record AddedFlightLog(FlightLog log, HourTotals totals) {}
@@ -68,8 +68,8 @@ public class FlightLogService {
         // Clamp readings to hundredths. Real meters never exceed 2dp (block
         // time 0.1, time in service 0.01), and this keeps CSV-prefilled or client-computed
         // values from carrying float artifacts into storage.
-        newLog.setBlockTimeOut(Formatting.roundHoursOrNull(newLog.getBlockTimeOut()));
-        newLog.setBlockTimeIn(Formatting.roundHoursOrNull(newLog.getBlockTimeIn()));
+        newLog.setHobbsTimeOut(Formatting.roundHoursOrNull(newLog.getHobbsTimeOut()));
+        newLog.setHobbsTimeIn(Formatting.roundHoursOrNull(newLog.getHobbsTimeIn()));
         newLog.setTimeInServiceOut(Formatting.roundHoursOrNull(newLog.getTimeInServiceOut()));
         newLog.setTimeInServiceIn(Formatting.roundHoursOrNull(newLog.getTimeInServiceIn()));
 
@@ -80,31 +80,31 @@ public class FlightLogService {
 
         // ── Validation ─────────────────────────────────────────────────────────
         // Reject incomplete entries before they can corrupt displayed hours.
-        // Rule: must provide at least one COMPLETE pair (blockTimeOut+blockTimeIn or
+        // Rule: must provide at least one COMPLETE pair (hobbsTimeOut+hobbsTimeIn or
         // timeInServiceOut+timeInServiceIn). Partial pairs (e.g. only timeInServiceOut) are the exact case
         // that used to silently wipe the user's manual hours to zero.
-        Double ho = newLog.getBlockTimeOut(), hi = newLog.getBlockTimeIn();
+        Double ho = newLog.getHobbsTimeOut(), hi = newLog.getHobbsTimeIn();
         Double to = newLog.getTimeInServiceOut(), ti = newLog.getTimeInServiceIn();
-        boolean blockTimePair = (ho != null && hi != null);
+        boolean hobbsTimePair = (ho != null && hi != null);
         boolean timeInServicePair  = (to != null && ti != null);
-        boolean blockTimePartial = (ho == null) != (hi == null);  // exactly one set
+        boolean hobbsTimePartial = (ho == null) != (hi == null);  // exactly one set
         boolean timeInServicePartial  = (to == null) != (ti == null);
 
-        if (!blockTimePair && !timeInServicePair) {
+        if (!hobbsTimePair && !timeInServicePair) {
             throw new IllegalArgumentException(
-                "Enter both Block Time Out and Block Time In, or both Time in Service Out and Time in Service In.");
+                "Enter both Hobbs Time Out and Hobbs Time In, or both Time in Service Out and Time in Service In.");
         }
-        if (blockTimePartial) {
+        if (hobbsTimePartial) {
             throw new IllegalArgumentException(
-                "Block time entry is incomplete — enter both Block Time Out and Block Time In.");
+                "Hobbs time entry is incomplete — enter both Hobbs Time Out and Hobbs Time In.");
         }
         if (timeInServicePartial) {
             throw new IllegalArgumentException(
                 "Time in Service entry is incomplete — enter both Time in Service Out and Time in Service In.");
         }
-        if (blockTimePair && (ho < 0 || hi < 0 || hi < ho)) {
+        if (hobbsTimePair && (ho < 0 || hi < 0 || hi < ho)) {
             throw new IllegalArgumentException(
-                "Block Time In must be ≥ Block Time Out, and values cannot be negative.");
+                "Hobbs Time In must be ≥ Hobbs Time Out, and values cannot be negative.");
         }
         if (timeInServicePair && (to < 0 || ti < 0 || ti < to)) {
             throw new IllegalArgumentException(
@@ -126,14 +126,14 @@ public class FlightLogService {
         // "inaccurate": it just gets slotted into the chain below.
         if ("manual".equals(source) && !force) {
             List<FlightLog> existingLogs = flightLogRepository.findByAircraft(aircraft);
-            HoursService.AccuracyIssue blockIssue = blockTimePair
-                ? hoursService.checkAccuracy(existingLogs, newLog.getBlockTimeStart(), newLog.getBlockTimeEnd(), ho, hi, true)
+            HoursService.AccuracyIssue hobbsIssue = hobbsTimePair
+                ? hoursService.checkAccuracy(existingLogs, newLog.getHobbsTimeStart(), newLog.getHobbsTimeEnd(), ho, hi, true)
                 : null;
             HoursService.AccuracyIssue serviceIssue = timeInServicePair
                 ? hoursService.checkAccuracy(existingLogs, newLog.getTimeInServiceStart(), newLog.getTimeInServiceEnd(), to, ti, false)
                 : null;
-            if (blockIssue != null || serviceIssue != null) {
-                throw new InaccurateEntryException(inaccuracyMessage(blockIssue, serviceIssue));
+            if (hobbsIssue != null || serviceIssue != null) {
+                throw new InaccurateEntryException(inaccuracyMessage(hobbsIssue, serviceIssue));
             }
         }
 
@@ -175,20 +175,20 @@ public class FlightLogService {
     // Re-derives both hour totals from the log chain and stamps them as
     // coming from the flight log.
     private HourTotals recomputeHours(Aircraft aircraft) {
-        double newBlockTime = hoursService.recomputeChain(aircraft, /*useBlockTime=*/true);
-        double newTimeInService  = hoursService.recomputeChain(aircraft, /*useBlockTime=*/false);
-        aircraft.setBlockTimeHours(newBlockTime);
+        double newHobbsTime = hoursService.recomputeChain(aircraft, /*useHobbsTime=*/true);
+        double newTimeInService  = hoursService.recomputeChain(aircraft, /*useHobbsTime=*/false);
+        aircraft.setHobbsTimeHours(newHobbsTime);
         aircraft.setTimeInServiceHours(newTimeInService);
         Instant flightNow = Instant.now();
-        aircraft.setBlockTimeUpdatedAt(flightNow);
-        aircraft.setBlockTimeUpdatedSource("flightlog");
+        aircraft.setHobbsTimeUpdatedAt(flightNow);
+        aircraft.setHobbsTimeUpdatedSource("flightlog");
         aircraft.setTimeInServiceUpdatedAt(flightNow);
         aircraft.setTimeInServiceUpdatedSource("flightlog");
         aircraftRepository.save(aircraft);
-        return new HourTotals(newBlockTime, newTimeInService);
+        return new HourTotals(newHobbsTime, newTimeInService);
     }
 
-    // Chronological order for display: prefer blockTimeStart (engine start),
+    // Chronological order for display: prefer hobbsTimeStart (engine start),
     // fall back to timeInServiceStart (wheels-off) when only that's known.
     // Rows with neither (legacy entries, or a manual entry saved without
     // dates) sort last, in insertion order among themselves.
@@ -196,7 +196,7 @@ public class FlightLogService {
         return logs.stream()
             .sorted(Comparator
                 .<FlightLog, Instant>comparing(log -> {
-                    Instant t = log.getBlockTimeStart() != null ? log.getBlockTimeStart() : log.getTimeInServiceStart();
+                    Instant t = log.getHobbsTimeStart() != null ? log.getHobbsTimeStart() : log.getTimeInServiceStart();
                     return t == null ? Instant.MAX : t;
                 })
                 .thenComparing(FlightLog::getId))
@@ -207,9 +207,9 @@ public class FlightLogService {
         return value != null && value.length() > Validation.MAX_TEXT;
     }
 
-    private static String inaccuracyMessage(HoursService.AccuracyIssue blockIssue, HoursService.AccuracyIssue serviceIssue) {
+    private static String inaccuracyMessage(HoursService.AccuracyIssue hobbsIssue, HoursService.AccuracyIssue serviceIssue) {
         List<String> sentences = new ArrayList<>();
-        if (blockIssue != null) sentences.add(describeAccuracyIssue("Block Time", blockIssue));
+        if (hobbsIssue != null) sentences.add(describeAccuracyIssue("Hobbs Time", hobbsIssue));
         if (serviceIssue != null) sentences.add(describeAccuracyIssue("Time in Service", serviceIssue));
         return "This entry doesn't match your other flight logs. "
             + String.join(" ", sentences) + " Add it anyway?";

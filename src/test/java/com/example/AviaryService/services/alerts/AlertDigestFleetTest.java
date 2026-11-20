@@ -63,7 +63,7 @@ class AlertDigestFleetTest {
         AlertDigest d = digestService.buildDigest(owner, alertService.getOrCreatePrefs(owner), false);
         assertEquals("N482DM — 1 overdue", d.subject());
         assertTrue(d.body().startsWith("Maintenance status for N482DM (Cirrus SR22)"), d.body());
-        assertTrue(d.body().contains("Aircraft hours: Block Time"));
+        assertTrue(d.body().contains("Aircraft hours: Hobbs Time"));
     }
 
     @Test

@@ -107,7 +107,7 @@ public class PublicStatsService {
     private PublicStatsSnapshot compute() {
         Instant now = clock.instant();
 
-        // Hours flown = time in service. Block time is empty on production
+        // Hours flown = time in service. Hobbs time is empty on production
         // flights, so it would always show 0 (research R6).
         Double hours = flightLogRepository.sumHoursFlown();
         double hoursFlown = hours == null ? 0.0 : Math.round(hours * 10.0) / 10.0;

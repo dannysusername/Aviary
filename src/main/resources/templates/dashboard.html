@@ -277,33 +277,33 @@
 
             </div>
 
-            <!--Block time hours and Time in Service hours display and edit-->
+            <!--Hobbs time hours and Time in Service hours display and edit-->
             <div class="my-hours">
                 <h3>My Hours</h3>
                 <div class="hours-display-and-editbutton-container">
                     <div class="hours-block">
-                        <span class="current-block-time-display" id="current-block-time-display" th:text="'Block Time: ' + ${blockTimeHours}"></span>
-                        <span class="hours-updated" id="block-time-updated" th:attr="data-updated=${blockTimeUpdatedAt},data-source=${blockTimeUpdatedSource}"></span>
+                        <span class="hours-label-row"><span class="current-hobbs-time-display" id="current-hobbs-time-display" th:text="'Hobbs Time: ' + ${hobbsTimeHours}"></span><button type="button" class="info-mark no-print" id="hobbs-time-info" aria-label="Hobbs time: engine running time, from engine start to shutdown. Includes taxi and run-up." data-tip="Hobbs time: engine running time, from engine start to shutdown. Includes taxi and run-up."><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button></span>
+                        <span class="hours-updated" id="hobbs-time-updated" th:attr="data-updated=${hobbsTimeUpdatedAt},data-source=${hobbsTimeUpdatedSource}"></span>
                     </div>
                     <div class="hours-block">
-                        <span class="current-time-in-service-display" id="current-time-in-service-display" th:text="'Time in Service: ' + ${timeInServiceHours}"></span>
+                        <span class="hours-label-row"><span class="current-time-in-service-display" id="current-time-in-service-display" th:text="'Time in Service: ' + ${timeInServiceHours}"></span><button type="button" class="info-mark no-print" id="time-in-service-info" aria-label="Flight time: time in the air, from takeoff to landing. Used for maintenance and inspections." data-tip="Flight time: time in the air, from takeoff to landing. Used for maintenance and inspections."><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button></span>
                         <span class="hours-updated" id="time-in-service-updated" th:attr="data-updated=${timeInServiceUpdatedAt},data-source=${timeInServiceUpdatedSource}"></span>
                     </div>
                     <button class="edit-hours-btn no-print">Edit</button>
                 </div>
                 <div class="edit-hours-section no-print" style="display: none;">
                     <div class="hours-edit-row">
-                        <label>Edit Block Time:</label>
-                        <input type="number" id="current-block-time" th:value="${blockTimeHours}" step="0.1" min="0" placeholder="Edit current block time">
+                        <label>Edit Hobbs Time:</label>
+                        <input type="number" id="current-hobbs-time" th:value="${hobbsTimeHours}" step="0.1" min="0" placeholder="Edit current Hobbs time">
                     </div>
                     <div class="hours-edit-row">
                         <label>Edit Time in Service:</label>
                         <input type="number" id="current-time-in-service" th:value="${timeInServiceHours}" step="0.1" min="0" placeholder="Edit current time in service">
                     </div>
                     <div class="hours-add-row">
-                        <span>Add Block Time:</span>
-                        <input type="number" id="add-block-time" step="0.1" placeholder="Enter block time to add">
-                        <button id="add-block-time-btn" class="add-btn">Add Block Time</button>
+                        <span>Add Hobbs Time:</span>
+                        <input type="number" id="add-hobbs-time" step="0.1" placeholder="Enter Hobbs time to add">
+                        <button id="add-hobbs-time-btn" class="add-btn">Add Hobbs Time</button>
                     </div>
                     <div class="hours-add-row">
                         <span>Add Time in Service:</span>
@@ -640,8 +640,8 @@
                         <tr>
                             <th>From</th>
                             <th>To</th>
-                            <th>Block Time Out</th>
-                            <th>Block Time In</th>
+                            <th>Hobbs Time Out</th>
+                            <th>Hobbs Time In</th>
                             <th>Time in Service Out</th>
                             <th>Time in Service In</th>
                             <th class="delete-header"></th>
@@ -658,15 +658,15 @@
                                 <input type="text" name="toAirport" class="no-print" th:value="${log.toAirport}" readonly>
                                 <i class="fa-solid fa-chevron-down card-caret no-print"></i>
                             </td>
-                            <td data-label="Block Time Out">
-                                <span class="print-only" th:text="${log.blockTimeOut}"></span>
-                                <input type="number" name="blockTimeOut" class="no-print" th:value="${log.blockTimeOut}" readonly step="0.1">
-                                <span class="log-timestamp" th:attr="data-timestamp=${log.blockTimeStart}"></span>
+                            <td data-label="Hobbs Time Out">
+                                <span class="print-only" th:text="${log.hobbsTimeOut}"></span>
+                                <input type="number" name="hobbsTimeOut" class="no-print" th:value="${log.hobbsTimeOut}" readonly step="0.1">
+                                <span class="log-timestamp" th:attr="data-timestamp=${log.hobbsTimeStart}"></span>
                             </td>
-                            <td data-label="Block Time In">
-                                <span class="print-only" th:text="${log.blockTimeIn}"></span>
-                                <input type="number" name="blockTimeIn" class="no-print" th:value="${log.blockTimeIn}" readonly step="0.1">
-                                <span class="log-timestamp" th:attr="data-timestamp=${log.blockTimeEnd}"></span>
+                            <td data-label="Hobbs Time In">
+                                <span class="print-only" th:text="${log.hobbsTimeIn}"></span>
+                                <input type="number" name="hobbsTimeIn" class="no-print" th:value="${log.hobbsTimeIn}" readonly step="0.1">
+                                <span class="log-timestamp" th:attr="data-timestamp=${log.hobbsTimeEnd}"></span>
                             </td>
                             <td data-label="Time in Service Out">
                                 <span class="print-only" th:text="${log.timeInServiceOut}"></span>
@@ -691,13 +691,13 @@
                         <tr class="add-log-row no-print">
                             <td data-label="From"><input type="text" id="fromAirport" name="fromAirport" autocomplete="fromAirport" placeholder="From Airport"></td>
                             <td data-label="To"><input type="text" id="toAirport" name="toAirport" autocomplete="toAirport" placeholder="To Airport"></td>
-                            <td data-label="Block Time Out">
-                                <input type="number" id="blockTimeOut" name="blockTimeOut" autocomplete="blockTimeOut" placeholder="Block Time Out" step="0.01">
-                                <input type="datetime-local" id="blockTimeStart" name="blockTimeStart" class="log-timestamp-input" title="When this reading was taken">
+                            <td data-label="Hobbs Time Out">
+                                <input type="number" id="hobbsTimeOut" name="hobbsTimeOut" autocomplete="hobbsTimeOut" placeholder="Hobbs Time Out" step="0.01">
+                                <input type="datetime-local" id="hobbsTimeStart" name="hobbsTimeStart" class="log-timestamp-input" title="When this reading was taken">
                             </td>
-                            <td data-label="Block Time In">
-                                <input type="number" id="blockTimeIn" name="blockTimeIn" autocomplete="blockTimeIn" placeholder="Block Time In" step="0.01">
-                                <input type="datetime-local" id="blockTimeEnd" name="blockTimeEnd" class="log-timestamp-input" title="When this reading was taken">
+                            <td data-label="Hobbs Time In">
+                                <input type="number" id="hobbsTimeIn" name="hobbsTimeIn" autocomplete="hobbsTimeIn" placeholder="Hobbs Time In" step="0.01">
+                                <input type="datetime-local" id="hobbsTimeEnd" name="hobbsTimeEnd" class="log-timestamp-input" title="When this reading was taken">
                             </td>
                             <td data-label="Time in Service Out">
                                 <input type="number" id="timeInServiceOut" name="timeInServiceOut" autocomplete="timeInServiceOut" placeholder="Time in Service Out" step="0.01">

@@ -111,7 +111,7 @@ nothing is saved.
 - **Body (plain text):** "Maintenance status for [tail] ([make/model])" + timestamp
   → baseline note or "What changed" → full status, worst first. Each line puts
   the overdue part first, e.g. `OVERDUE  Annual Inspection — 480.0 hrs overdue ·
-  106 days left` → aircraft hours (Block Time / Time in Service).
+  106 days left` → aircraft hours (Hobbs Time / Time in Service).
 - **Attachment:** dashboard PDF (`PdfExportService.generateDashboardPdf`), built
   once per digest.
 - **Footer:** "You're receiving this because [owner name] added you to maintenance

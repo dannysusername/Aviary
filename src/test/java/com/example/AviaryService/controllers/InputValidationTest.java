@@ -91,14 +91,14 @@ class InputValidationTest {
 
     @Test
     void updateHours_rejectsNaNAndNegative() throws Exception {
-        mockMvc.perform(post("/updateHours").with(user(USER)).with(csrf()).param("newBlockTime", "NaN"))
+        mockMvc.perform(post("/updateHours").with(user(USER)).with(csrf()).param("newHobbsTime", "NaN"))
             .andExpect(status().isBadRequest());
-        mockMvc.perform(post("/updateHours").with(user(USER)).with(csrf()).param("newBlockTime", "-5"))
+        mockMvc.perform(post("/updateHours").with(user(USER)).with(csrf()).param("newHobbsTime", "-5"))
             .andExpect(status().isBadRequest());
-        mockMvc.perform(post("/updateHours").with(user(USER)).with(csrf()).param("blockTimeToAdd", "-500"))
+        mockMvc.perform(post("/updateHours").with(user(USER)).with(csrf()).param("hobbsTimeToAdd", "-500"))
             .andExpect(status().isBadRequest());
         assertEquals(100.0, aircraftRepository.findFirstByUserOrderByIdAsc(userRepository.findByUsername(USER))
-            .orElseThrow().getBlockTimeHours(), 0.0001);
+            .orElseThrow().getHobbsTimeHours(), 0.0001);
     }
 
     // ── Timeline rows ──

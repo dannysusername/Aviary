@@ -47,7 +47,7 @@ public class FlightSuggestionService {
             throw new IllegalArgumentException("This flight is already in your log book.");
         }
 
-        // Block Time can't come from AeroAPI (no engine data) -- stays blank
+        // Hobbs Time can't come from AeroAPI (no engine data) -- stays blank
         // for the user to fill in. Time in Service IS the flight's airborne
         // duration (ADSB_SYNC_SPEC.md, "the real maintenance clock"). Out/In
         // are just seeded with the right duration here -- this suggestion
@@ -66,7 +66,7 @@ public class FlightSuggestionService {
         flightLog.setAircraft(aircraft);
         flightLogRepository.save(flightLog);
 
-        double newTimeInService = hoursService.recomputeChain(aircraft, /*useBlockTime=*/false);
+        double newTimeInService = hoursService.recomputeChain(aircraft, /*useHobbsTime=*/false);
         aircraft.setTimeInServiceHours(newTimeInService);
         Instant now = Instant.now();
         aircraft.setTimeInServiceUpdatedAt(now);

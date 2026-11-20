@@ -103,22 +103,22 @@ public class DemoDataSeeder implements CommandLineRunner {
             {"KTMB", "KAPF", "1.8", "1.6"}, {"KAPF", "KTMB", "1.7", "1.5"},
             {"KTMB", "KEYW", "2.1", "1.9"}, {"KEYW", "KTMB", "2.0", "1.8"},
         };
-        double block = 1532.4 - sum(legs, 2);
+        double hobbs = 1532.4 - sum(legs, 2);
         double service = 1418.7 - sum(legs, 3);
         Instant start = today.minusDays(20).atTime(14, 0).toInstant(ZoneOffset.UTC);
         for (String[] leg : legs) {
-            double blockLen = Double.parseDouble(leg[2]);
+            double hobbsLen = Double.parseDouble(leg[2]);
             double serviceLen = Double.parseDouble(leg[3]);
-            FlightLog log = new FlightLog(leg[0], leg[1], round(block + blockLen), round(block),
+            FlightLog log = new FlightLog(leg[0], leg[1], round(hobbs + hobbsLen), round(hobbs),
                 round(service + serviceLen), round(service), demo);
             log.setSource("manual");
             log.setAircraft(sr22);
-            log.setBlockTimeStart(start);
-            log.setBlockTimeEnd(start.plus(minutes(blockLen)));
+            log.setHobbsTimeStart(start);
+            log.setHobbsTimeEnd(start.plus(minutes(hobbsLen)));
             log.setTimeInServiceStart(start.plus(Duration.ofMinutes(6)));
             log.setTimeInServiceEnd(start.plus(Duration.ofMinutes(6)).plus(minutes(serviceLen)));
             flightLogRepository.save(log);
-            block += blockLen;
+            hobbs += hobbsLen;
             service += serviceLen;
             start = start.plus(Duration.ofDays(3));
         }
@@ -160,35 +160,35 @@ public class DemoDataSeeder implements CommandLineRunner {
         timelineRepository.saveAll(rows);
 
         String[][] legs = { {"KFXE", "KBCT", "0.8", "0.6"}, {"KBCT", "KFXE", "0.9", "0.7"}, {"KFXE", "KVRB", "1.5", "1.3"} };
-        double block = 4210.6 - sum(legs, 2);
+        double hobbs = 4210.6 - sum(legs, 2);
         double service = 4105.2 - sum(legs, 3);
         Instant start = today.minusDays(12).atTime(13, 0).toInstant(ZoneOffset.UTC);
         for (String[] leg : legs) {
-            double blockLen = Double.parseDouble(leg[2]);
+            double hobbsLen = Double.parseDouble(leg[2]);
             double serviceLen = Double.parseDouble(leg[3]);
-            FlightLog log = new FlightLog(leg[0], leg[1], round(block + blockLen), round(block),
+            FlightLog log = new FlightLog(leg[0], leg[1], round(hobbs + hobbsLen), round(hobbs),
                 round(service + serviceLen), round(service), demo);
             log.setSource("manual");
             log.setAircraft(pa28);
-            log.setBlockTimeStart(start);
-            log.setBlockTimeEnd(start.plus(minutes(blockLen)));
+            log.setHobbsTimeStart(start);
+            log.setHobbsTimeEnd(start.plus(minutes(hobbsLen)));
             log.setTimeInServiceStart(start.plus(Duration.ofMinutes(5)));
             log.setTimeInServiceEnd(start.plus(Duration.ofMinutes(5)).plus(minutes(serviceLen)));
             flightLogRepository.save(log);
-            block += blockLen;
+            hobbs += hobbsLen;
             service += serviceLen;
             start = start.plus(Duration.ofDays(4));
         }
     }
 
     private Aircraft aircraft(User owner, String tail, String makeModel, String serial,
-            double blockTime, double timeInService) {
+            double hobbsTime, double timeInService) {
         Aircraft a = new Aircraft(owner);
         a.setTailNumber(tail);
         a.setMakeModel(makeModel);
         a.setOwnerName("Demo Pilot");
         a.setMakeModelSN(serial);
-        a.setBlockTimeHours(blockTime);
+        a.setHobbsTimeHours(hobbsTime);
         a.setTimeInServiceHours(timeInService);
         return aircraftRepository.save(a);
     }

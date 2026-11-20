@@ -181,7 +181,7 @@ public class UserController {
         model.addAttribute("aircraftFlightCount", aircraftService.flightCount(aircraft));
         model.addAttribute("timelines", serviceTimelineRepository.findByAircraftOrderByTimelineOrderAsc(aircraft));
         model.addAttribute("descriptionOptions", descriptionOptionService.cleanupAndLoadDescriptionOptions(user));
-        model.addAttribute("blockTimeHours", aircraft.getBlockTimeHours());
+        model.addAttribute("hobbsTimeHours", aircraft.getHobbsTimeHours());
         model.addAttribute("timeInServiceHours", aircraft.getTimeInServiceHours());
 
         model.addAttribute("makeModel", aircraft.getMakeModel());
@@ -189,9 +189,9 @@ public class UserController {
         model.addAttribute("ownerName", aircraft.getOwnerName());
         model.addAttribute("makeModelSN", aircraft.getMakeModelSN());
         model.addAttribute("flightlogs", flightLogService.listFor(aircraft));
-        model.addAttribute("blockTimeUpdatedAt", aircraft.getBlockTimeUpdatedAt() != null ? aircraft.getBlockTimeUpdatedAt().toString() : null);
+        model.addAttribute("hobbsTimeUpdatedAt", aircraft.getHobbsTimeUpdatedAt() != null ? aircraft.getHobbsTimeUpdatedAt().toString() : null);
         model.addAttribute("timeInServiceUpdatedAt", aircraft.getTimeInServiceUpdatedAt() != null ? aircraft.getTimeInServiceUpdatedAt().toString() : null);
-        model.addAttribute("blockTimeUpdatedSource", aircraft.getBlockTimeUpdatedSource());
+        model.addAttribute("hobbsTimeUpdatedSource", aircraft.getHobbsTimeUpdatedSource());
         model.addAttribute("timeInServiceUpdatedSource", aircraft.getTimeInServiceUpdatedSource());
         String aeroApiKey = user.getAeroApiKey();
         boolean hasAeroApiKey = aeroApiKey != null && !aeroApiKey.isEmpty();
@@ -393,8 +393,10 @@ public class UserController {
             response.put("id", flightLog.getId());
             response.put("fromAirport", flightLog.getFromAirport());
             response.put("toAirport", flightLog.getToAirport());
-            response.put("blockTimeIn", flightLog.getBlockTimeIn());
-            response.put("blockTimeOut", flightLog.getBlockTimeOut());
+            response.put("hobbsTimeIn", flightLog.getHobbsTimeIn());
+            response.put("blockTimeIn", flightLog.getHobbsTimeIn()); // legacy key, remove after 2026-12-31
+            response.put("hobbsTimeOut", flightLog.getHobbsTimeOut());
+            response.put("blockTimeOut", flightLog.getHobbsTimeOut()); // legacy key, remove after 2026-12-31
             response.put("timeInServiceIn", flightLog.getTimeInServiceIn());
             response.put("timeInServiceOut", flightLog.getTimeInServiceOut());
             response.put("timeInServiceStart", flightLog.getTimeInServiceStart() != null ? flightLog.getTimeInServiceStart().toString() : null);
@@ -529,10 +531,14 @@ public class UserController {
     @PostMapping("/updateHours")
     @ResponseBody
     public ResponseEntity<Map<String, String>> updateHours(
-            @RequestParam(required = false) Double blockTimeToAdd,
+            @RequestParam(required = false) Double hobbsTimeToAdd,
             @RequestParam(required = false) Double timeInServiceToAdd,
-            @RequestParam(required = false) Double newBlockTime,
+            @RequestParam(required = false) Double newHobbsTime,
             @RequestParam(required = false) Double newTimeInService,
+            // Pre-rename names (Block Time). Accepted for one release so a tab still
+            // running the old dashboard.js keeps saving. Remove after 2026-12-31.
+            @RequestParam(name = "blockTimeToAdd", required = false) Double legacyHobbsTimeToAdd,
+            @RequestParam(name = "newBlockTime", required = false) Double legacyNewHobbsTime,
             @CurrentAircraft Aircraft aircraft,
             Authentication authentication) {
         try {
@@ -540,10 +546,13 @@ public class UserController {
             if (user == null) {
                 throw new IllegalArgumentException("User not found");
             }
-            hoursService.updateHours(blockTimeToAdd, timeInServiceToAdd, newBlockTime, newTimeInService, aircraft);
+            if (hobbsTimeToAdd == null) hobbsTimeToAdd = legacyHobbsTimeToAdd;
+            if (newHobbsTime == null) newHobbsTime = legacyNewHobbsTime;
+            hoursService.updateHours(hobbsTimeToAdd, timeInServiceToAdd, newHobbsTime, newTimeInService, aircraft);
             Map<String, String> response = new HashMap<>();
             response.put("status", "success");
-            response.put("newBlockTime", String.valueOf(aircraft.getBlockTimeHours()));
+            response.put("newHobbsTime", String.valueOf(aircraft.getHobbsTimeHours()));
+            response.put("newBlockTime", String.valueOf(aircraft.getHobbsTimeHours())); // legacy key, remove after 2026-12-31
             response.put("newTimeInService", String.valueOf(aircraft.getTimeInServiceHours()));
             return ResponseEntity.ok(response);
             
@@ -661,15 +670,20 @@ public class UserController {
         response.put("id", savedLog.getId());
         response.put("fromAirport", savedLog.getFromAirport());
         response.put("toAirport", savedLog.getToAirport());
-        response.put("blockTimeIn", savedLog.getBlockTimeIn());
-        response.put("blockTimeOut", savedLog.getBlockTimeOut());
-        response.put("blockTimeStart", savedLog.getBlockTimeStart() != null ? savedLog.getBlockTimeStart().toString() : null);
-        response.put("blockTimeEnd", savedLog.getBlockTimeEnd() != null ? savedLog.getBlockTimeEnd().toString() : null);
+        response.put("hobbsTimeIn", savedLog.getHobbsTimeIn());
+        response.put("blockTimeIn", savedLog.getHobbsTimeIn()); // legacy key, remove after 2026-12-31
+        response.put("hobbsTimeOut", savedLog.getHobbsTimeOut());
+        response.put("blockTimeOut", savedLog.getHobbsTimeOut()); // legacy key, remove after 2026-12-31
+        response.put("hobbsTimeStart", savedLog.getHobbsTimeStart() != null ? savedLog.getHobbsTimeStart().toString() : null);
+        response.put("blockTimeStart", savedLog.getHobbsTimeStart() != null ? savedLog.getHobbsTimeStart().toString() : null); // legacy key, remove after 2026-12-31
+        response.put("hobbsTimeEnd", savedLog.getHobbsTimeEnd() != null ? savedLog.getHobbsTimeEnd().toString() : null);
+        response.put("blockTimeEnd", savedLog.getHobbsTimeEnd() != null ? savedLog.getHobbsTimeEnd().toString() : null); // legacy key, remove after 2026-12-31
         response.put("timeInServiceIn", savedLog.getTimeInServiceIn());
         response.put("timeInServiceOut", savedLog.getTimeInServiceOut());
         response.put("timeInServiceStart", savedLog.getTimeInServiceStart() != null ? savedLog.getTimeInServiceStart().toString() : null);
         response.put("timeInServiceEnd", savedLog.getTimeInServiceEnd() != null ? savedLog.getTimeInServiceEnd().toString() : null);
-        response.put("newBlockTime", added.totals().blockTime());
+        response.put("newHobbsTime", added.totals().hobbsTime());
+        response.put("newBlockTime", added.totals().hobbsTime()); // legacy key, remove after 2026-12-31
         response.put("newTimeInService", added.totals().timeInService());
         return ResponseEntity.ok(response);
     }
@@ -764,7 +778,8 @@ public class UserController {
 
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
-            response.put("newBlockTime", totals.blockTime());
+            response.put("newHobbsTime", totals.hobbsTime());
+            response.put("newBlockTime", totals.hobbsTime()); // legacy key, remove after 2026-12-31
             response.put("newTimeInService", totals.timeInService());
             return ResponseEntity.ok(response);
         } catch (SecurityException e) {
