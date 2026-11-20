@@ -357,8 +357,12 @@ function autoSave(input) {
     const dueCell = row.querySelector('td:nth-child(6)');
     const touched = rowDueTouched.get(id) || { date: false, hours: false };
     if (dueCell && dueCell.contains(input)) {
-        if (input.type === 'date') touched.date = true;
-        else if (input.type === 'text') touched.hours = true;
+        // Typing in a Due Date box, or tapping Remove on its calendar/clock
+        // (autoSave is then called with the Remove button), both count as
+        // the owner editing that part.
+        const removedType = input.classList?.contains('add-type') ? input.getAttribute('data-type') : null;
+        if (input.type === 'date' || removedType === 'calendar') touched.date = true;
+        else if ((input.type === 'text' && !removedType) || removedType === 'clock') touched.hours = true;
     }
     rowDueTouched.set(id, touched);
 

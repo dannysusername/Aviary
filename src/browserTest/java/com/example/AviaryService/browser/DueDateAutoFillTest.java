@@ -82,4 +82,38 @@ class DueDateAutoFillTest extends BrowserTestBase {
         assertThat(dueHours).hasValue("1050.0", new com.microsoft.playwright.assertions.LocatorAssertions.HasValueOptions().setTimeout(5000));
         if (!errors.isEmpty()) throw new AssertionError("Console errors: " + errors);
     }
+
+    // Reported bug: 12 mo -> 1 mo -> delete the number -> Remove the Due Date
+    // calendar. The old Due Date used to reappear straight away.
+    @Test
+    void removedDueDateStaysRemovedWhenCycleNumberIsDeleted() {
+        String username = seedUser("password");
+        StatusSheetItem item = seed(username, 12, "MONTHS", null, "2020-12-01", null);
+        List<String> errors = open(username);
+
+        Locator row = page.locator("tr.auto-save-row[data-id='" + item.getId() + "']");
+        Locator due = row.locator("td:nth-child(6) input[type='date']");
+        Locator cycleNumber = row.locator("input[name='cycleCalendarValue']");
+
+        // Setting Last Done again fills 12 months later.
+        row.locator("td:nth-child(5) input[type='date']").fill("2020-12-01");
+        cycleNumber.fill("12");
+        assertThat(due).hasValue("2021-12-01", new com.microsoft.playwright.assertions.LocatorAssertions.HasValueOptions().setTimeout(5000));
+
+        cycleNumber.fill("1");
+        assertThat(due).hasValue("2021-01-01", new com.microsoft.playwright.assertions.LocatorAssertions.HasValueOptions().setTimeout(5000));
+
+        cycleNumber.fill("");
+        page.waitForTimeout(1200);                       // let that save finish
+
+        Locator dueCell = row.locator("td:nth-child(6)");
+        dueCell.locator(".trigger-dropdown").click();
+        Locator remove = dueCell.locator(".add-type[data-type='calendar']");
+        remove.click();                                   // "Remove?" (has a value)
+        remove.click();                                   // confirm
+        page.waitForTimeout(1500);                       // save + response
+
+        assertThat(due).hasCount(0);
+        if (!errors.isEmpty()) throw new AssertionError("Console errors: " + errors);
+    }
 }

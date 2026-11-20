@@ -135,13 +135,21 @@ public final class DueDateAutoFill {
                                        String newLastDone, Cycle newCycle, String submittedDue, boolean touched) {
         String newExpected = expectedDueDate(newLastDone, newCycle);
         if (touched) {
+            // Owner typed or removed it. Removed (blank) stays theirs too, so a
+            // later unrelated save does not bring it back.
             String v = blankToNull(submittedDue);
-            return new Resolved(v, v == null || sameDate(v, newExpected));
+            return new Resolved(v, v != null && sameDate(v, newExpected));
         }
         boolean auto = storedAuto != null
             ? storedAuto
             : isBlank(storedDue) || sameDate(storedDue, expectedDueDate(storedLastDone, storedCycle));
         if (!auto) {
+            // An owner-removed (blank) Due Date fills again only when Last Done
+            // or the cycle actually changes.
+            if (isBlank(storedDue) && newExpected != null
+                    && inputsChanged(storedLastDone, storedCycle, newLastDone, newCycle)) {
+                return new Resolved(newExpected, true);
+            }
             return new Resolved(storedDue, false);
         }
         if (newExpected != null) {
@@ -158,12 +166,16 @@ public final class DueDateAutoFill {
         String newExpected = expectedDueHours(newLastDone, newCycle);
         if (touched) {
             String v = blankToNull(submittedDue);
-            return new Resolved(v, v == null || sameHours(v, newExpected));
+            return new Resolved(v, v != null && sameHours(v, newExpected));
         }
         boolean auto = storedAuto != null
             ? storedAuto
             : isBlank(storedDue) || sameHours(storedDue, expectedDueHours(storedLastDone, storedCycle));
         if (!auto) {
+            if (isBlank(storedDue) && newExpected != null
+                    && inputsChanged(storedLastDone, storedCycle, newLastDone, newCycle)) {
+                return new Resolved(newExpected, true);
+            }
             return new Resolved(storedDue, false);
         }
         if (newExpected != null) {
@@ -173,6 +185,10 @@ public final class DueDateAutoFill {
             return new Resolved(null, true);
         }
         return new Resolved(storedDue, true);
+    }
+
+    private static boolean inputsChanged(String storedLastDone, Cycle storedCycle, String newLastDone, Cycle newCycle) {
+        return !sameText(storedLastDone, newLastDone) || !Objects.equals(storedCycle, newCycle);
     }
 
     static boolean sameDate(String a, String b) {

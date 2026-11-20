@@ -186,11 +186,51 @@ class DueDateAutoFillTest {
             "2026-10-30", ONE_MONTH, "2027-01-15", true);
         assertEquals("2027-01-15", r.value());
         assertFalse(r.auto());
-        // ...and clearing it hands it back to auto-fill.
+        // ...and removing it is the owner's choice too.
         Resolved cleared = DueDateAutoFill.resolveDate("2026-10-30", ONE_MONTH, "2027-01-15", false,
             "2026-10-30", ONE_MONTH, "", true);
         assertNull(cleared.value());
-        assertTrue(cleared.auto());
+        assertFalse(cleared.auto());
+    }
+
+    // Reported bug: 12 mo -> 1 mo -> delete the number -> Remove the Due Date
+    // calendar. The old Due Date (1 month after Last Done) came straight back.
+    @Test
+    void removedDueDateDoesNotComeBackWhenTheCycleIsEmpty() {
+        Cycle noNumber = new Cycle(null, "MONTHS", null);
+        // Number deleted: cycle incomplete, auto Due Date kept for now.
+        Resolved kept = DueDateAutoFill.resolveDate("2020-12-01", ONE_MONTH, "2021-01-01", true,
+            "2020-12-01", noNumber, "2021-01-01", false);
+        assertEquals("2021-01-01", kept.value());
+        // Owner taps Remove on the Due Date calendar.
+        Resolved removed = DueDateAutoFill.resolveDate("2020-12-01", noNumber, kept.value(), kept.auto(),
+            "2020-12-01", noNumber, null, true);
+        assertNull(removed.value());
+        // Any later save with nothing changed keeps it removed.
+        Resolved later = DueDateAutoFill.resolveDate("2020-12-01", noNumber, removed.value(), removed.auto(),
+            "2020-12-01", noNumber, null, false);
+        assertNull(later.value());
+    }
+
+    @Test
+    void removedDueDateStaysRemovedOnUnrelatedSavesButRefillsWhenInputsChange() {
+        // Removed while the cycle is still set.
+        Resolved unrelated = DueDateAutoFill.resolveDate("2026-10-30", ONE_MONTH, null, false,
+            "2026-10-30", ONE_MONTH, null, false);
+        assertNull(unrelated.value());
+        // Owner changes Last Done: fills again and becomes auto.
+        Resolved newLast = DueDateAutoFill.resolveDate("2026-10-30", ONE_MONTH, null, false,
+            "2026-12-05", ONE_MONTH, null, false);
+        assertEquals("2027-01-05", newLast.value());
+        assertTrue(newLast.auto());
+        // Owner sets the cycle number again: fills too.
+        Resolved newCycle = DueDateAutoFill.resolveDate("2020-12-01", new Cycle(null, "MONTHS", null), null, false,
+            "2020-12-01", ONE_MONTH, null, false);
+        assertEquals("2021-01-01", newCycle.value());
+        // A typed (non-blank) Due Date is never replaced, even when inputs change.
+        Resolved typed = DueDateAutoFill.resolveDate("2026-10-30", ONE_MONTH, "2027-06-01", false,
+            "2026-12-05", ONE_MONTH, "2027-06-01", false);
+        assertEquals("2027-06-01", typed.value());
     }
 
     @Test
