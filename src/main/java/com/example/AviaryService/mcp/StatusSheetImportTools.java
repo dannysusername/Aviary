@@ -13,43 +13,43 @@ import org.springframework.stereotype.Component;
 import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.oauth.CimdRegisteredClientRepository;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
-import com.example.AviaryService.services.imports.TimelineImportService;
-import com.example.AviaryService.services.imports.TimelineImportService.ImportResult;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
+import com.example.AviaryService.services.imports.StatusSheetImportService;
+import com.example.AviaryService.services.imports.StatusSheetImportService.ImportResult;
 import com.example.AviaryService.util.DueDates;
 import com.example.AviaryService.util.Formatting;
-import com.example.AviaryService.util.TimelineImportRules;
-import com.example.AviaryService.util.TimelineImportRules.InputItem;
-import com.example.AviaryService.util.TimelineImportRules.RejectedRow;
+import com.example.AviaryService.util.StatusSheetImportRules;
+import com.example.AviaryService.util.StatusSheetImportRules.InputItem;
+import com.example.AviaryService.util.StatusSheetImportRules.RejectedRow;
 
-// MCP tools for importing a service timeline. Thin door in front of
-// TimelineImportService: check scope, resolve the token's owner, delegate.
+// MCP tools for importing a Status Sheet. Thin door in front of
+// StatusSheetImportService: check scope, resolve the token's owner, delegate.
 // Outputs are records that never include the User (it holds the password hash).
 @Component
-public class TimelineImportTools {
+public class StatusSheetImportTools {
 
     public record ImportFormat(Map<String, String> itemFields, List<String> rules, int maxItems, String example) {}
 
-    public record TimelineRow(Long id, String item, String description, boolean isTitle,
+    public record StatusSheetRow(Long id, String item, String description, boolean isTitle,
                               String lastDone, String due, String cycle, String timeLeft) {}
 
-    private final TimelineImportService importService;
-    private final ServiceTimelineRepository timelineRepository;
+    private final StatusSheetImportService importService;
+    private final StatusSheetItemRepository statusSheetItemRepository;
     private final McpCurrentUser currentUser;
     private final McpAircraftResolver aircraftResolver;
 
-    public TimelineImportTools(TimelineImportService importService, ServiceTimelineRepository timelineRepository,
+    public StatusSheetImportTools(StatusSheetImportService importService, StatusSheetItemRepository statusSheetItemRepository,
                                McpCurrentUser currentUser, McpAircraftResolver aircraftResolver) {
         this.importService = importService;
-        this.timelineRepository = timelineRepository;
+        this.statusSheetItemRepository = statusSheetItemRepository;
         this.currentUser = currentUser;
         this.aircraftResolver = aircraftResolver;
     }
 
     @Tool(name = "get_import_format", description = """
-        How Aviary service timeline items must look, with the rules and an example. Call this first, then \
+        How Aviary Status Sheet items must look, with the rules and an example. Call this first, then \
         convert the owner's maintenance records (any format) into these items before proposing. Each aircraft \
-        has its own timeline: if list_aircraft shows more than one, ask the owner which aircraft the records \
+        has its own statusSheetItem: if list_aircraft shows more than one, ask the owner which aircraft the records \
         are for and pass it as `aircraft`.""")
     public ImportFormat getImportFormat() {
         currentUser.requireScope(CimdRegisteredClientRepository.SCOPE_READ);
@@ -67,19 +67,19 @@ public class TimelineImportTools {
         fields.put("dateAmbiguous", "true if you weren't sure which date was meant");
         fields.put("onCondition", "true for an item with no fixed interval (inspected/replaced on condition); it needs no dates");
         fields.put("sourceRow", "the original line from the owner's records");
-        return new ImportFormat(fields, TimelineImportRules.RULES, TimelineImportRules.MAX_ITEMS,
-            TimelineImportRules.FORMAT_EXAMPLE);
+        return new ImportFormat(fields, StatusSheetImportRules.RULES, StatusSheetImportRules.MAX_ITEMS,
+            StatusSheetImportRules.FORMAT_EXAMPLE);
     }
 
-    @Tool(name = "list_service_timeline", description = "One aircraft's current service timeline items, in order.")
-    public List<TimelineRow> listServiceTimeline(
+    @Tool(name = "list_status_sheet", description = "One aircraft's current Status Sheet items, in order.")
+    public List<StatusSheetRow> listStatusSheetItem(
             @ToolParam(description = AIRCRAFT_PARAM, required = false) String aircraft) {
         currentUser.requireScope(CimdRegisteredClientRepository.SCOPE_READ);
         User user = currentUser.require();
         Aircraft target = aircraftResolver.resolve(user, aircraft);
         LocalDate today = LocalDate.now();
-        return timelineRepository.findByAircraftOrderByTimelineOrderAsc(target).stream()
-            .map(t -> new TimelineRow(t.getId(), t.getItem(), t.getDescription(), t.getIsTitle(),
+        return statusSheetItemRepository.findByAircraftOrderByStatusSheetOrderAsc(target).stream()
+            .map(t -> new StatusSheetRow(t.getId(), t.getItem(), t.getDescription(), t.getIsTitle(),
                 join(t.getLastDoneDate(), t.getLastDoneHours()),
                 join(t.getDueDateDate(), t.getDueDateHours()),
                 Formatting.formatCycle(t.getCycleCalendarValue(), t.getCycleCalendarUnit(), t.getCycleHours()),
@@ -88,13 +88,13 @@ public class TimelineImportTools {
             .toList();
     }
 
-    @Tool(name = "propose_timeline_import", description = """
-        Preview importing service timeline items. Send every maintenance item in the owner's records -- an item \
+    @Tool(name = "propose_status_sheet_import", description = """
+        Preview importing Status Sheet items. Send every maintenance item in the owner's records -- an item \
         only needs a name. Changes nothing: returns a proposal with the items as Aviary would store them, flags \
         and notes for the owner to check, and rows that can't be imported with reasons. Show the owner the \
         proposal before confirming. Calling this again for the same aircraft replaces the previous proposal \
         (use it to revise).""")
-    public ImportResult proposeTimelineImport(
+    public ImportResult proposeStatusSheetImport(
             @ToolParam(description = "Items converted from the owner's records; see get_import_format") List<InputItem> items,
             @ToolParam(description = "Rows that are not maintenance items at all, each with a reason. Never put a real item here just because it has no dates.", required = false)
             List<RejectedRow> rejectedBySource,
@@ -113,17 +113,17 @@ public class TimelineImportTools {
     @Tool(name = "continue_poor_fit", description = """
         For a POOR_FIT proposal: the owner agreed to continue with only the rows that fit. Returns the proposal, \
         which can then be confirmed.""")
-    public ImportResult continuePoorFit(@ToolParam(description = "proposalId from propose_timeline_import") Long proposalId) {
+    public ImportResult continuePoorFit(@ToolParam(description = "proposalId from propose_status_sheet_import") Long proposalId) {
         currentUser.requireScope(CimdRegisteredClientRepository.SCOPE_IMPORT);
         return importService.continuePoorFit(currentUser.require(), proposalId);
     }
 
-    @Tool(name = "confirm_timeline_import", description = """
-        Add a proposal's items to the owner's service timeline. Only call this after the owner has seen the \
-        proposal and said to go ahead. Items matching ones already on the timeline are skipped unless listed in \
+    @Tool(name = "confirm_status_sheet_import", description = """
+        Add a proposal's items to the owner's Status Sheet. Only call this after the owner has seen the \
+        proposal and said to go ahead. Items matching ones already on the statusSheetItem are skipped unless listed in \
         addDuplicatesAnyway. Existing items are never changed.""")
-    public ImportResult confirmTimelineImport(
-            @ToolParam(description = "proposalId from propose_timeline_import") Long proposalId,
+    public ImportResult confirmStatusSheetImport(
+            @ToolParam(description = "proposalId from propose_status_sheet_import") Long proposalId,
             @ToolParam(description = "Indexes of DUPLICATE_EXISTING items the owner wants added anyway", required = false)
             List<Integer> addDuplicatesAnyway) {
         currentUser.requireScope(CimdRegisteredClientRepository.SCOPE_IMPORT);

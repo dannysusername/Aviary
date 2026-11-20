@@ -3,12 +3,12 @@ package com.example.AviaryService.controllers;
 import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.DescriptionOption;
 import com.example.AviaryService.entity.FlightLog;
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.DescriptionOptionRepository;
 import com.example.AviaryService.repositories.FlightLogRepository;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,7 +46,7 @@ class UserControllerTest {
     private UserRepository userRepository;
 
     @Autowired
-    private ServiceTimelineRepository serviceTimelineRepository;
+    private StatusSheetItemRepository statusSheetItemRepository;
 
     @Autowired
     private DescriptionOptionRepository descriptionOptionRepository;
@@ -72,7 +72,7 @@ class UserControllerTest {
     void setUp() {
         // Clear existing data to avoid duplicates and foreign key violations
         descriptionOptionRepository.deleteAll();
-        serviceTimelineRepository.deleteAll();
+        statusSheetItemRepository.deleteAll();
         flightLogRepository.deleteAll();
         // users.last_viewed_aircraft_id points at aircraft; clear it so the
         // users (and their cascaded aircraft) can be deleted.
@@ -83,7 +83,7 @@ class UserControllerTest {
         aircraftRepository.deleteAll();
         userRepository.deleteAll();
 
-        // Create 50 users with 2 timelines each
+        // Create 50 users with 2 Status Sheet items each
         for (int i = 1; i <= 50; i++) {
             User user = new User();
             user.setUsername("user" + i);
@@ -94,22 +94,22 @@ class UserControllerTest {
             userRepository.save(user);
 
             for (int j = 1; j <= 2; j++) {
-                ServiceTimeline timeline = new ServiceTimeline();
-                timeline.setUser(user);
-                timeline.setAircraft(aircraft);
-                timeline.setItem("Timeline " + j + " for " + user.getUsername());
-                timeline.setIsTitle(false);
-                timeline.setTimelineOrder(j);
-                timeline.setDescription("Test Description");
-                timeline.setTimeLeft("7 days");
-                serviceTimelineRepository.save(timeline);
+                StatusSheetItem statusSheetItem = new StatusSheetItem();
+                statusSheetItem.setUser(user);
+                statusSheetItem.setAircraft(aircraft);
+                statusSheetItem.setItem("Status Sheet item " + j + " for " + user.getUsername());
+                statusSheetItem.setIsTitle(false);
+                statusSheetItem.setStatusSheetOrder(j);
+                statusSheetItem.setDescription("Test Description");
+                statusSheetItem.setTimeLeft("7 days");
+                statusSheetItemRepository.save(statusSheetItem);
             }
         }
     }
 
     @Test
     @WithMockUser(username = "user1", roles = {"USER"})
-    void testAddTimelineAsTitle() throws Exception {
+    void testAddStatusSheetAsTitle() throws Exception {
         Map<String, String> data = new HashMap<>();
         data.put("item", "Test Item");
         data.put("isTitle", "true");
@@ -123,13 +123,13 @@ class UserControllerTest {
 
         // Verify data in PostgreSQL
         User user = userRepository.findByUsername("user1");
-        List<ServiceTimeline> timelines = serviceTimelineRepository.findByUserOrderByTimelineOrderAsc(user);
-        assertTrue(timelines.stream().anyMatch(t -> t.getItem().equals("Test Item") && Boolean.TRUE.equals(t.getIsTitle())));
+        List<StatusSheetItem> statusSheetItems = statusSheetItemRepository.findByUserOrderByStatusSheetOrderAsc(user);
+        assertTrue(statusSheetItems.stream().anyMatch(t -> t.getItem().equals("Test Item") && Boolean.TRUE.equals(t.getIsTitle())));
     }
 
     @Test
     @WithMockUser(username = "user2", roles = {"USER"})
-    void testAddTimelineWithDescription() throws Exception {
+    void testAddStatusSheetWithDescription() throws Exception {
         Map<String, String> data = new HashMap<>();
         data.put("item", "Item");
         data.put("isTitle", "false");
@@ -148,8 +148,8 @@ class UserControllerTest {
 
         // Verify data in PostgreSQL
         User user = userRepository.findByUsername("user2");
-        List<ServiceTimeline> timelines = serviceTimelineRepository.findByUserOrderByTimelineOrderAsc(user);
-        assertTrue(timelines.stream().anyMatch(t -> t.getItem().equals("Item") && t.getDescription().equals("Custom Desc")));
+        List<StatusSheetItem> statusSheetItems = statusSheetItemRepository.findByUserOrderByStatusSheetOrderAsc(user);
+        assertTrue(statusSheetItems.stream().anyMatch(t -> t.getItem().equals("Item") && t.getDescription().equals("Custom Desc")));
     }
 
     @Test

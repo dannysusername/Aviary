@@ -12,8 +12,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
-// A previewed service timeline import from an AI assistant. Nothing reaches
-// the timeline until the owner confirms it. Items and rejected rows are kept
+// A previewed Status Sheet import from an AI assistant. Nothing reaches
+// the Status Sheet until the owner confirms it. Items and rejected rows are kept
 // as JSON (they are only ever read back whole). Status: OPEN (or
 // NEEDS_FIT_CONFIRMATION when most rows didn't fit) -> CONFIRMED, or
 // REPLACED by a newer proposal, or EXPIRED after 24 hours.

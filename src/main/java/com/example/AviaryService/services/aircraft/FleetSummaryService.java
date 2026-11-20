@@ -8,10 +8,10 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 
 import com.example.AviaryService.entity.AlertPreference;
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.AlertPreferenceRepository;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.services.alerts.AlertLevel;
 import com.example.AviaryService.util.DueDates;
 
@@ -29,12 +29,12 @@ public class FleetSummaryService {
         public static final Counts NONE = new Counts(0, 0);
     }
 
-    private final ServiceTimelineRepository timelineRepository;
+    private final StatusSheetItemRepository statusSheetItemRepository;
     private final AlertPreferenceRepository preferenceRepository;
 
-    public FleetSummaryService(ServiceTimelineRepository timelineRepository,
+    public FleetSummaryService(StatusSheetItemRepository statusSheetItemRepository,
             AlertPreferenceRepository preferenceRepository) {
-        this.timelineRepository = timelineRepository;
+        this.statusSheetItemRepository = statusSheetItemRepository;
         this.preferenceRepository = preferenceRepository;
     }
 
@@ -44,9 +44,9 @@ public class FleetSummaryService {
         int leadDays = prefs == null ? DEFAULT_LEAD_DAYS : prefs.getLeadTimeDays();
         int leadHours = prefs == null ? DEFAULT_LEAD_HOURS : prefs.getLeadTimeHours();
 
-        List<ServiceTimeline> rows = timelineRepository.findByUserOrderByAircraftIdAscTimelineOrderAsc(user);
+        List<StatusSheetItem> rows = statusSheetItemRepository.findByUserOrderByAircraftIdAscStatusSheetOrderAsc(user);
         Map<Long, int[]> tally = new HashMap<>();
-        for (ServiceTimeline t : rows) {
+        for (StatusSheetItem t : rows) {
             if (t.getIsTitle() || t.getAircraft() == null) continue;
             // Each row against its own aircraft's time in service.
             AlertLevel level = DueDates.classify(t.getDueDateDate(), t.getDueDateHours(),

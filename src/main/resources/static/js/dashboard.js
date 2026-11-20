@@ -1167,7 +1167,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Mobile/narrow: tap a flight log card to collapse it down to just From/To;
-    // tap again to expand. Same 960px gate as the timeline cards above. The
+    // tap again to expand. Same 960px gate as the Status Sheet cards above. The
     // delete button keeps its own click.
     document.getElementById('logbook-body').addEventListener('click', function(e) {
         if (!window.matchMedia('(max-width: 960px)').matches) return;
@@ -1206,7 +1206,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentSectionId = null;
     }
 
-    // A bar directly above the Service Timeline table (it used to be inserted
+    // A bar directly above the Status Sheet table (it used to be inserted
     // above the page's FIRST table -- the aircraft info -- so it was off screen).
     function addBackButton(sectionName) {
         document.querySelector('.section-filter-bar')?.remove();
@@ -1439,7 +1439,7 @@ document.addEventListener('DOMContentLoaded', () => {
             data[`${field}Hours`] = textInput ? textInput.value.trim() : '';
         });
 
-        console.log("NEW Service timeline row, POST request -->: ", data);
+        console.log("NEW Status Sheet row, POST request -->: ", data);
 
         axios.post('/dashboard', data, {
             headers: {
@@ -1954,8 +1954,8 @@ document.addEventListener('DOMContentLoaded', () => {
         ws['!cols'] = colWidths;
 
         // Add sheet and download
-        XLSX.utils.book_append_sheet(wb, ws, "Service Timeline");
-        XLSX.writeFile(wb, `Aircraft_Service_Timeline_${new Date().toISOString().split('T')[0]}.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, "Status Sheet");
+        XLSX.writeFile(wb, `Aircraft_Status_Sheet_${new Date().toISOString().split('T')[0]}.xlsx`);
     }
 
     // Share menu: a popover card under the Share button. Opens on click,
@@ -2783,10 +2783,10 @@ document.addEventListener('DOMContentLoaded', () => {
     loadRecipients();
 });
 
-// Empty-timeline "Import with AI" prompt: remove it as soon as the timeline
+// empty Status Sheet "Import with AI" prompt: remove it as soon as the Status Sheet
 // gets its first row, so it never sits above real items.
 document.addEventListener('DOMContentLoaded', function () {
-    const prompt = document.getElementById('empty-timeline');
+    const prompt = document.getElementById('empty-statusSheetItem');
     const tbody = document.querySelector('.sortable');
     if (!prompt || !tbody) return;
     const observer = new MutationObserver(function () {

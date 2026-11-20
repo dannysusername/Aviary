@@ -1,6 +1,6 @@
 package com.example.AviaryService.entity.DTO;
 
-public class TimelineUpdateDTO {
+public class StatusSheetItemUpdateDTO {
     private String item;
     private String description;
     private String cycle;
@@ -16,7 +16,7 @@ public class TimelineUpdateDTO {
     private Double cycleHours;
 
     // Default constructor (required for Jackson deserialization)
-    public TimelineUpdateDTO() {}
+    public StatusSheetItemUpdateDTO() {}
 
     // Getters and Setters
     public String getItem() { return item; }

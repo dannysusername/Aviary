@@ -100,7 +100,7 @@
         </tbody>
     </table>
 
-    <h2>Service Timeline</h2>
+    <h2>Status Sheet</h2>
     <table>
         <thead>
             <tr>
@@ -113,10 +113,10 @@
             </tr>
         </thead>
         <tbody>
-            <tr th:if="${timelineRows.isEmpty()}">
-                <td colspan="6">No service timeline items yet.</td>
+            <tr th:if="${statusSheetRows.isEmpty()}">
+                <td colspan="6">No Status Sheet items yet.</td>
             </tr>
-            <tr th:each="row : ${timelineRows}" th:class="${row.isTitle} ? 'title-row' : ''">
+            <tr th:each="row : ${statusSheetRows}" th:class="${row.isTitle} ? 'title-row' : ''">
                 <td th:if="${row.isTitle}" colspan="6" th:text="${row.item}"></td>
                 <td th:unless="${row.isTitle}" th:text="${row.item}"></td>
                 <td th:unless="${row.isTitle}" th:text="${row.description}"></td>

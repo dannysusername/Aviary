@@ -44,12 +44,12 @@
           - entity
             - DescriptionOption.class
             - DTO
-              - TimelineUpdateDTO.class
-            - ServiceTimeline.class
+              - StatusSheetItemUpdateDTO.class
+            - StatusSheetItem.class
             - User.class
           - repositories
             - DescriptionOptionRepository.class
-            - ServiceTimelineRepository.class
+            - StatusSheetItemRepository.class
             - UserRepository.class
     - static
       - css
@@ -85,12 +85,12 @@
               - entity
                 - DescriptionOption.class
                 - DTO
-                  - TimelineUpdateDTO.class
-                - ServiceTimeline.class
+                  - StatusSheetItemUpdateDTO.class
+                - StatusSheetItem.class
                 - User.class
               - repositories
                 - DescriptionOptionRepository.class
-                - ServiceTimelineRepository.class
+                - StatusSheetItemRepository.class
                 - UserRepository.class
       - test
         - com
@@ -189,12 +189,12 @@
             - entity
               - DescriptionOption.java
               - DTO
-                - TimelineUpdateDTO.java
-              - ServiceTimeline.java
+                - StatusSheetItemUpdateDTO.java
+              - StatusSheetItem.java
               - User.java
             - repositories
               - DescriptionOptionRepository.java
-              - ServiceTimelineRepository.java
+              - StatusSheetItemRepository.java
               - UserRepository.java
     - resources
       - application-heroku.properties

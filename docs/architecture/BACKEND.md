@@ -28,11 +28,11 @@
 | GET | `/register` | — | `register` view | |
 | POST | `/register` | `username`, `password` | redirect `/login` | trims username; requires username 3-50 chars `[A-Za-z0-9._-]`, password 8-72 chars; rejects duplicates |
 | GET | `/login` | — | `login` view | |
-| GET | `/dashboard` | — | `dashboard` view | loads timelines, flight logs, hours, aircraft info for the auth user |
-| POST | `/dashboard` | JSON timeline fields | row JSON or 302 | adds a Service Timeline row; assigns next `timelineOrder` |
-| POST | `/update/{id}` | `TimelineUpdateDTO` | status JSON | partial update of a timeline row. Ownership checked (403 if not owner) |
-| DELETE | `/delete/{id}` | — | 200 / 403 / 404 | deletes a timeline row. Ownership checked (403 if not owner) |
-| POST | `/updateOrder` | `List<Long>` ids | void | reorders timelines; user-scoped, matches ids with `.equals` |
+| GET | `/dashboard` | — | `dashboard` view | loads Status Sheet items, flight logs, hours, aircraft info for the auth user |
+| POST | `/dashboard` | JSON Status Sheet fields | row JSON or 302 | adds a Status Sheet row; assigns next `statusSheetOrder` |
+| POST | `/update/{id}` | `StatusSheetItemUpdateDTO` | status JSON | partial update of a Status Sheet row. Ownership checked (403 if not owner) |
+| DELETE | `/delete/{id}` | — | 200 / 403 / 404 | deletes a Status Sheet row. Ownership checked (403 if not owner) |
+| POST | `/updateOrder` | `List<Long>` ids | void | reorders Status Sheet items; user-scoped, matches ids with `.equals` |
 | POST | `/updateUserInfo` | JSON aircraft fields | status JSON | updates makeModel/tailNumber/ownerName/makeModelSN for auth user |
 | POST | `/updateHours` | `hobbsTimeToAdd`/`timeInServiceToAdd`/`newHobbsTime`/`newTimeInService` | hours JSON | set-or-add Hobbs time / time in service. 400 for NaN/Infinity, a negative set value, or an add that would go below 0 (checked before anything changes) |
 | GET | `/flightlogs` | — | `List<FlightLog>` JSON | auth user's logs |
@@ -42,7 +42,7 @@
 
 ## Key logic
 - **`calculateMergedHours(logs, useHobbsTime)`** — sums flight time across all logs by **merging overlapping intervals** so overlapping flights don't double-count. Hobbs time uses `hobbsTimeOut`/`hobbsTimeIn`; time in service uses `timeInServiceOut`/`timeInServiceIn`. Result is written back to `User.hobbsTimeHours`/`timeInServiceHours` on add/delete of a log.
-- **`saveCustomDescriptionOption`** — persists a user's custom Service Timeline "Description" values so they reappear in the dropdown.
+- **`saveCustomDescriptionOption`** — persists a user's custom Status Sheet "Description" values so they reappear in the dropdown.
 - **Hours "last updated" stamps:** `/updateHours` sets `hobbsTimeUpdatedAt`/`timeInServiceUpdatedAt` (UTC `Instant`) + `*UpdatedSource = "manual"` for whichever value changed; `/addflightlog` and `/deleteflightlog` set both with source `"flightlog"`. `GET /dashboard` passes the 4 values (timestamps as ISO strings) to the view, which renders them in the browser's local time.
 
 ## Time Left + PDF
@@ -56,8 +56,8 @@
 Aviary is an MCP server at `POST /mcp` (Spring AI, Streamable HTTP, SYNC) and its own OAuth authorization server, so AI assistants sign in as an owner.
 - **Sign-in:** authorization code + PKCE (S256 only), public clients only. Assistants identify with a **Client ID Metadata Document**: `client_id` is an https URL that `CimdFetcher` downloads (SSRF-guarded: https, no IP literals, no private/loopback/link-local DNS, no redirects, 5 KB, 5 s) and `CimdRegisteredClientRepository` turns into a client (cached 1 h). Dynamic Client Registration is off. Loopback redirect URIs may use any port (`AuthorizationServerConfig.validateRedirectUri`). Owner approves on `/oauth2/consent` (`ConsentController`).
 - **Tokens:** opaque, 7 days, no refresh tokens (Spring Authorization Server 1.4 gives public clients none). Stored by `JpaOAuth2AuthorizationService` in `oauth_authorizations` with token values **SHA-256 hashed**. `LocalOpaqueTokenIntrospector` checks every `/mcp` call against that table, so **Disconnect** (`/account/connections`, deletes the row) cuts an assistant off on its next request. No/dead token → 401 with `WWW-Authenticate: Bearer resource_metadata=…`; token without `aviary.read` → 403.
-- **Tools** (`mcp/`): `list_flights`, `get_import_format`, `list_service_timeline`, `propose_timeline_import`, `continue_poor_fit`, `confirm_timeline_import`. Each checks its scope and gets the owner from `McpCurrentUser` (the token's user — never a parameter).
-- **Import:** `TimelineImportService` + pure `util/TimelineImportRules`. Propose stores an `import_proposals` row (24 h, one open per owner) and changes nothing; confirm adds exactly the proposed rows after the existing ones in one transaction (all or nothing), never edits existing rows, skips name matches unless the owner opts in, and writes a `timeline_import_records` row. Rate limits: 30 proposals / 10 confirms per owner per hour.
+- **Tools** (`mcp/`): `list_flights`, `get_import_format`, `list_status_sheet`, `propose_status_sheet_import`, `continue_poor_fit`, `confirm_status_sheet_import`. Each checks its scope and gets the owner from `McpCurrentUser` (the token's user — never a parameter).
+- **Import:** `StatusSheetImportService` + pure `util/StatusSheetImportRules`. Propose stores an `import_proposals` row (24 h, one open per owner) and changes nothing; confirm adds exactly the proposed rows after the existing ones in one transaction (all or nothing), never edits existing rows, skips name matches unless the owner opts in, and writes a `timeline_import_records` row. Rate limits: 30 proposals / 10 confirms per owner per hour.
 
 ## Input limits & rate limits
 - **Text length:** every text column is varchar(255). `Validation.maxLength` checks item/description/aircraft fields/airports/description options up front and returns a 400 with a readable message; `GlobalExceptionHandler` catches anything missed. The AeroAPI key is capped at 100 chars (it's stored encrypted, which roughly doubles its length).
@@ -66,7 +66,7 @@ Aviary is an MCP server at `POST /mcp` (Spring AI, Streamable HTTP, SYNC) and it
 - Unexpected exceptions in `/update/{id}` and `/updateHours` are logged and return a generic message instead of `e.getMessage()`.
 
 ## Known issues
-- **(FIXED 2026-05-25) IDOR / broken access control:** `/update/{id}` and `/delete/{id}` now load the authenticated user and return 403 unless `timeline.getUser().getId()` matches — same ownership pattern as `/deleteflightlog` and `/deleteOption`.
+- **(FIXED 2026-05-25) IDOR / broken access control:** `/update/{id}` and `/delete/{id}` now load the authenticated user and return 403 unless `Status Sheet.getUser().getId()` matches — same ownership pattern as `/deleteflightlog` and `/deleteOption`.
 - **(FIXED 2026-05-25) `updateOrder` id comparison:** now uses `t.getId().equals(id)` instead of `==` (reference compare).
 - **No regression test yet** for the ownership checks — worth adding (user A cannot mutate user B's rows → expect 403).
 - **Debug logging:** many `System.out.println` calls (incl. a per-login timing print in `SecurityConfig`). Replace with the SLF4J `log` or remove.

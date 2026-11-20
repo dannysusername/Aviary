@@ -3,7 +3,7 @@
 Status: **Backend + email built (Amazon SES); SMS = model + logging sender only; UI = functional** · Last updated: 2026-10-18
 
 Alerts the aircraft owner (and anyone they add — a maintenance shop, a partner)
-when a Service Timeline item is near or past its due date. Email goes through
+when a Status Sheet item is near or past its due date. Email goes through
 Amazon SES (`SesEmailService`). SMS is stubbed (`LoggingSmsSender`) until a real
 provider is wired up.
 
@@ -18,13 +18,13 @@ for this tail". This is a different concern with its own entities.
   one check per user per day.
 - `checkHour` is in the **server's time zone** (`ZoneId.systemDefault()`). On
   Heroku that is UTC.
-- On a check, every non-title item on the Service Timeline gets a **level**:
+- On a check, every non-title item on the Status Sheet gets a **level**:
   `OK` → `DUE_SOON` → `OVERDUE`.
   - `OVERDUE`  — `daysLeft < 0` or `hoursLeft < 0`
   - `DUE_SOON` — `0 ≤ daysLeft ≤ leadTimeDays` or `0 ≤ hoursLeft ≤ leadTimeHours`
   - else `OK`
   - An item has two limits (calendar and flight hours); the worse one wins.
-- Each item stores the level it **last alerted at** (`ServiceTimeline.alertLevel`)
+- Each item stores the level it **last alerted at** (`StatusSheetItem.alertLevel`)
   and when (`alertLastFiredAt`).
 - A digest is sent only if **either**:
   1. some item moved to a worse level than it last alerted at, **or**
@@ -132,7 +132,7 @@ Per-user defaults in `AlertPreference`: `leadTimeDays` (30), `leadTimeHours`
   `overdueRenudgeDays` (7, min 1), `lastCheckedOn` (LocalDate, null),
   `baselineSentAt` (Instant, null).
 - **`AlertRecipient`** — as table above.
-- **`ServiceTimeline`** has `alertLevel` (String, nullable) and
+- **`StatusSheetItem`** has `alertLevel` (String, nullable) and
   `alertLastFiredAt` (Instant, nullable).
 - **`AlertSendLog`** — `recipientId`, `channel`, `sentAt`. Backs the digest rate
   limit. Rows older than 30 days are pruned.

@@ -18,10 +18,10 @@ import org.thymeleaf.ITemplateEngine;
 import org.thymeleaf.context.Context;
 
 import com.example.AviaryService.entity.FlightLog;
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.repositories.FlightLogRepository;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.util.DueDates;
 import com.example.AviaryService.util.Formatting;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
@@ -35,14 +35,14 @@ import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 public class PdfExportService {
 
     private final ITemplateEngine templateEngine;
-    private final ServiceTimelineRepository serviceTimelineRepository;
+    private final StatusSheetItemRepository statusSheetItemRepository;
     private final FlightLogRepository flightLogRepository;
 
     public PdfExportService(ITemplateEngine templateEngine,
-            ServiceTimelineRepository serviceTimelineRepository,
+            StatusSheetItemRepository statusSheetItemRepository,
             FlightLogRepository flightLogRepository) {
         this.templateEngine = templateEngine;
-        this.serviceTimelineRepository = serviceTimelineRepository;
+        this.statusSheetItemRepository = statusSheetItemRepository;
         this.flightLogRepository = flightLogRepository;
     }
 
@@ -62,7 +62,7 @@ public class PdfExportService {
         context.setVariable("timeInServiceHours", formatHoursOrBlank(aircraft.getTimeInServiceHours()));
         context.setVariable("generatedAt", DateTimeFormatter.ofPattern("MMM d, yyyy h:mm a")
             .withZone(ZoneOffset.UTC).format(Instant.now()) + " UTC");
-        context.setVariable("timelineRows", buildTimelineRows(aircraft, today));
+        context.setVariable("statusSheetRows", buildStatusSheetRows(aircraft, today));
         context.setVariable("logRows", buildLogRows(aircraft));
 
         String html = templateEngine.process("pdf-export", context);
@@ -104,13 +104,13 @@ public class PdfExportService {
         }
     }
 
-    private List<Map<String, Object>> buildTimelineRows(Aircraft aircraft, LocalDate today) {
-        return serviceTimelineRepository.findByAircraftOrderByTimelineOrderAsc(aircraft).stream()
-            .map(t -> timelineRowData(t, today, aircraft.getTimeInServiceHours()))
+    private List<Map<String, Object>> buildStatusSheetRows(Aircraft aircraft, LocalDate today) {
+        return statusSheetItemRepository.findByAircraftOrderByStatusSheetOrderAsc(aircraft).stream()
+            .map(t -> statusSheetRowData(t, today, aircraft.getTimeInServiceHours()))
             .collect(Collectors.toList());
     }
 
-    private Map<String, Object> timelineRowData(ServiceTimeline t, LocalDate today, Double currentTimeInService) {
+    private Map<String, Object> statusSheetRowData(StatusSheetItem t, LocalDate today, Double currentTimeInService) {
         Map<String, Object> row = new HashMap<>();
         row.put("isTitle", t.getIsTitle());
         row.put("item", t.getItem());

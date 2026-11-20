@@ -5,7 +5,7 @@ import java.time.temporal.ChronoUnit;
 
 import com.example.AviaryService.services.alerts.AlertLevel;
 
-// Turns a Service Timeline row's stored due-date / due-hours strings into a
+// Turns a Status Sheet row's stored due-date / due-hours strings into a
 // number of days / hours remaining, and classifies that against a user's alert
 // thresholds, and formats the Time Left text. Mirrors calculateTimeLeft in
 // dashboard.js (client-side). See docs/specs/ALERTS_SPEC.md.

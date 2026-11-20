@@ -1,8 +1,8 @@
 package com.example.AviaryService.browser;
 
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Regression tests for the mobile service-timeline layout redesign:
+ * Regression tests for the mobile Status Sheet layout redesign:
  *
  *  - each saved item card lays out 1 / 2-2 / 1 (Item headline full width;
  *    Description|Last Done; Cycle|Due Date; Time Left full width), so the left
@@ -34,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Screenshots of the collapsed card and the title-mode add row are dropped into
  * the build report.
  */
-class ServiceTimelineMobileLayoutTest extends BrowserTestBase {
+class StatusSheetMobileLayoutTest extends BrowserTestBase {
 
     private static final int PHONE_W = 390;
     private static final int PHONE_H = 844;
@@ -43,23 +43,23 @@ class ServiceTimelineMobileLayoutTest extends BrowserTestBase {
     UserRepository users;
 
     @Autowired
-    ServiceTimelineRepository timelines;
+    StatusSheetItemRepository statusSheetItems;
 
     private void seedData(User user) {
-        ServiceTimeline title = new ServiceTimeline();
+        StatusSheetItem title = new StatusSheetItem();
         title.setUser(user);
         title.setAircraft(aircraftOf(user));
         title.setItem("ENGINE");
         title.setIsTitle(true);
-        title.setTimelineOrder(0);
-        timelines.save(title);
+        title.setStatusSheetOrder(0);
+        statusSheetItems.save(title);
 
-        ServiceTimeline item = new ServiceTimeline();
+        StatusSheetItem item = new StatusSheetItem();
         item.setUser(user);
         item.setAircraft(aircraftOf(user));
         item.setItem("Annual Inspection");
         item.setIsTitle(false);
-        item.setTimelineOrder(1);
+        item.setStatusSheetOrder(1);
         item.setDescription("Inspect");
         item.setCycleCalendarValue(12);
         item.setCycleCalendarUnit("MONTHS");
@@ -67,7 +67,7 @@ class ServiceTimelineMobileLayoutTest extends BrowserTestBase {
         setLastDone(item, "2025-06-01");
         setDueDate(item, "2026-06-01 2450.0");
         item.setTimeLeft("11 mo\n86.0 hrs");
-        timelines.save(item);
+        statusSheetItems.save(item);
     }
 
     private double[] rectOf(Locator loc) {
@@ -279,7 +279,7 @@ class ServiceTimelineMobileLayoutTest extends BrowserTestBase {
     }
 
     @Test
-    void serviceTimelineNeverOverflowsViewportAcrossBreakpoints() {
+    void statusSheetNeverOverflowsViewportAcrossBreakpoints() {
         String username = seedUser("password");
         User u = users.findByUsername(username);
         seedData(u);
@@ -299,7 +299,7 @@ class ServiceTimelineMobileLayoutTest extends BrowserTestBase {
             }
             // Visual evidence at a width that used to overflow with the desktop table.
             if (w == 850) {
-                Path shot = Paths.get("build", "browsertest-screenshots", "timeline-850-no-overflow.png");
+                Path shot = Paths.get("build", "browsertest-screenshots", "status-sheet-850-no-overflow.png");
                 try {
                     Files.createDirectories(shot.getParent());
                 } catch (Exception ignored) { }
@@ -307,7 +307,7 @@ class ServiceTimelineMobileLayoutTest extends BrowserTestBase {
             }
         }
         if (over.length() > 0) {
-            throw new AssertionError("Service timeline overflows the viewport at:" + over);
+            throw new AssertionError("Status Sheet overflows the viewport at:" + over);
         }
     }
 

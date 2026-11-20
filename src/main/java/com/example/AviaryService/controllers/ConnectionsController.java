@@ -16,9 +16,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.example.AviaryService.entity.TimelineImportRecord;
+import com.example.AviaryService.entity.StatusSheetImportRecord;
 import com.example.AviaryService.entity.User;
-import com.example.AviaryService.repositories.TimelineImportRecordRepository;
+import com.example.AviaryService.repositories.StatusSheetImportRecordRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.services.imports.ConnectionService;
 
@@ -30,12 +30,12 @@ public class ConnectionsController {
 
     private final ConnectionService connectionService;
     private final UserRepository userRepository;
-    private final TimelineImportRecordRepository importRecordRepository;
+    private final StatusSheetImportRecordRepository importRecordRepository;
     // This site's MCP address -- production, staging, and local each show their own.
     private final String mcpUrl;
 
     public ConnectionsController(ConnectionService connectionService, UserRepository userRepository,
-                                 TimelineImportRecordRepository importRecordRepository,
+                                 StatusSheetImportRecordRepository importRecordRepository,
                                  @Value("${aviary.oauth.issuer}") String issuer) {
         this.connectionService = connectionService;
         this.userRepository = userRepository;
@@ -48,8 +48,8 @@ public class ConnectionsController {
         User user = userRepository.findByUsername(principal.getName());
         model.addAttribute("connections", connectionService.list(user));
         // Recent imports, grouped by the assistant that made them.
-        Map<String, List<TimelineImportRecord>> imports = new LinkedHashMap<>();
-        for (TimelineImportRecord r : importRecordRepository.findTop20ByUserOrderByImportedAtDesc(user)) {
+        Map<String, List<StatusSheetImportRecord>> imports = new LinkedHashMap<>();
+        for (StatusSheetImportRecord r : importRecordRepository.findTop20ByUserOrderByImportedAtDesc(user)) {
             if (r.getClientId() != null) {
                 imports.computeIfAbsent(r.getClientId(), k -> new ArrayList<>()).add(r);
             }

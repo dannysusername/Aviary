@@ -9,7 +9,7 @@ import jakarta.persistence.*;
 
 // One airplane in an owner's fleet. Holds what used to live on User: the
 // info card, both hour meters, their manual baseline floors, and where each
-// meter's last update came from. Service timeline rows, flights, flight
+// meter's last update came from. Status Sheet rows, flights, flight
 // suggestions and the flight-sync subscription each point at one aircraft.
 // See specs/003-multi-aircraft-fleet/data-model.md.
 @Entity

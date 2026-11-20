@@ -69,6 +69,19 @@ class HoursInfoMarksTest extends BrowserTestBase {
     }
 
     @Test
+    void statusSheetTabHasMaintenanceInspectionsTag() {
+        List<String> errors = openDashboard();
+        Locator tag = page.locator("#status-sheet-info");
+        assertThat(page.locator(".tab-button[data-tab='status-sheet-tab']")).hasText("Status Sheet");
+        assertThat(tag).hasAttribute("data-tip", "Maintenance/inspections");
+        assertThat(tag).hasAttribute("aria-label", "Status Sheet: maintenance/inspections");
+        tag.hover();
+        page.waitForTimeout(200);
+        assertEquals("block", tipDisplay(tag), "hover shows the tag text");
+        if (!errors.isEmpty()) throw new AssertionError("Console errors: " + errors);
+    }
+
+    @Test
     void infoMarksFitAPhoneScreen() {
         page.setViewportSize(360, 740);
         openDashboard();

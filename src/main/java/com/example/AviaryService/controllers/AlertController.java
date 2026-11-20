@@ -21,10 +21,10 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.AlertPreference;
 import com.example.AviaryService.entity.AlertRecipient;
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.AircraftRepository;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.services.alerts.AlertRecipientService;
 import com.example.AviaryService.services.alerts.AlertService;
@@ -43,15 +43,15 @@ public class AlertController {
     private final AlertService alertService;
     private final AlertRecipientService recipientService;
     private final UserRepository userRepository;
-    private final ServiceTimelineRepository serviceTimelineRepository;
+    private final StatusSheetItemRepository statusSheetItemRepository;
     private final AircraftRepository aircraftRepository;
 
     public AlertController(AlertService alertService, AlertRecipientService recipientService,
-            UserRepository userRepository, ServiceTimelineRepository serviceTimelineRepository, AircraftRepository aircraftRepository) {
+            UserRepository userRepository, StatusSheetItemRepository statusSheetItemRepository, AircraftRepository aircraftRepository) {
         this.alertService = alertService;
         this.recipientService = recipientService;
         this.userRepository = userRepository;
-        this.serviceTimelineRepository = serviceTimelineRepository;
+        this.statusSheetItemRepository = statusSheetItemRepository;
         this.aircraftRepository = aircraftRepository;
     }
 
@@ -167,7 +167,7 @@ public class AlertController {
 
         // Readiness hints for the "turn on" dialog (advisory only).
         List<String> missing = new ArrayList<>();
-        long itemCount = serviceTimelineRepository.findByUserOrderByTimelineOrderAsc(user).stream()
+        long itemCount = statusSheetItemRepository.findByUserOrderByStatusSheetOrderAsc(user).stream()
             .filter(t -> !t.getIsTitle()).count();
         if (itemCount == 0) missing.add("Add at least one maintenance item");
         List<Aircraft> fleet = aircraftRepository.findByUserOrderByIdAsc(user);

@@ -14,10 +14,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.AlertPreference;
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.AircraftRepository;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.services.alerts.AlertService;
 import com.example.AviaryService.support.TestFleet;
@@ -34,7 +34,7 @@ class FleetSummaryServiceTest {
     @Autowired FleetSummaryService summaryService;
     @Autowired AlertService alertService;
     @Autowired AircraftRepository aircraftRepository;
-    @Autowired ServiceTimelineRepository timelineRepository;
+    @Autowired StatusSheetItemRepository statusSheetItemRepository;
     @Autowired UserRepository userRepository;
 
     private User owner;
@@ -52,15 +52,15 @@ class FleetSummaryServiceTest {
     }
 
     private void row(Aircraft a, String dueDate, String dueHours, boolean title) {
-        ServiceTimeline t = new ServiceTimeline();
+        StatusSheetItem t = new StatusSheetItem();
         t.setUser(owner);
         t.setAircraft(a);
         t.setItem("x");
         t.setIsTitle(title);
-        t.setTimelineOrder(0);
+        t.setStatusSheetOrder(0);
         t.setDueDateDate(dueDate);
         t.setDueDateHours(dueHours);
-        timelineRepository.save(t);
+        statusSheetItemRepository.save(t);
     }
 
     @Test

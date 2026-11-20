@@ -64,7 +64,7 @@ for shredding — including A's work.
 |---|---|
 | `services/HoursService.java` | `updateHours` |
 | `services/UserService.java` | `registerUser`, `updateUserInfo` |
-| `services/TimelineService.java` | `addTimeline` |
+| `services/StatusSheetService.java` | `addStatusSheet` |
 | `services/DescriptionOptionService.java` | `saveCustomDescriptionOption`, `addOption`, `deleteOption`, `cleanupAndLoadDescriptionOptions` |
 | `services/SubscriptionService.java` | `toggle` |
 
@@ -72,7 +72,7 @@ for shredding — including A's work.
 
 | File | Method |
 |---|---|
-| `controllers/UserController.java` | `updateTimeline`, `addFlightLog`, `completeMaintenance`, `addDescriptionOption`, `deleteFlightLog` |
+| `controllers/UserController.java` | `updateStatusSheet`, `addFlightLog`, `completeMaintenance`, `addDescriptionOption`, `deleteFlightLog` |
 
 ### The clearest example of why it matters
 
@@ -130,7 +130,7 @@ public ResponseEntity<...> updateHours(...) {          // no @Transactional here
 }
 ```
 
-**Leaky — `UserController.updateTimeline` and `UserController.deleteFlightLog`.** Both
+**Leaky — `UserController.updateStatusSheet` and `UserController.deleteFlightLog`.** Both
 carry `@Transactional` *and* wrap their whole body in `catch (Exception e)`. The exception
 never escapes, so the foreman files the work order regardless. In `deleteFlightLog` that
 means the delete can commit while the hours recomputation failed — a 500 goes to the
@@ -141,7 +141,7 @@ controllers catch and format the response.
 
 ### 2. Nested transactional calls share one transaction
 
-`UserController.updateTimeline` calls `descriptionOptionService.saveCustomDescriptionOption`,
+`UserController.updateStatusSheet` calls `descriptionOptionService.saveCustomDescriptionOption`,
 which is itself `@Transactional`. It does not get its own transaction — it joins the
 controller's.
 
@@ -156,7 +156,7 @@ Calling a `@Transactional` method from another method in the *same class* skips 
 entirely, so no transaction is opened, silently.
 
 This codebase is currently safe — every call crosses a bean boundary (controller → service,
-or `TimelineService` → `descriptionOptionService`). Worth remembering before moving a
+or `StatusSheetService` → `descriptionOptionService`). Worth remembering before moving a
 transactional method's caller into the same class.
 
 ### 4. `@Transactional` on a controller holds the connection too long
@@ -202,8 +202,8 @@ Two experiments worth doing once:
 - **See a rollback.** Call the update-hours endpoint with all four parameters empty.
   `HoursService` throws `IllegalArgumentException`, and the log should show
   `Initiating transaction rollback` instead of commit.
-- **See transactions nest.** Save a timeline row with a brand-new custom description.
-  `updateTimeline` calls `saveCustomDescriptionOption`, which is also `@Transactional`.
+- **See transactions nest.** Save a Status Sheet row with a brand-new custom description.
+  `updateStatusSheet` calls `saveCustomDescriptionOption`, which is also `@Transactional`.
   The log should show `Participating in existing transaction` — trap 2, visible.
 
 To see the SQL landing between the begin and commit lines, flip

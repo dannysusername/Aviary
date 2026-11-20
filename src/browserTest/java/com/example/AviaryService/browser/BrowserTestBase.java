@@ -1,7 +1,7 @@
 package com.example.AviaryService.browser;
 
 import com.example.AviaryService.entity.Aircraft;
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.UserRepository;
@@ -105,12 +105,12 @@ public abstract class BrowserTestBase {
      * These take the combined "2025-10-01 100.5" form the tests were written
      * with (either part optional) and split it.
      */
-    protected static void setLastDone(ServiceTimeline t, String value) {
+    protected static void setLastDone(StatusSheetItem t, String value) {
         t.setLastDoneDate(datePart(value));
         t.setLastDoneHours(hoursPart(value));
     }
 
-    protected static void setDueDate(ServiceTimeline t, String value) {
+    protected static void setDueDate(StatusSheetItem t, String value) {
         t.setDueDateDate(datePart(value));
         t.setDueDateHours(hoursPart(value));
     }

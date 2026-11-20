@@ -12,13 +12,13 @@ No install, no setup, nothing to download. Register a username + password and yo
 
 A multi-user maintenance and flight-hours tracker for general-aviation aircraft owners:
 
-- **Service timeline** — track every recurring maintenance item (annual, transponder/pitot-static tests, VOR checks, oil changes, etc.) on a **calendar cycle** (days/months/years) *or* an **engine-hours cycle**. Each row shows last-done, next-due, and live "time left," and a one-click **Complete Maintenance** button rolls the dates and hours forward automatically.
+- **Status Sheet** — track every recurring maintenance item (annual, transponder/pitot-static tests, VOR checks, oil changes, etc.) on a **calendar cycle** (days/months/years) *or* an **engine-hours cycle**. Each row shows last-done, next-due, and live "time left," and a one-click **Complete Maintenance** button rolls the dates and hours forward automatically.
 - **Hours tracking** — Hobbs time and time in service, each with a manual baseline "floor," so log-book activity can only ever raise the displayed hours, never silently lower them.
 - **Log book** — record flights by hand (from/to airport, Hobbs time and time in service out and in) **or import a Garmin avionics CSV** and let the app derive Hobbs time (oil pressure > 15 psi) and airborne time (groundspeed > 35 kt) for you.
 - **Aircraft info card** — make/model, tail number, owner, and serial number, editable inline.
-- **Fleets** — track up to 25 aircraft in one account. Each plane has its own info card, hours, service timeline, and log book; a picker in the header switches between them and shows which ones have items overdue or due soon.
+- **Fleets** — track up to 25 aircraft in one account. Each plane has its own info card, hours, Status Sheet, and log book; a picker in the header switches between them and shows which ones have items overdue or due soon.
 
-Each account is fully isolated — its own aircraft, service timelines, flight logs, and custom maintenance descriptions. Ownership is enforced server-side on every write, and every request names the aircraft it is for, so an action always lands on the plane on screen.
+Each account is fully isolated — its own aircraft, Status Sheets, flight logs, and custom maintenance descriptions. Ownership is enforced server-side on every write, and every request names the aircraft it is for, so an action always lands on the plane on screen.
 
 ## Using it
 
@@ -26,13 +26,13 @@ Each account is fully isolated — its own aircraft, service timelines, flight l
 2. **Fill in your aircraft info** — make/model, tail number, owner, serial.
    - **More than one plane?** Tap the aircraft button in the header → **Add aircraft**, type the tail number, **Save**. You land on the new plane, ready for its first maintenance item. Switch planes from the same button; Aviary remembers the last one you looked at.
    - Maintenance alerts stay account-wide: one email covers every plane, grouped by tail number.
-3. **Build your service timeline** — add maintenance items with a calendar or hours cycle. Rows are drag-reorderable, and you can insert title rows to group them.
+3. **Build your Status Sheet** — add maintenance items with a calendar or hours cycle. Rows are drag-reorderable, and you can insert title rows to group them.
 4. **Set your hours** — enter current Hobbs time and time in service manually, or let the log book keep them current.
 5. **Log flights** — add entries by hand, or upload a Garmin CSV and Aviary computes the times and updates your meters.
 
 ## Connect an AI assistant
 
-Aviary is also an MCP server, so an AI assistant can import your existing maintenance records — a spreadsheet, a typed list, another tracker's export — into your service timeline.
+Aviary is also an MCP server, so an AI assistant can import your existing maintenance records — a spreadsheet, a typed list, another tracker's export — into your Status Sheet.
 
 The easiest way in is the **Import with AI** button on the dashboard — it shows the address with a Copy button and these same steps.
 
@@ -48,7 +48,7 @@ You sign in on Aviary's own login page; the assistant never sees your password. 
 
 1. Give the assistant your records — paste a list or attach a spreadsheet — and ask it to import them into Aviary. If you track more than one aircraft, say which tail number they're for (the assistant can list your aircraft).
 2. It shows you a **proposal** first: the items it will add, anything flagged for you to check (unclear dates, no due date, items you already have), and any rows it couldn't use and why.
-3. Tell it to go ahead. The items are added to the bottom of your service timeline. Nothing is added before you confirm, and existing items are never changed or deleted.
+3. Tell it to go ahead. The items are added to the bottom of your Status Sheet. Nothing is added before you confirm, and existing items are never changed or deleted.
 
 Any row with a name can be imported — including on-condition items with no dates. Values that can't be used are left blank with a note.
 
@@ -131,10 +131,10 @@ push to main
 | Tool | What it does |
 |---|---|
 | `get_import_format` | Item fields, rules, and an example |
-| `list_service_timeline` | The owner's current items |
-| `propose_timeline_import` | Validates items into a proposal (24 h); changes nothing |
+| `list_status_sheet` | The owner's current items |
+| `propose_status_sheet_import` | Validates items into a proposal (24 h); changes nothing |
 | `continue_poor_fit` | Continues a proposal where most rows didn't fit, after the owner agrees |
-| `confirm_timeline_import` | Adds exactly the proposal's items, all or nothing |
+| `confirm_status_sheet_import` | Adds exactly the proposal's items, all or nothing |
 | `list_flights` | The owner's logged flights |
 
 **Config:** `aviary.oauth.issuer` (env `AVIARY_OAUTH_ISSUER`) is the site's public URL; the MCP address is that plus `/mcp`. It defaults to `http://localhost:8080` locally and `https://aviary.danielibarra.com` on Heroku — set it on staging to the staging URL, or sign-in there points at production.
@@ -163,12 +163,12 @@ Design and contract: [specs/004-public-aviary-stats/](specs/004-public-aviary-st
 
 The app is a small, conventional Spring MVC project under `src/main/java/com/example/AviaryService/`:
 
-- **`controllers/UserController.java`** — every route: auth pages, the dashboard, timeline CRUD + reordering, hours updates, flight-log CRUD, the Garmin CSV parser, and "Complete Maintenance."
-- **`entity/`** — `User`, `ServiceTimeline`, `FlightLog`, `DescriptionOption` (+ a `DTO/` for timeline updates).
+- **`controllers/UserController.java`** — every route: auth pages, the dashboard, Status Sheet CRUD + reordering, hours updates, flight-log CRUD, the Garmin CSV parser, and "Complete Maintenance."
+- **`entity/`** — `User`, `StatusSheetItem`, `FlightLog`, `DescriptionOption` (+ a `DTO/` for Status Sheet updates).
 - **`repositories/`** — Spring Data JPA repositories, all scoped by user.
 - **`config/`** — `SecurityConfig` (login/logout, BCrypt, per-route access, the `/mcp` bearer-token chain) and `DataSeeder` (the H2 demo data).
 - **`oauth/`** — the OAuth authorization server for MCP sign-in (client metadata documents, hashed token storage, token checks).
-- **`mcp/`** — MCP tools; **`services/imports/`** + **`util/TimelineImportRules`** — import proposals, confirm, and the Import with AI page's connections.
+- **`mcp/`** — MCP tools; **`services/imports/`** + **`util/StatusSheetImportRules`** — import proposals, confirm, and the Import with AI page's connections.
 - **`resources/templates/`** + **`resources/static/`** — Thymeleaf views and the dashboard's CSS/JS.
 
 Deeper design docs live in **[docs/](docs/)** — see `ARCHITECTURE.md`, `BACKEND.md`, `FRONTEND.md`, `DATABASE.md`, and `BUILD_AND_DEPLOY.md`. A **Share/Export** feature (print / PDF / email / text) is specced in `docs/specs/SHARE_EXPORT_SPEC.md` but not yet built.

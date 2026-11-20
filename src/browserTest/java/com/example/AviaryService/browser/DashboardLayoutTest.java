@@ -1,8 +1,8 @@
 package com.example.AviaryService.browser;
 
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.LoadState;
@@ -31,7 +31,7 @@ class DashboardLayoutTest extends BrowserTestBase {
     UserRepository users;
 
     @Autowired
-    ServiceTimelineRepository timelines;
+    StatusSheetItemRepository statusSheetItems;
 
     private List<String> attachConsoleErrorListener() {
         List<String> errors = new ArrayList<>();
@@ -43,17 +43,17 @@ class DashboardLayoutTest extends BrowserTestBase {
 
     private void seedThreeRows(User user) {
         for (int i = 1; i <= 3; i++) {
-            ServiceTimeline t = new ServiceTimeline();
+            StatusSheetItem t = new StatusSheetItem();
             t.setUser(user);
             t.setAircraft(aircraftOf(user));
             t.setItem("Row " + i);
             t.setIsTitle(false);
-            t.setTimelineOrder(i);
+            t.setStatusSheetOrder(i);
             t.setDescription("Inspect");
             setLastDone(t, "2025-10-01");
             setDueDate(t, "2026-12-01");
             t.setTimeLeft("");
-            timelines.save(t);
+            statusSheetItems.save(t);
         }
     }
 
@@ -103,13 +103,13 @@ class DashboardLayoutTest extends BrowserTestBase {
     void shortItemTextareaStartsAtAboutOneLineHeight() {
         String username = seedUser("password");
         User u = users.findByUsername(username);
-        ServiceTimeline t = new ServiceTimeline();
+        StatusSheetItem t = new StatusSheetItem();
         t.setUser(u);
         t.setAircraft(aircraftOf(u));
         t.setItem("Oil");           // single short token — should fit one line
         t.setIsTitle(false);
-        t.setTimelineOrder(1);
-        timelines.save(t);
+        t.setStatusSheetOrder(1);
+        statusSheetItems.save(t);
 
         var errors = attachConsoleErrorListener();
         loginAs(username, "password");
@@ -186,18 +186,18 @@ class DashboardLayoutTest extends BrowserTestBase {
         String username = seedUser("password");
         User u = users.findByUsername(username);
 
-        ServiceTimeline t = new ServiceTimeline();
+        StatusSheetItem t = new StatusSheetItem();
         t.setUser(u);
         t.setAircraft(aircraftOf(u));
         t.setItem("Magneto");
         t.setIsTitle(false);
-        t.setTimelineOrder(1);
+        t.setStatusSheetOrder(1);
         t.setDescription("Inspect");
         // Both a date and an hours value so each cell renders both inputs.
         setLastDone(t, "2025-10-01 100.5");
         setDueDate(t, "2026-12-01 250");
         t.setTimeLeft("");
-        timelines.save(t);
+        statusSheetItems.save(t);
 
         loginAs(username, "password");
         page.waitForLoadState(LoadState.NETWORKIDLE);
@@ -317,17 +317,17 @@ class DashboardLayoutTest extends BrowserTestBase {
 
         // A long-overdue calendar date yields a wide value like
         // "9600 days overdue" — the widest realistic Time Left content.
-        ServiceTimeline t = new ServiceTimeline();
+        StatusSheetItem t = new StatusSheetItem();
         t.setUser(u);
         t.setAircraft(aircraftOf(u));
         t.setItem("Engine");
         t.setIsTitle(false);
-        t.setTimelineOrder(1);
+        t.setStatusSheetOrder(1);
         t.setDescription("Inspect");
         setLastDone(t, "2000-01-01");
         setDueDate(t, "2000-01-01");
         t.setTimeLeft("");
-        timelines.save(t);
+        statusSheetItems.save(t);
 
         loginAs(username, "password");
         page.waitForLoadState(LoadState.NETWORKIDLE);
@@ -376,17 +376,17 @@ class DashboardLayoutTest extends BrowserTestBase {
 
         // Empty Last Done / Due Date so the row starts with no inputs — just
         // the chevron — and we drive the +/- menu ourselves.
-        ServiceTimeline t = new ServiceTimeline();
+        StatusSheetItem t = new StatusSheetItem();
         t.setUser(u);
         t.setAircraft(aircraftOf(u));
         t.setItem("Battery");
         t.setIsTitle(false);
-        t.setTimelineOrder(1);
+        t.setStatusSheetOrder(1);
         t.setDescription("Inspect");
         setLastDone(t, "");
         setDueDate(t, "");
         t.setTimeLeft("");
-        timelines.save(t);
+        statusSheetItems.save(t);
 
         loginAs(username, "password");
         page.waitForLoadState(LoadState.NETWORKIDLE);

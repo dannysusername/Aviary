@@ -20,14 +20,14 @@ import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.FlightLog;
 import com.example.AviaryService.entity.FlightSuggestion;
 import com.example.AviaryService.entity.ImportProposal;
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.Subscription;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.FlightLogRepository;
 import com.example.AviaryService.repositories.FlightSuggestionRepository;
 import com.example.AviaryService.repositories.ImportProposalRepository;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.repositories.SubscriptionRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.support.TestFleet;
@@ -44,7 +44,7 @@ class AircraftBackfillTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired UserRepository userRepository;
     @Autowired AircraftRepository aircraftRepository;
-    @Autowired ServiceTimelineRepository timelineRepository;
+    @Autowired StatusSheetItemRepository statusSheetItemRepository;
     @Autowired FlightLogRepository flightLogRepository;
     @Autowired FlightSuggestionRepository suggestionRepository;
     @Autowired SubscriptionRepository subscriptionRepository;
@@ -85,9 +85,9 @@ class AircraftBackfillTest {
             "manual", "flightlog", u.getId());
 
         // Non-sequential order with a title row, to prove order survives.
-        timelineRepository.save(row(u, "Engine", true, 7));
-        timelineRepository.save(row(u, "Oil Change", false, 3));
-        timelineRepository.save(row(u, "Annual", false, 11));
+        statusSheetItemRepository.save(row(u, "Engine", true, 7));
+        statusSheetItemRepository.save(row(u, "Oil Change", false, 3));
+        statusSheetItemRepository.save(row(u, "Annual", false, 11));
 
         for (String from : List.of("KTMB", "KFLL")) {
             FlightLog f = new FlightLog();
@@ -111,12 +111,12 @@ class AircraftBackfillTest {
         return u;
     }
 
-    private static ServiceTimeline row(User u, String item, boolean title, int order) {
-        ServiceTimeline t = new ServiceTimeline();
+    private static StatusSheetItem row(User u, String item, boolean title, int order) {
+        StatusSheetItem t = new StatusSheetItem();
         t.setUser(u);
         t.setItem(item);
         t.setIsTitle(title);
-        t.setTimelineOrder(order);
+        t.setStatusSheetOrder(order);
         return t;
     }
 
@@ -153,9 +153,9 @@ class AircraftBackfillTest {
         }
 
         // Same rows, same order (SC-002).
-        List<ServiceTimeline> rows = timelineRepository.findByAircraftOrderByTimelineOrderAsc(a);
-        assertEquals(List.of("Oil Change", "Engine", "Annual"), rows.stream().map(ServiceTimeline::getItem).toList());
-        assertEquals(List.of(3, 7, 11), rows.stream().map(ServiceTimeline::getTimelineOrder).toList());
+        List<StatusSheetItem> rows = statusSheetItemRepository.findByAircraftOrderByStatusSheetOrderAsc(a);
+        assertEquals(List.of("Oil Change", "Engine", "Annual"), rows.stream().map(StatusSheetItem::getItem).toList());
+        assertEquals(List.of(3, 7, 11), rows.stream().map(StatusSheetItem::getStatusSheetOrder).toList());
         assertEquals(2, flightLogRepository.findByAircraft(a).size());
 
         Long lastViewed = jdbc.queryForObject("SELECT last_viewed_aircraft_id FROM users WHERE id = ?", Long.class, u.getId());

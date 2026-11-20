@@ -16,19 +16,19 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
 import com.example.AviaryService.entity.ImportProposal;
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.ImportProposalRepository;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
-import com.example.AviaryService.repositories.TimelineImportRecordRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
+import com.example.AviaryService.repositories.StatusSheetImportRecordRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.support.TestFleet;
 import com.example.AviaryService.entity.Aircraft;
-import com.example.AviaryService.services.dashboard.TimelineService;
-import com.example.AviaryService.services.imports.TimelineImportService.ImportResult;
-import com.example.AviaryService.util.TimelineImportRules.InputItem;
-import com.example.AviaryService.util.TimelineImportRules.RejectedRow;
+import com.example.AviaryService.services.dashboard.StatusSheetService;
+import com.example.AviaryService.services.imports.StatusSheetImportService.ImportResult;
+import com.example.AviaryService.util.StatusSheetImportRules.InputItem;
+import com.example.AviaryService.util.StatusSheetImportRules.RejectedRow;
 
 // Propose / continue / confirm against real H2. Not @Transactional: confirm
 // runs its own transaction and the all-or-nothing test needs to see what it
@@ -36,13 +36,13 @@ import com.example.AviaryService.util.TimelineImportRules.RejectedRow;
 // interfere.
 @SpringBootTest
 @ActiveProfiles("test")
-class TimelineImportServiceTest {
+class StatusSheetImportServiceTest {
 
-    @Autowired TimelineImportService importService;
-    @Autowired TimelineService timelineService;
+    @Autowired StatusSheetImportService importService;
+    @Autowired StatusSheetService statusSheetService;
     @Autowired ImportProposalRepository proposalRepository;
-    @Autowired ServiceTimelineRepository timelineRepository;
-    @Autowired TimelineImportRecordRepository recordRepository;
+    @Autowired StatusSheetItemRepository statusSheetItemRepository;
+    @Autowired StatusSheetImportRecordRepository recordRepository;
     @Autowired UserRepository userRepository;
     @Autowired AircraftRepository aircraftRepository;
 
@@ -68,14 +68,14 @@ class TimelineImportServiceTest {
         return aircraftRepository.findFirstByUserOrderByIdAsc(u).orElseThrow();
     }
 
-    private ServiceTimeline existing(User owner, String name, int order) {
-        ServiceTimeline t = new ServiceTimeline();
+    private StatusSheetItem existing(User owner, String name, int order) {
+        StatusSheetItem t = new StatusSheetItem();
         t.setUser(owner);
         t.setAircraft(plane(owner));
         t.setItem(name);
-        t.setTimelineOrder(order);
+        t.setStatusSheetOrder(order);
         t.setLastDoneDate("2026-01-01");
-        return timelineRepository.save(t);
+        return statusSheetItemRepository.save(t);
     }
 
     private static InputItem calendarItem(String name, String lastDone, String months) {
@@ -90,14 +90,14 @@ class TimelineImportServiceTest {
         return new InputItem(null, null, null, null, null, null, null, null, null, null, null, text, null);
     }
 
-    private List<ServiceTimeline> rows(User u) {
-        return timelineRepository.findByUserOrderByTimelineOrderAsc(u);
+    private List<StatusSheetItem> rows(User u) {
+        return statusSheetItemRepository.findByUserOrderByStatusSheetOrderAsc(u);
     }
 
     // ---- propose (US1) ----
 
     @Test
-    void proposeLeavesTimelineUnchanged() {
+    void proposeLeavesStatusSheetUnchanged() {
         existing(alice, "Annual", 0);
         ImportResult r = importService.propose(alice, plane(alice),
             List.of(calendarItem("ELT", "2026-01-10", "12"), hoursItem("Oil", "1000", "50")), null, null);
@@ -120,7 +120,7 @@ class TimelineImportServiceTest {
     void proposalExpiresAfter24Hours() {
         ImportResult r = importService.propose(alice, plane(alice), List.of(hoursItem("Oil", "1000", "50")), null, null);
         ImportProposal p = proposalRepository.findById(r.proposalId()).orElseThrow();
-        assertEquals(TimelineImportService.PROPOSAL_TTL, java.time.Duration.between(p.getCreatedAt(), p.getExpiresAt()));
+        assertEquals(StatusSheetImportService.PROPOSAL_TTL, java.time.Duration.between(p.getCreatedAt(), p.getExpiresAt()));
 
         p.setExpiresAt(Instant.now().minusSeconds(1));
         proposalRepository.save(p);
@@ -130,7 +130,7 @@ class TimelineImportServiceTest {
 
     @Test
     void proposalRateLimit() {
-        for (int i = 0; i < TimelineImportService.PROPOSALS_PER_HOUR; i++) {
+        for (int i = 0; i < StatusSheetImportService.PROPOSALS_PER_HOUR; i++) {
             assertEquals("PROPOSED", importService.propose(alice, plane(alice), List.of(hoursItem("Oil", "1000", "50")), null, null).status());
         }
         ImportResult limited = importService.propose(alice, plane(alice), List.of(hoursItem("Oil", "1000", "50")), null, null);
@@ -172,17 +172,17 @@ class TimelineImportServiceTest {
         assertEquals("IMPORTED", r.status(), r.message());
         assertEquals(3, r.addedCount());
 
-        List<ServiceTimeline> all = rows(alice);
+        List<StatusSheetItem> all = rows(alice);
         assertEquals(List.of("Annual", "Transponder", "Engine", "Oil", "ELT"),
-            all.stream().map(ServiceTimeline::getItem).toList());
-        assertEquals(List.of(0, 1, 2, 3, 4), all.stream().map(ServiceTimeline::getTimelineOrder).toList());
+            all.stream().map(StatusSheetItem::getItem).toList());
+        assertEquals(List.of(0, 1, 2, 3, 4), all.stream().map(StatusSheetItem::getStatusSheetOrder).toList());
         assertEquals("2026-01-01", all.get(0).getLastDoneDate()); // existing row untouched
 
-        ServiceTimeline oil = all.get(3);
+        StatusSheetItem oil = all.get(3);
         assertEquals("1000", oil.getLastDoneHours());
         assertEquals("1050", oil.getDueDateHours());
         assertEquals(50.0, oil.getCycleHours());
-        ServiceTimeline elt = all.get(4);
+        StatusSheetItem elt = all.get(4);
         assertEquals("2027-01-10", elt.getDueDateDate());
         assertTrue(all.get(2).getIsTitle());
 
@@ -204,7 +204,7 @@ class TimelineImportServiceTest {
         assertEquals(2, r.addedCount());
         assertEquals(List.of("oil change"), r.skippedDuplicates());
         assertEquals(List.of("Oil Change", "Annual", "annual", "Mags"),
-            rows(alice).stream().map(ServiceTimeline::getItem).toList());
+            rows(alice).stream().map(StatusSheetItem::getItem).toList());
     }
 
     @Test
@@ -234,7 +234,7 @@ class TimelineImportServiceTest {
 
     @Test
     void confirmRateLimit() {
-        for (int i = 0; i < TimelineImportService.CONFIRMS_PER_HOUR; i++) {
+        for (int i = 0; i < StatusSheetImportService.CONFIRMS_PER_HOUR; i++) {
             importService.confirm(alice, -1L, null);
         }
         assertEquals("RATE_LIMITED", importService.confirm(alice, -1L, null).status());
@@ -244,8 +244,8 @@ class TimelineImportServiceTest {
     void importedItemWorksWithCompleteMaintenance() {
         ImportResult p = importService.propose(alice, plane(alice), List.of(hoursItem("Oil", "900", "50")), null, null);
         importService.confirm(alice, p.proposalId(), null);
-        ServiceTimeline oil = rows(alice).get(0);
-        TimelineService.CompletedMaintenance done = timelineService.completeMaintenance(alice, oil.getId());
+        StatusSheetItem oil = rows(alice).get(0);
+        StatusSheetService.CompletedMaintenance done = statusSheetService.completeMaintenance(alice, oil.getId());
         assertEquals("1000", done.lastDone());
         assertEquals("1050", done.dueDate());
     }
@@ -258,7 +258,7 @@ class TimelineImportServiceTest {
             null, null);
         assertEquals("PROPOSED", p.status(), p.message());
         assertEquals("IMPORTED", importService.confirm(alice, p.proposalId(), null).status());
-        List<ServiceTimeline> all = rows(alice);
+        List<StatusSheetItem> all = rows(alice);
         assertEquals("Replace (on condition)", all.get(0).getDescription());
         assertEquals("On condition", all.get(1).getDescription());
         assertNull(all.get(0).getDueDateDate());
@@ -266,10 +266,10 @@ class TimelineImportServiceTest {
 
     @Test
     void onConditionDescriptionRules() {
-        assertEquals("On condition", TimelineImportService.onConditionDescription(null));
-        assertEquals("Replace On Condition", TimelineImportService.onConditionDescription("Replace On Condition"));
+        assertEquals("On condition", StatusSheetImportService.onConditionDescription(null));
+        assertEquals("Replace On Condition", StatusSheetImportService.onConditionDescription("Replace On Condition"));
         String long255 = "x".repeat(250);
-        assertEquals(long255, TimelineImportService.onConditionDescription(long255));
+        assertEquals(long255, StatusSheetImportService.onConditionDescription(long255));
     }
 
     // ---- refusals (US3) ----

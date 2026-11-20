@@ -19,14 +19,14 @@ import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.FlightLog;
 import com.example.AviaryService.entity.FlightSuggestion;
 import com.example.AviaryService.entity.ImportProposal;
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.Subscription;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.FlightLogRepository;
 import com.example.AviaryService.repositories.FlightSuggestionRepository;
 import com.example.AviaryService.repositories.ImportProposalRepository;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.repositories.SubscriptionRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.support.TestFleet;
@@ -40,7 +40,7 @@ class AircraftServiceTest {
     @Autowired AircraftService aircraftService;
     @Autowired AircraftRepository aircraftRepository;
     @Autowired UserRepository userRepository;
-    @Autowired ServiceTimelineRepository timelineRepository;
+    @Autowired StatusSheetItemRepository statusSheetItemRepository;
     @Autowired FlightLogRepository flightLogRepository;
     @Autowired FlightSuggestionRepository suggestionRepository;
     @Autowired SubscriptionRepository subscriptionRepository;
@@ -105,7 +105,7 @@ class AircraftServiceTest {
         assertEquals("N731KR", a.getTailNumber());
         assertEquals(0.0, a.getHobbsTimeHours());
         assertEquals(0.0, a.getTimeInServiceHours());
-        assertTrue(timelineRepository.findByAircraftOrderByTimelineOrderAsc(a).isEmpty());
+        assertTrue(statusSheetItemRepository.findByAircraftOrderByStatusSheetOrderAsc(a).isEmpty());
         assertTrue(flightLogRepository.findByAircraft(a).isEmpty());
         assertEquals(a.getId(), userRepository.findById(owner.getId()).orElseThrow().getLastViewedAircraft().getId());
         // The first aircraft is untouched.
@@ -159,8 +159,8 @@ class AircraftServiceTest {
     @Test
     void removeDeletesOnlyThatAircraftsRecords() {
         Aircraft second = aircraftService.create(owner, "N2BB", null, null, null);
-        ServiceTimeline keep = row(first, "Annual");
-        ServiceTimeline gone = row(second, "Oil");
+        StatusSheetItem keep = row(first, "Annual");
+        StatusSheetItem gone = row(second, "Oil");
         FlightLog keepLog = flight(first);
         FlightLog goneLog = flight(second);
         Instant now = Instant.now();
@@ -184,7 +184,7 @@ class AircraftServiceTest {
 
         assertEquals(first.getId(), next.getId());
         assertFalse(aircraftRepository.findById(second.getId()).isPresent());
-        assertFalse(timelineRepository.findById(gone.getId()).isPresent());
+        assertFalse(statusSheetItemRepository.findById(gone.getId()).isPresent());
         assertFalse(flightLogRepository.findById(goneLog.getId()).isPresent());
         assertFalse(suggestionRepository.findById(s.getId()).isPresent());
         assertFalse(subscriptionRepository.findById(sub.getId()).isPresent());
@@ -192,18 +192,18 @@ class AircraftServiceTest {
         assertNull(kept.getAircraft());
         assertEquals(ImportProposal.EXPIRED, kept.getStatus());
         // The other aircraft is untouched.
-        assertTrue(timelineRepository.findById(keep.getId()).isPresent());
+        assertTrue(statusSheetItemRepository.findById(keep.getId()).isPresent());
         assertTrue(flightLogRepository.findById(keepLog.getId()).isPresent());
         assertEquals(first.getId(), owner.getLastViewedAircraft().getId());
     }
 
-    private ServiceTimeline row(Aircraft a, String item) {
-        ServiceTimeline t = new ServiceTimeline();
+    private StatusSheetItem row(Aircraft a, String item) {
+        StatusSheetItem t = new StatusSheetItem();
         t.setUser(owner);
         t.setAircraft(a);
         t.setItem(item);
-        t.setTimelineOrder(0);
-        return timelineRepository.save(t);
+        t.setStatusSheetOrder(0);
+        return statusSheetItemRepository.save(t);
     }
 
     private FlightLog flight(Aircraft a) {

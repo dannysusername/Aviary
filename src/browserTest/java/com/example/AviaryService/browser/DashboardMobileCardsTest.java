@@ -1,10 +1,10 @@
 package com.example.AviaryService.browser;
 
 import com.example.AviaryService.entity.FlightLog;
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.FlightLogRepository;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Regression tests for the mobile cards.
  *
- * At phone width (<=768px) each Service Timeline row and each Log Book row
+ * At phone width (<=768px) each Status Sheet row and each Log Book row
  * collapses into a card. The current design requires, on a 390px viewport:
  *  - the card lays out as a CSS grid (not the old space-between flex rows),
  *  - the Item is a bold headline (font-weight 700),
@@ -44,26 +44,26 @@ class DashboardMobileCardsTest extends BrowserTestBase {
     UserRepository users;
 
     @Autowired
-    ServiceTimelineRepository timelines;
+    StatusSheetItemRepository statusSheetItems;
 
     @Autowired
     FlightLogRepository flightLogs;
 
     private void seedData(User user) {
-        ServiceTimeline title = new ServiceTimeline();
+        StatusSheetItem title = new StatusSheetItem();
         title.setUser(user);
         title.setAircraft(aircraftOf(user));
         title.setItem("ENGINE");
         title.setIsTitle(true);
-        title.setTimelineOrder(0);
-        timelines.save(title);
+        title.setStatusSheetOrder(0);
+        statusSheetItems.save(title);
 
-        ServiceTimeline item = new ServiceTimeline();
+        StatusSheetItem item = new StatusSheetItem();
         item.setUser(user);
         item.setAircraft(aircraftOf(user));
         item.setItem("Annual Inspection");
         item.setIsTitle(false);
-        item.setTimelineOrder(1);
+        item.setStatusSheetOrder(1);
         item.setDescription("Inspect");
         item.setCycleCalendarValue(12);
         item.setCycleCalendarUnit("MONTHS");
@@ -71,7 +71,7 @@ class DashboardMobileCardsTest extends BrowserTestBase {
         setLastDone(item, "2025-06-01");
         setDueDate(item, "2026-06-01 2450.0");
         item.setTimeLeft("11 mo\n86.0 hrs");
-        timelines.save(item);
+        statusSheetItems.save(item);
 
         FlightLog log = new FlightLog();
         log.setUser(user);
@@ -108,12 +108,12 @@ class DashboardMobileCardsTest extends BrowserTestBase {
     }
 
     @Test
-    void serviceTimelineCardUsesFlatBorderlessFields() {
+    void statusSheetCardUsesFlatBorderlessFields() {
         openDashboardOnPhone();
 
         Locator row = page.locator("tr.auto-save-row").first();
         assertEquals("grid", cssOf(row, "display"),
-                "Saved service-timeline card should lay out as a CSS grid on mobile");
+                "Saved Status Sheet card should lay out as a CSS grid on mobile");
 
         // Item is a bold headline.
         Locator itemText = row.locator("td[data-label='Item'] textarea");

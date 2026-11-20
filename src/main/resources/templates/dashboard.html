@@ -359,17 +359,18 @@
         </div>
 
         <div class="tabs no-print">
-            <button class="tab-button active" data-tab="service-tab">Service Timeline</button>
+            <button class="tab-button active" data-tab="status-sheet-tab">Status Sheet</button>
+            <button type="button" class="info-mark" id="status-sheet-info" aria-label="Status Sheet: maintenance/inspections" data-tip="Maintenance/inspections"><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button>
             <button class="tab-button" data-tab="logbook-tab">Log Book</button>
         </div>
 
-        <div id="service-tab" class="tab-content">
+        <div id="status-sheet-tab" class="tab-content">
             <div class = "main">
-                <h2 class="print-only tab-print-title">Service Timeline</h2>
+                <h2 class="print-only tab-print-title">Status Sheet</h2>
 
                 <!-- New accounts: point to importing existing records. dashboard.js
                      removes it as soon as the first row is added. -->
-                <div id="empty-timeline" class="no-print" th:if="${#lists.isEmpty(timelines)}">
+                <div id="empty-statusSheetItem" class="no-print" th:if="${#lists.isEmpty(statusSheetItems)}">
                     <button id="add-first-item-btn" type="button" class="add-first-item-btn">
                         <i class="fa-solid fa-plus" aria-hidden="true"></i> Add your first maintenance item
                     </button>
@@ -392,27 +393,27 @@
                         </tr>
                     </thead>
                     <tbody class = "sortable">
-                        <!-- Existing timelines 
+                        <!-- Existing Status Sheet items 
                         Where title rows or item rows are dynamically rendered,  
                         -->
 
-                        <th:block th:each="timeline : ${timelines}">
+                        <th:block th:each="statusSheetItem : ${statusSheetItems}">
                             <!-- Title row -->
-                            <tr th:if="${timeline.isTitle}" class="title-row" th:data-id="${timeline.id}">
+                            <tr th:if="${statusSheetItem.isTitle}" class="title-row" th:data-id="${statusSheetItem.id}">
                                 <td class = "grip-cell"><span class="grip-icon no-print"><i class="fa-solid fa-grip-vertical"></i></span></td>
-                                <td colspan="6" class="title-cell" th:text="${timeline.item}"></td>
+                                <td colspan="6" class="title-cell" th:text="${statusSheetItem.item}"></td>
                                 <td class="complete-cell no-print"></td>
                                 <td class="delete-cell"><span class="delete-icon no-print" onclick="deleteRow(this)"><i class="fa-solid fa-trash-can fa-xl"></i></span></td>
                             </tr>
                             <!-- Regular item row -->
-                            <tr th:unless="${timeline.isTitle}" th:data-id="${timeline.id}" th:data-lastDoneDate="${timeline.lastDoneDate}" th:data-lastDoneHours="${timeline.lastDoneHours}" th:data-dueDateDate="${timeline.dueDateDate}" th:data-dueDateHours="${timeline.dueDateHours}" class="auto-save-row">                           
+                            <tr th:unless="${statusSheetItem.isTitle}" th:data-id="${statusSheetItem.id}" th:data-lastDoneDate="${statusSheetItem.lastDoneDate}" th:data-lastDoneHours="${statusSheetItem.lastDoneHours}" th:data-dueDateDate="${statusSheetItem.dueDateDate}" th:data-dueDateHours="${statusSheetItem.dueDateHours}" class="auto-save-row">                           
                                 <td class = "grip-cell"><span class="grip-icon no-print"><i class="fa-solid fa-grip-vertical"></i></span></td>
-                                <td data-label="Item"><textarea name="item" rows="1" th:text="${timeline.item}" oninput="autoSave(this)" class="no-print"></textarea><i class="fa-solid fa-chevron-down card-caret no-print"></i>
-                                    <span class="print-only" th:text="${timeline.item}"></span></td>
+                                <td data-label="Item"><textarea name="item" rows="1" th:text="${statusSheetItem.item}" oninput="autoSave(this)" class="no-print"></textarea><i class="fa-solid fa-chevron-down card-caret no-print"></i>
+                                    <span class="print-only" th:text="${statusSheetItem.item}"></span></td>
                                 <td data-label="Description">
                                     <div class="custom-dropdown no-print">
                                         <div class="selected-option no-print"></div>
-                                        <input type="hidden" name="description" th:value="${timeline.description}">
+                                        <input type="hidden" name="description" th:value="${statusSheetItem.description}">
                                         <i class="fa-solid fa-chevron-down trigger-dropdown"></i>
                                         <div class="dropdown-options no-print">
                                             <div class="option" data-value="">--None--</div>
@@ -430,26 +431,26 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <span class="print-only" th:text="${timeline.description}"></span>
+                                    <span class="print-only" th:text="${statusSheetItem.description}"></span>
                                 </td>
                                 <td data-label="Cycle">
                                     <div class="cycle-structured no-print">
                                         <div class="cycle-row">
                                             <input type="number" min="1" step="1" name="cycleCalendarValue"
                                                 class="cycle-num" placeholder="#"
-                                                th:value="${timeline.cycleCalendarValue}"
+                                                th:value="${statusSheetItem.cycleCalendarValue}"
                                                 oninput="autoSave(this)">
                                             <select name="cycleCalendarUnit" class="cycle-unit" onchange="autoSave(this)">
-                                                <option value="" th:selected="${timeline.cycleCalendarUnit == null}">unit</option>
-                                                <option value="DAYS"   th:selected="${timeline.cycleCalendarUnit == 'DAYS'}">days</option>
-                                                <option value="MONTHS" th:selected="${timeline.cycleCalendarUnit == 'MONTHS'}">months</option>
-                                                <option value="YEARS"  th:selected="${timeline.cycleCalendarUnit == 'YEARS'}">years</option>
+                                                <option value="" th:selected="${statusSheetItem.cycleCalendarUnit == null}">unit</option>
+                                                <option value="DAYS"   th:selected="${statusSheetItem.cycleCalendarUnit == 'DAYS'}">days</option>
+                                                <option value="MONTHS" th:selected="${statusSheetItem.cycleCalendarUnit == 'MONTHS'}">months</option>
+                                                <option value="YEARS"  th:selected="${statusSheetItem.cycleCalendarUnit == 'YEARS'}">years</option>
                                             </select>
                                         </div>
                                         <div class="cycle-row">
                                             <input type="number" min="0.1" step="0.1" name="cycleHours"
                                                 class="cycle-num-hours" placeholder="#"
-                                                th:value="${timeline.cycleHours}"
+                                                th:value="${statusSheetItem.cycleHours}"
                                                 oninput="autoSave(this)">
                                             <span class="cycle-unit-label">hrs</span>
                                         </div>
@@ -470,7 +471,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <span class="print-only" th:text="${timeline.lastDoneDate != null ? timeline.lastDoneDate : (timeline.lastDoneHours != null ? timeline.lastDoneHours + ' hrs' : '')}"></span>
+                                    <span class="print-only" th:text="${statusSheetItem.lastDoneDate != null ? statusSheetItem.lastDoneDate : (statusSheetItem.lastDoneHours != null ? statusSheetItem.lastDoneHours + ' hrs' : '')}"></span>
                                 </td>
                                 <td data-label="Due Date">
                                     <div class="input-with-dropdown no-print">
@@ -486,9 +487,9 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <span class="print-only" th:text="${timeline.dueDateDate != null ? timeline.dueDateDate : (timeline.dueDateHours != null ? timeline.dueDateHours + ' hrs' : '')}"></span>
+                                    <span class="print-only" th:text="${statusSheetItem.dueDateDate != null ? statusSheetItem.dueDateDate : (statusSheetItem.dueDateHours != null ? statusSheetItem.dueDateHours + ' hrs' : '')}"></span>
                                 </td>
-                                <td data-label="Time Left"><div class="time-left" th:text="${timeline.timeLeft != null ? timeline.timeLeft : ''}"></div></td>
+                                <td data-label="Time Left"><div class="time-left" th:text="${statusSheetItem.timeLeft != null ? statusSheetItem.timeLeft : ''}"></div></td>
                                 <!--<td class="status-cell"><span class="save-status no-print">✓</span></td>-->
                                 <td class="complete-cell no-print" data-label="">
                                     <button type="button" class="complete-btn"

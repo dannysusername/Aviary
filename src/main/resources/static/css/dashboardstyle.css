@@ -307,7 +307,7 @@ input[type="checkbox"]:focus-visible {
 .edit-hours-btn:hover,
 .back-to-full-list-button:hover { background: var(--primary-light); border-color: var(--primary); }
 
-/* Shown above the Service Timeline while one section (title) is filtered. */
+/* Shown above the Status Sheet while one section (title) is filtered. */
 .section-filter-bar {
   display: flex;
   align-items: center;
@@ -336,7 +336,7 @@ input[type="checkbox"]:focus-visible {
 #add-hobbs-time-btn:hover, #add-time-in-service-btn:hover { background: var(--primary-dark); }
 
 /* Utility actions — quiet outline style so they don't compete with the
-   page's real work (the timeline and log book). */
+   page's real work (the statusSheetItem and log book). */
 #print-dashboard,
 #export-excel {
   background: var(--surface);
@@ -580,7 +580,7 @@ input[type="checkbox"]:focus-visible {
   width: auto;
 }
 
-/* ── Service timeline table ── */
+/* ── Status Sheet table ── */
 #sortable-info-table {
   table-layout: auto;
   border-collapse: collapse;
@@ -1352,11 +1352,11 @@ textarea::placeholder { display: none; }
 .add-row.title-mode td:nth-child(n+3):nth-child(-n+7) * { visibility: hidden; }
 
 /* ── Mobile / narrow (≤960px) ──
-   The service-timeline table has a hard min-content width of ~903px (the Last
+   The status-sheet table has a hard min-content width of ~903px (the Last
    Done / Due Date columns floor at 150px so the date inputs never clip). Below
    that the table would grow past the viewport and the whole page would scroll
    sideways. So we switch to the stacked card layout at ≤960px (comfortably
-   above 903) — the cards always fit, so the timeline never overflows. ── */
+   above 903) — the cards always fit, so the statusSheetItem never overflows. ── */
 @media screen and (max-width: 960px) {
   .header { padding: 16px clamp(8px, 3vw, 24px) 0; }
   .main   { padding: 12px clamp(8px, 3vw, 24px); }
@@ -1588,7 +1588,7 @@ textarea::placeholder { display: none; }
     padding: 0;
   }
 
-  /* ════ Service Timeline cards ════
+  /* ════ Status Sheet cards ════
      Saved item cards and the add card share every rule below through
      `#sortable-info-table :is(.sortable tr:not(.title-row), .add-row)`, so the
      add card always matches the saved ones. The #id prefix also lets these
@@ -2154,7 +2154,7 @@ textarea::placeholder { display: none; }
     margin: 0;
     padding: 8px 24px 0;
   }
-  #service-tab { padding: 0; }
+  #status-sheet-tab { padding: 0; }
 
   /* One line per Time Left entry ("12 days left" / "181.3 hours left"),
      wrapping only between the calendar and hours lines. */
@@ -2660,7 +2660,7 @@ textarea::placeholder { display: none; }
 #add-aircraft-save.saving::after { content: "…"; }
 
 /* Empty aircraft: first step is visible right away. */
-#empty-timeline { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+#empty-statusSheetItem { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
 .add-first-item-btn {
   align-self: flex-start;
   min-height: 44px;
@@ -2744,7 +2744,7 @@ textarea::placeholder { display: none; }
   #aircraft-picker-btn .aircraft-picker-caret { display: none; }
 }
 @media print {
-  .aircraft-picker, #empty-timeline { display: none !important; }
+  .aircraft-picker, #empty-statusSheetItem { display: none !important; }
 }
 
 /* Info marks next to Hobbs Time / Time in Service (My Hours). The tooltip
@@ -2795,3 +2795,5 @@ textarea::placeholder { display: none; }
 @media (max-width: 480px) {
   .hours-display-and-editbutton-container { column-gap: 12px; }
 }
+/* Status Sheet tab info mark sits between the two tab buttons. */
+.tabs .info-mark { align-self: center; margin-left: 0; margin-right: 4px; }

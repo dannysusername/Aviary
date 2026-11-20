@@ -13,8 +13,8 @@ Each stylesheet defines the same CSS-variable palette (`--primary` green `#2C9B6
 ## Dashboard structure
 - Fixed header (logo, **Share** menu, logout, settings gear). Share is a popover card (`.share-dropdown`, toggled via `hidden` + `aria-expanded` by `setShareOpen()` in `dashboard.js`): Print, Download PDF, then a divider and Email/Text marked with a "Soon" pill (`.share-coming-soon`). Closes on outside click, Escape, or picking an item; Arrow keys move between items. Styled with theme tokens so it works in dark mode.
 - "My Hours" card: shows Hobbs time and time in service, each with a small muted "last updated" line under it (`.hours-block` / `.hours-updated`) — local date + time + relative ("2 days ago") + source ("you edited it" / "from a flight log"). Edit panel can **set** or **add** hours.
-- Two tabs: **Service Timeline** and **Log Book**.
-- Service Timeline table: drag-reorder (SortableJS via grip handle), title rows vs item rows, a custom Description dropdown (with add/remove custom options), and a Calendar/Clock picker for Last Done / Due Date. "Time Left" is computed client-side.
+- Two tabs: **Status Sheet** and **Log Book**.
+- Status Sheet table: drag-reorder (SortableJS via grip handle), title rows vs item rows, a custom Description dropdown (with add/remove custom options), and a Calendar/Clock picker for Last Done / Due Date. "Time Left" is computed client-side.
 - Log Book table: existing rows are **readonly**; an add-row appends a flight.
 
 ## `dashboard.js` patterns (~1400 lines, one file)
@@ -28,7 +28,7 @@ Each stylesheet defines the same CSS-variable palette (`--primary` green `#2C9B6
 - **Last Done / Due Date menu** buttons read Add / Remove (state is the button text). Removing a field that has a value takes two taps: the first arms it as a red "Remove?" (`.confirm-remove`), the second removes it and auto-saves; reopening the menu disarms it (`disarmRemoveButton`). Empty fields remove on one tap.
 - **`[hidden]` always wins** (`[hidden] { display: none !important; }` at the top of `dashboardstyle.css`). Toggle visibility with `el.hidden`; rules like `.settings-table tr { display: flex }` used to override the attribute and show hidden rows.
 - **Mobile (≤960px) Settings**: each row stacks the label above a full-width, wrapping value area with 42px controls.
-- **Mobile (≤960px) Service Timeline** renders each row as a card (`dashboardstyle.css`, "Service Timeline cards"). Saved cards and the add card share the same rules via `#sortable-info-table :is(.sortable tr:not(.title-row), .add-row)`; spacing/tap size are CSS variables on `#sortable-info-table` (`--cell-px`, `--cell-py`, `--tap`) and are fluid down to ~300px. There are deliberately no breakpoints below 960px.
+- **Mobile (≤960px) Status Sheet** renders each row as a card (`dashboardstyle.css`, "Status Sheet cards"). Saved cards and the add card share the same rules via `#sortable-info-table :is(.sortable tr:not(.title-row), .add-row)`; spacing/tap size are CSS variables on `#sortable-info-table` (`--cell-px`, `--cell-py`, `--tap`) and are fluid down to ~300px. There are deliberately no breakpoints below 960px.
 - **Notifications:** `showToast()` / `showConfirm()` replaced native `alert()`/`confirm()`.
 - **Hours "last updated":** `formatUpdated(iso, source)` + `relativeTime()` render the My Hours freshness lines in the browser's local timezone (server stores UTC). `renderUpdatedFromData()` on load (reads `data-updated`/`data-source` attrs); `markUpdatedNow()` after a live change. Uses `textContent`, not `innerHTML`.
 - **Excel export:** `exportToExcel()` (SheetJS) is implemented but its button is commented out in `dashboard.html` (intentionally hidden).
@@ -49,4 +49,4 @@ Each stylesheet defines the same CSS-variable palette (`--primary` green `#2C9B6
 
 ## Import with AI page
 - `GET /account/connections` (`connections.html`): titled "Import with AI". An always-visible connect box shows this site's MCP address (`mcpUrl` = `aviary.oauth.issuer` + `/mcp`, so staging shows staging's), a Copy button (`js/connections.js`, falls back to selecting the address), three steps, the per-assistant "where to find it" list (`fragments/assistant-hints.html` — one line per assistant, update there when an app moves its menu), and what to do next. The connected-assistant list and recent imports sit below under "Connected assistants".
-- Dashboard entry points: header `#connections-link` (robot icon + "Import with AI"; text hidden under 420px, `aria-label` kept) and `#import-ai-prompt` above the empty Service Timeline (server-rendered only when there are no rows; `dashboard.js` removes it via a MutationObserver when the first row is added). Both are `no-print`.
+- Dashboard entry points: header `#connections-link` (robot icon + "Import with AI"; text hidden under 420px, `aria-label` kept) and `#import-ai-prompt` above the empty Status Sheet (server-rendered only when there are no rows; `dashboard.js` removes it via a MutationObserver when the first row is added). Both are `no-print`.

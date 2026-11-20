@@ -63,9 +63,9 @@ public class ConsentController {
 
     private static String describe(String scope) {
         return switch (scope) {
-            case CimdRegisteredClientRepository.SCOPE_READ -> "Read your service timeline and flight log";
+            case CimdRegisteredClientRepository.SCOPE_READ -> "Read your Status Sheet and flight log";
             case CimdRegisteredClientRepository.SCOPE_IMPORT ->
-                "Propose service timeline items for you to review, and add them once you confirm";
+                "Propose Status Sheet items for you to review, and add them once you confirm";
             default -> scope;
         };
     }

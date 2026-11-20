@@ -17,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.AviaryService.entity.AlertPreference;
 import com.example.AviaryService.entity.AlertRecipient;
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.AlertPreferenceRepository;
@@ -25,7 +25,7 @@ import com.example.AviaryService.support.TestFleet;
 import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.repositories.AlertRecipientRepository;
 import com.example.AviaryService.repositories.AlertSendLogRepository;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.services.alerts.AlertDigest;
 import com.example.AviaryService.services.alerts.AlertDigestService;
@@ -47,7 +47,7 @@ class AlertServiceIntegrationTest {
     @Autowired AlertPreferenceRepository preferenceRepository;
     @Autowired AlertRecipientRepository recipientRepository;
     @Autowired AlertSendLogRepository sendLogRepository;
-    @Autowired ServiceTimelineRepository serviceTimelineRepository;
+    @Autowired StatusSheetItemRepository statusSheetItemRepository;
     @Autowired UserRepository userRepository;
 
     @Autowired AircraftRepository aircraftRepository;
@@ -67,16 +67,16 @@ class AlertServiceIntegrationTest {
         plane = TestFleet.addAircraft(aircraftRepository, userRepository, user, "N12345", "Test Owner", 0, 1200.0);
     }
 
-    private ServiceTimeline item(String name, String dueDate, String dueHours) {
-        ServiceTimeline t = new ServiceTimeline();
+    private StatusSheetItem item(String name, String dueDate, String dueHours) {
+        StatusSheetItem t = new StatusSheetItem();
         t.setUser(user);
         t.setAircraft(plane);
         t.setItem(name);
         t.setIsTitle(false);
-        t.setTimelineOrder(1);
+        t.setStatusSheetOrder(1);
         t.setDueDateDate(dueDate);
         t.setDueDateHours(dueHours);
-        return serviceTimelineRepository.save(t);
+        return statusSheetItemRepository.save(t);
     }
 
     // -- recipients --

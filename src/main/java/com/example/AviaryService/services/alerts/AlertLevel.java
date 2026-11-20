@@ -23,7 +23,7 @@ public enum AlertLevel {
         }
     }
 
-    // Stored on ServiceTimeline.alertLevel: null for OK (keeps existing rows
+    // Stored on StatusSheetItem.alertLevel: null for OK (keeps existing rows
     // untouched), the enum name otherwise.
     public String stored() {
         return this == OK ? null : name();

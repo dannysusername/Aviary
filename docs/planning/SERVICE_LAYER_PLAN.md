@@ -38,7 +38,7 @@ from a scheduled job or tested without web types.
 
 Look at which repository a method touches. Everything hitting
 `flightLogRepository` belongs to one service; everything hitting
-`serviceTimelineRepository` to another. That is usually the natural seam.
+`statusSheetRepository` to another. That is usually the natural seam.
 
 ## The five services
 
@@ -77,17 +77,17 @@ Uses `descriptionOptionRepository`.
 
 Uses `userRepository`. Holds the floor rule — displayed hours may rise, never fall.
 
-### 4. TimelineService  (~220 lines)
+### 4. StatusSheetService  (~220 lines)
 
 | Method | Line | Size |
 |---|---|---|
 | `completeMaintenance` | 698 | 69 |
-| `updateTimeline` | 306 | 59 |
-| `addTimeline` | 143 | 57 |
+| `updateStatusSheet` | 306 | 59 |
+| `addStatusSheet` | 143 | 57 |
 | `updateOrder` | 406 | 19 |
-| `deleteTimeline` | 365 | 14 |
+| `deleteStatusSheet` | 365 | 14 |
 
-Uses `serviceTimelineRepository`.
+Uses `statusSheetRepository`.
 
 ### 5. FlightLogService  (~290 lines)
 
@@ -155,7 +155,7 @@ Smallest first, so the pattern is second nature before the hard ones.
 1. `UserService` — 2 methods, practice run
 2. `DescriptionOptionService` — 4 small methods
 3. `HoursService` — self-contained math
-4. `TimelineService` — bigger, more entangled
+4. `StatusSheetService` — bigger, more entangled
 5. `FlightLogService` — biggest payoff, do it last
 
 **One service at a time, compile after each.** A 965-line rewrite in one pass with

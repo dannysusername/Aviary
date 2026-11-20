@@ -9,9 +9,9 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Mouse;
 import com.microsoft.playwright.options.BoundingBox;
@@ -25,7 +25,7 @@ import com.microsoft.playwright.options.LoadState;
 class TitleDragTest extends BrowserTestBase {
 
     @Autowired
-    ServiceTimelineRepository timelines;
+    StatusSheetItemRepository statusSheetItems;
 
     private User seed() {
         String username = seedUser("password");
@@ -37,13 +37,13 @@ class TitleDragTest extends BrowserTestBase {
     }
 
     private void save(User u, String item, boolean isTitle, int order) {
-        ServiceTimeline t = new ServiceTimeline();
+        StatusSheetItem t = new StatusSheetItem();
         t.setUser(u);
         t.setAircraft(aircraftOf(u));
         t.setItem(item);
         t.setIsTitle(isTitle);
-        t.setTimelineOrder(order);
-        timelines.save(t);
+        t.setStatusSheetOrder(order);
+        statusSheetItems.save(t);
     }
 
     private List<String> domOrder() {
@@ -75,7 +75,7 @@ class TitleDragTest extends BrowserTestBase {
 
     private void assertSectionBFirstAndSaved(User u) {
         assertEquals("Section B", domOrder().get(0), "Section B should be first after the drag, order was " + domOrder());
-        List<ServiceTimeline> saved = timelines.findByUserOrderByTimelineOrderAsc(u);
+        List<StatusSheetItem> saved = statusSheetItems.findByUserOrderByStatusSheetOrderAsc(u);
         assertEquals("Section B", saved.get(0).getItem(), "New order should be saved to the server");
     }
 
@@ -91,7 +91,7 @@ class TitleDragTest extends BrowserTestBase {
     }
 
     // Clicking a title shows only that section; the back bar must appear right
-    // above the timeline (it used to land above the aircraft-info table).
+    // above the Status Sheet (it used to land above the aircraft-info table).
     @Test
     void clickingTitleFiltersAndBackButtonRestoresFullList() {
         User u = seed();
@@ -105,7 +105,7 @@ class TitleDragTest extends BrowserTestBase {
         assertTrue(bar.innerText().contains("Section B"), "Bar should name the section");
         assertTrue((Boolean) page.evaluate(
             "() => document.querySelector('.section-filter-bar').nextElementSibling.id === 'sortable-info-table'"),
-            "Back bar should sit directly above the Service Timeline table");
+            "Back bar should sit directly above the Status Sheet table");
         assertTrue(!page.locator("tr.title-row").nth(0).isVisible(), "Other sections should be hidden");
 
         page.locator(".back-to-full-list-button").click();

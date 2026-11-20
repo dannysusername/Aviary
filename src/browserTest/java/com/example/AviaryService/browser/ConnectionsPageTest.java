@@ -10,9 +10,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import com.example.AviaryService.entity.OAuthAuthorizationEntity;
-import com.example.AviaryService.entity.TimelineImportRecord;
+import com.example.AviaryService.entity.StatusSheetImportRecord;
 import com.example.AviaryService.repositories.OAuthAuthorizationRepository;
-import com.example.AviaryService.repositories.TimelineImportRecordRepository;
+import com.example.AviaryService.repositories.StatusSheetImportRecordRepository;
 
 /**
  * Import with AI page: the connect box (address, Copy, steps, hints) is always
@@ -25,7 +25,7 @@ class ConnectionsPageTest extends BrowserTestBase {
     OAuthAuthorizationRepository authorizationRepository;
 
     @Autowired
-    TimelineImportRecordRepository importRecordRepository;
+    StatusSheetImportRecordRepository importRecordRepository;
 
     private void seedConnection(String username) {
         OAuthAuthorizationEntity e = new OAuthAuthorizationEntity();
@@ -38,7 +38,7 @@ class ConnectionsPageTest extends BrowserTestBase {
         e.setAccessTokenIssuedAt(Instant.now());
         authorizationRepository.save(e);
 
-        TimelineImportRecord r = new TimelineImportRecord();
+        StatusSheetImportRecord r = new StatusSheetImportRecord();
         r.setUser(userRepository.findByUsername(username));
         r.setClientId(e.getRegisteredClientId());
         r.setClientName("Test Assistant");

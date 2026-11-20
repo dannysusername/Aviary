@@ -25,12 +25,12 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.AviaryService.entity.AlertRecipient;
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.AlertRecipientRepository;
 import com.example.AviaryService.support.TestFleet;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.repositories.UserRepository;
 
 // Bad input should come back as a clear 4xx, never a 500 or a saved bad value.
@@ -44,7 +44,7 @@ class InputValidationTest {
 
     @Autowired MockMvc mockMvc;
     @Autowired UserRepository userRepository;
-    @Autowired ServiceTimelineRepository serviceTimelineRepository;
+    @Autowired StatusSheetItemRepository statusSheetItemRepository;
     @Autowired AlertRecipientRepository recipientRepository;
     @Autowired PasswordEncoder passwordEncoder;
     @Autowired AircraftRepository aircraftRepository;
@@ -101,10 +101,10 @@ class InputValidationTest {
             .orElseThrow().getHobbsTimeHours(), 0.0001);
     }
 
-    // ── Timeline rows ──
+    // ── Status Sheet item rows ──
 
     @Test
-    void addTimeline_tooLong_is400() throws Exception {
+    void addStatusSheet_tooLong_is400() throws Exception {
         String longItem = "x".repeat(300);
         mockMvc.perform(post("/dashboard").with(user(USER)).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
@@ -113,12 +113,12 @@ class InputValidationTest {
     }
 
     @Test
-    void updateTimeline_tooLong_is400WithMessage() throws Exception {
-        ServiceTimeline t = new ServiceTimeline();
+    void updateStatusSheet_tooLong_is400WithMessage() throws Exception {
+        StatusSheetItem t = new StatusSheetItem();
         t.setUser(userRepository.findByUsername(USER));
         t.setItem("Oil change");
         t.setIsTitle(false);
-        serviceTimelineRepository.save(t);
+        statusSheetItemRepository.save(t);
 
         mockMvc.perform(post("/update/" + t.getId()).with(user(USER)).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
@@ -128,7 +128,7 @@ class InputValidationTest {
     }
 
     @Test
-    void deleteMissingTimeline_is404() throws Exception {
+    void deleteMissingStatusSheet_is404() throws Exception {
         mockMvc.perform(delete("/delete/987654321").with(user(USER)).with(csrf()))
             .andExpect(status().isNotFound());
     }

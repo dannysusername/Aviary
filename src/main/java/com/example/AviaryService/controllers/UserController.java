@@ -16,11 +16,11 @@ import com.example.AviaryService.config.CurrentAircraft;
 import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.DescriptionOption;
 import com.example.AviaryService.entity.FlightLog;
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
-import com.example.AviaryService.entity.DTO.TimelineUpdateDTO;
+import com.example.AviaryService.entity.DTO.StatusSheetItemUpdateDTO;
 import com.example.AviaryService.repositories.DescriptionOptionRepository;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.services.flights.AeroApiClient;
 import com.example.AviaryService.services.dashboard.DescriptionOptionService;
@@ -33,7 +33,7 @@ import com.example.AviaryService.services.messaging.OutboundEmailLimiter;
 import com.example.AviaryService.services.dashboard.PdfExportService;
 import com.example.AviaryService.services.messaging.EmailSender;
 import com.example.AviaryService.services.flights.SubscriptionService;
-import com.example.AviaryService.services.dashboard.TimelineService;
+import com.example.AviaryService.services.dashboard.StatusSheetService;
 import com.example.AviaryService.services.account.UserService;
 import com.example.AviaryService.services.aircraft.AircraftService;
 import com.example.AviaryService.services.aircraft.AircraftValidationException;
@@ -55,7 +55,7 @@ import java.util.Map;
 
 // The main app. Handles almost everything a logged-in owner does:
 // register and login pages, the dashboard, aircraft hours, the maintenance
-// timeline, flight logs (including Garmin CSV upload), suggested flights,
+// Status Sheet item, flight logs (including Garmin CSV upload), suggested flights,
 // flight-tracking subscriptions, and the PDF report.
 //
 // Uses @Controller (not @RestController) so it can return HTML pages like
@@ -63,13 +63,13 @@ import java.util.Map;
 @Controller
 public class UserController {
     private final UserRepository userRepository;
-    private final ServiceTimelineRepository serviceTimelineRepository;
+    private final StatusSheetItemRepository statusSheetItemRepository;
     private final PasswordEncoder passwordEncoder;
     private static final Logger log = LoggerFactory.getLogger(UserController.class);
 
     private final SubscriptionService subscriptionService;
     private final UserService userService;
-    private final TimelineService timelineService;
+    private final StatusSheetService statusSheetService;
     private final DescriptionOptionService descriptionOptionService;
     private final HoursService hoursService;
     private final FlightSuggestionService flightSuggestionService;
@@ -85,10 +85,10 @@ public class UserController {
     private final AircraftService aircraftService;
     private final FleetSummaryService fleetSummaryService;
 
-    public UserController(UserRepository userRepository, ServiceTimelineRepository serviceTimelineRepository,
+    public UserController(UserRepository userRepository, StatusSheetItemRepository statusSheetItemRepository,
             PasswordEncoder passwordEncoder, DescriptionOptionRepository descriptionOptionRepository,
             SubscriptionService subscriptionService, UserService userService,
-            TimelineService timelineService, DescriptionOptionService descriptionOptionService, HoursService hoursService,
+            StatusSheetService statusSheetService, DescriptionOptionService descriptionOptionService, HoursService hoursService,
             FlightSuggestionService flightSuggestionService,
             com.example.AviaryService.repositories.FlightSuggestionRepository flightSuggestionRepository,
             com.example.AviaryService.repositories.SubscriptionRepository subscriptionRepository,
@@ -98,12 +98,12 @@ public class UserController {
             AircraftService aircraftService, FleetSummaryService fleetSummaryService) {
 
         this.userRepository = userRepository;
-        this.serviceTimelineRepository = serviceTimelineRepository;
+        this.statusSheetItemRepository = statusSheetItemRepository;
         this.passwordEncoder = passwordEncoder;
 
         this.subscriptionService = subscriptionService;
         this.userService = userService;
-        this.timelineService = timelineService;
+        this.statusSheetService = statusSheetService;
         this.descriptionOptionService = descriptionOptionService;
         this.hoursService = hoursService;
         this.flightSuggestionService = flightSuggestionService;
@@ -179,7 +179,7 @@ public class UserController {
             .anyMatch(e -> !e.getKey().equals(currentId) && e.getValue().overdue() > 0));
         model.addAttribute("aircraftRowCount", aircraftService.rowCount(aircraft));
         model.addAttribute("aircraftFlightCount", aircraftService.flightCount(aircraft));
-        model.addAttribute("timelines", serviceTimelineRepository.findByAircraftOrderByTimelineOrderAsc(aircraft));
+        model.addAttribute("statusSheetItems", statusSheetItemRepository.findByAircraftOrderByStatusSheetOrderAsc(aircraft));
         model.addAttribute("descriptionOptions", descriptionOptionService.cleanupAndLoadDescriptionOptions(user));
         model.addAttribute("hobbsTimeHours", aircraft.getHobbsTimeHours());
         model.addAttribute("timeInServiceHours", aircraft.getTimeInServiceHours());
@@ -437,7 +437,7 @@ public class UserController {
     }
 
     @PostMapping("/dashboard")
-    public ResponseEntity<?> addTimeline(
+    public ResponseEntity<?> addStatusSheet(
             @RequestBody Map<String, String> data,
             @CurrentAircraft Aircraft aircraft,
             Authentication authentication) {
@@ -455,22 +455,22 @@ public class UserController {
 
         String ajax = data.getOrDefault("ajax", "false");
         User user = userRepository.findByUsername(authentication.getName());
-        ServiceTimeline timeline = timelineService.addTimeline(data, user, aircraft);
+        StatusSheetItem statusSheetItem = statusSheetService.addStatusSheet(data, user, aircraft);
 
         if ("true".equals(ajax)) {
             Map<String, Object> response = new HashMap<>();
-            response.put("id", timeline.getId());
-            response.put("item", timeline.getItem());
-            response.put("description", timeline.getDescription());
-            response.put("cycleCalendarValue", timeline.getCycleCalendarValue());
-            response.put("cycleCalendarUnit", timeline.getCycleCalendarUnit());
-            response.put("cycleHours", timeline.getCycleHours());
-            response.put("lastDoneDate", timeline.getLastDoneDate());
-            response.put("lastDoneHours", timeline.getLastDoneHours());
-            response.put("dueDateDate", timeline.getDueDateDate());
-            response.put("dueDateHours", timeline.getDueDateHours());
-            response.put("timeLeft", timeline.getTimeLeft());
-            response.put("isTitle", timeline.getIsTitle());
+            response.put("id", statusSheetItem.getId());
+            response.put("item", statusSheetItem.getItem());
+            response.put("description", statusSheetItem.getDescription());
+            response.put("cycleCalendarValue", statusSheetItem.getCycleCalendarValue());
+            response.put("cycleCalendarUnit", statusSheetItem.getCycleCalendarUnit());
+            response.put("cycleHours", statusSheetItem.getCycleHours());
+            response.put("lastDoneDate", statusSheetItem.getLastDoneDate());
+            response.put("lastDoneHours", statusSheetItem.getLastDoneHours());
+            response.put("dueDateDate", statusSheetItem.getDueDateDate());
+            response.put("dueDateHours", statusSheetItem.getDueDateHours());
+            response.put("timeLeft", statusSheetItem.getTimeLeft());
+            response.put("isTitle", statusSheetItem.getIsTitle());
             return ResponseEntity.ok(response);
         } else {
             return ResponseEntity.status(HttpStatus.FOUND).location(URI.create("/dashboard?aircraft=" + aircraft.getId())).build();
@@ -567,13 +567,13 @@ public class UserController {
 
     @PostMapping("/update/{id}")
     @ResponseBody
-    public ResponseEntity<Map<String, String>> updateTimeline(
+    public ResponseEntity<Map<String, String>> updateStatusSheet(
             @PathVariable Long id,
-            @RequestBody TimelineUpdateDTO updateDTO,
+            @RequestBody StatusSheetItemUpdateDTO updateDTO,
             Authentication authentication) {
         try {
             User user = userRepository.findByUsername(authentication.getName());
-            timelineService.updateTimeline(user, id, updateDTO);
+            statusSheetService.updateStatusSheet(user, id, updateDTO);
             return ResponseEntity.ok(Map.of("status", "success"));
         } catch (SecurityException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -581,7 +581,7 @@ public class UserController {
         } catch (IllegalArgumentException | java.util.NoSuchElementException e) {
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
         } catch (Exception e) {
-            log.error("Failed to update timeline {}", id, e);
+            log.error("Failed to update Status Sheet item {}", id, e);
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "Could not save that change."));
         }
     }
@@ -589,10 +589,10 @@ public class UserController {
 
     @DeleteMapping("/delete/{id}")
     @ResponseBody
-    public ResponseEntity<Void> deleteTimeline(@PathVariable Long id, Authentication authentication) {
+    public ResponseEntity<Void> deleteStatusSheet(@PathVariable Long id, Authentication authentication) {
         User user = userRepository.findByUsername(authentication.getName());
         try {
-            timelineService.deleteTimeline(user, id);
+            statusSheetService.deleteStatusSheet(user, id);
             return ResponseEntity.ok().build();
         } catch (java.util.NoSuchElementException e) {
             return ResponseEntity.notFound().build();
@@ -623,7 +623,7 @@ public class UserController {
     @ResponseBody
     public ResponseEntity<Map<String, Object>> updateOrder(@RequestBody List<Long> ids, @CurrentAircraft Aircraft aircraft) {
         try {
-            timelineService.reorder(aircraft, ids);
+            statusSheetService.reorder(aircraft, ids);
             return ResponseEntity.ok(Map.of("status", "success"));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(errorBody(e.getMessage()));
@@ -717,7 +717,7 @@ public class UserController {
         return body;
     }
 
-    // POST: complete maintenance on a row. See TimelineService.completeMaintenance.
+    // POST: complete maintenance on a row. See StatusSheetService.completeMaintenance.
     @PostMapping("/completeMaintenance/{id}")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> completeMaintenance(
@@ -726,9 +726,9 @@ public class UserController {
         if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorBody("User not authenticated"));
         }
-        TimelineService.CompletedMaintenance done;
+        StatusSheetService.CompletedMaintenance done;
         try {
-            done = timelineService.completeMaintenance(user, id);
+            done = statusSheetService.completeMaintenance(user, id);
         } catch (java.util.NoSuchElementException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorBody("Row not found"));
         } catch (SecurityException e) {

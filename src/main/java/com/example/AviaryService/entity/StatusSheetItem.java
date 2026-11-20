@@ -5,8 +5,8 @@ import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "service_timelines") // Assuming a table name; adjust if different
-public class ServiceTimeline {
+@Table(name = "service_timelines") // pre-rename table name; keeps existing data in place
+public class StatusSheetItem {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -35,8 +35,8 @@ public class ServiceTimeline {
     @Column
     private String timeLeft;
 
-    @Column
-    private Integer timelineOrder;
+    @Column(name = "timeline_order") // pre-rename column name; keeps existing data in place
+    private Integer statusSheetOrder;
 
     // Structured cycle drives the "Complete Maintenance" button.
     // Nullable: a row may have a calendar cycle, an hours cycle, both, or
@@ -75,10 +75,10 @@ public class ServiceTimeline {
     private Aircraft aircraft;
 
     // Constructors
-    public ServiceTimeline() {}
+    public StatusSheetItem() {}
 
 
-    public ServiceTimeline(String item, boolean isTitle, String description, String cycleCalendarUnit, Integer cycleCalendarValue, Double cycleHours, String lastDoneDate, String lastDoneHours, String dueDateDate, String dueDateHours, String timeLeft, User user) {
+    public StatusSheetItem(String item, boolean isTitle, String description, String cycleCalendarUnit, Integer cycleCalendarValue, Double cycleHours, String lastDoneDate, String lastDoneHours, String dueDateDate, String dueDateHours, String timeLeft, User user) {
         this.item = item;
         this.isTitle = isTitle;
         this.description = description;
@@ -140,8 +140,8 @@ public class ServiceTimeline {
     public String getTimeLeft() { return timeLeft; }
     public void setTimeLeft(String timeLeft) { this.timeLeft = timeLeft; }
 
-    public Integer getTimelineOrder() { return timelineOrder; }
-    public void setTimelineOrder(Integer timelineOrder) { this.timelineOrder = timelineOrder; }
+    public Integer getStatusSheetOrder() { return statusSheetOrder; }
+    public void setStatusSheetOrder(Integer statusSheetOrder) { this.statusSheetOrder = statusSheetOrder; }
 
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }

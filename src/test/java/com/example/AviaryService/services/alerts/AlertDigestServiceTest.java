@@ -6,7 +6,7 @@ import java.time.LocalDate;
 
 import org.junit.jupiter.api.Test;
 
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 
 //Checks the "time left" wording in alert emails. Overdue parts come first
 class AlertDigestServiceTest {
@@ -15,7 +15,7 @@ class AlertDigestServiceTest {
     private static final Double HOURS_NOW = 2500.0;
 
     private static String text(String dueDate, String dueHours) {
-        ServiceTimeline t = new ServiceTimeline();
+        StatusSheetItem t = new StatusSheetItem();
         t.setDueDateDate(dueDate);
         t.setDueDateHours(dueHours);
         return AlertDigestService.timeLeftText(t, HOURS_NOW, TODAY);

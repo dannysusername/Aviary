@@ -1,8 +1,8 @@
 package com.example.AviaryService.browser;
 
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
@@ -14,7 +14,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 /**
- * Regression tests for the "continuous grid" service-timeline redesign.
+ * Regression tests for the "continuous grid" Status Sheet redesign.
  *
  * The redesign made every cell's field fill its whole grid cell (borderless,
  * vertically centered) so there is no dead gap above/below short controls when
@@ -28,30 +28,30 @@ import java.nio.file.Paths;
  * These tests guard each of those against regressions and drop before/after
  * screenshots (saved row + add row) at two desktop widths into the build report.
  */
-class ServiceTimelineGridTest extends BrowserTestBase {
+class StatusSheetGridTest extends BrowserTestBase {
 
     @Autowired
     UserRepository users;
 
     @Autowired
-    ServiceTimelineRepository timelines;
+    StatusSheetItemRepository statusSheetItems;
 
     /** A title row + one item row whose two-line Cycle makes the row tall. */
     private long seedTallCycleRow(User user) {
-        ServiceTimeline title = new ServiceTimeline();
+        StatusSheetItem title = new StatusSheetItem();
         title.setUser(user);
         title.setAircraft(aircraftOf(user));
         title.setItem("ENGINE - LEFT");
         title.setIsTitle(true);
-        title.setTimelineOrder(1);
-        timelines.save(title);
+        title.setStatusSheetOrder(1);
+        statusSheetItems.save(title);
 
-        ServiceTimeline t = new ServiceTimeline();
+        StatusSheetItem t = new StatusSheetItem();
         t.setUser(user);
         t.setAircraft(aircraftOf(user));
         t.setItem("Oil & filter change");
         t.setIsTitle(false);
-        t.setTimelineOrder(2);
+        t.setStatusSheetOrder(2);
         t.setDescription("Inspect");
         t.setCycleCalendarValue(50);
         t.setCycleCalendarUnit("DAYS");
@@ -59,7 +59,7 @@ class ServiceTimelineGridTest extends BrowserTestBase {
         setLastDone(t, "");   // empty → exercises the "Add date / hrs" placeholder
         setDueDate(t, "");
         t.setTimeLeft("");
-        timelines.save(t);
+        statusSheetItems.save(t);
         return t.getId();
     }
 
@@ -234,7 +234,7 @@ class ServiceTimelineGridTest extends BrowserTestBase {
             page.setViewportSize(w, 800);
             page.waitForLoadState(LoadState.NETWORKIDLE);
             Path shot = Paths.get("build", "reports", "browserTest-screenshots",
-                    "timeline-grid-" + w + ".png");
+                    "status-sheet-grid-" + w + ".png");
             shot.toFile().getParentFile().mkdirs();
             page.screenshot(new Page.ScreenshotOptions().setPath(shot).setFullPage(true));
         }

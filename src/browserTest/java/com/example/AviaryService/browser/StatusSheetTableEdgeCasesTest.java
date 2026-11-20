@@ -1,8 +1,8 @@
 package com.example.AviaryService.browser;
 
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.microsoft.playwright.options.LoadState;
 import org.junit.jupiter.api.Test;
@@ -14,22 +14,22 @@ import java.util.List;
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 
 /**
- * Edge-case rendering tests for the Service Timeline table.
+ * Edge-case rendering tests for the Status Sheet table.
  *
- * The timeline tbody contains both title rows (.title-row) and regular
+ * The Status Sheet item tbody contains both title rows (.title-row) and regular
  * item rows (.auto-save-row). Each row carries data-id; cells have
  * data-label="..." so we can locate by column without relying on
  * positional indexing that breaks when the schema shifts.
  *
- * Add a test here every time the timeline table is fixed or extended.
+ * Add a test here every time the Status Sheet table is fixed or extended.
  */
-class ServiceTimelineTableEdgeCasesTest extends BrowserTestBase {
+class StatusSheetTableEdgeCasesTest extends BrowserTestBase {
 
     @Autowired
     UserRepository users;
 
     @Autowired
-    ServiceTimelineRepository timelines;
+    StatusSheetItemRepository statusSheetItems;
 
     private List<String> attachConsoleErrorListener() {
         List<String> errors = new ArrayList<>();
@@ -43,24 +43,24 @@ class ServiceTimelineTableEdgeCasesTest extends BrowserTestBase {
         if (!errors.isEmpty()) throw new AssertionError("Console errors: " + errors);
     }
 
-    /** Build + save a regular (non-title) timeline row. */
-    private ServiceTimeline saveItem(User user, int order, String item, String description,
+    /** Build + save a regular (non-title) statusSheetItem row. */
+    private StatusSheetItem saveItem(User user, int order, String item, String description,
                                      String lastDone, String dueDate, String timeLeft) {
-        ServiceTimeline t = new ServiceTimeline();
+        StatusSheetItem t = new StatusSheetItem();
         t.setUser(user);
         t.setAircraft(aircraftOf(user));
         t.setItem(item);
         t.setIsTitle(false);
-        t.setTimelineOrder(order);
+        t.setStatusSheetOrder(order);
         t.setDescription(description);
         setLastDone(t, lastDone);
         setDueDate(t, dueDate);
         t.setTimeLeft(timeLeft);
-        return timelines.save(t);
+        return statusSheetItems.save(t);
     }
 
     @Test
-    void emptyTimelineRendersTableWithNoRows() {
+    void emptyStatusSheetRendersTableWithNoRows() {
         String username = seedUser("password");
         List<String> errors = attachConsoleErrorListener();
 
@@ -80,13 +80,13 @@ class ServiceTimelineTableEdgeCasesTest extends BrowserTestBase {
         String username = seedUser("password");
         User u = users.findByUsername(username);
 
-        ServiceTimeline title = new ServiceTimeline();
+        StatusSheetItem title = new StatusSheetItem();
         title.setUser(u);
         title.setAircraft(aircraftOf(u));
         title.setItem("100-Hour Inspections");
         title.setIsTitle(true);
-        title.setTimelineOrder(1);
-        timelines.save(title);
+        title.setStatusSheetOrder(1);
+        statusSheetItems.save(title);
 
         List<String> errors = attachConsoleErrorListener();
         loginAs(username, "password");
@@ -106,7 +106,7 @@ class ServiceTimelineTableEdgeCasesTest extends BrowserTestBase {
     void regularRowRendersItemAndDescriptionAndDateFields() {
         String username = seedUser("password");
         User u = users.findByUsername(username);
-        ServiceTimeline t = saveItem(u, 1, "Oil change", "Inspect",
+        StatusSheetItem t = saveItem(u, 1, "Oil change", "Inspect",
                 "2025-10-01", "2025-12-01", "61 days");
 
         List<String> errors = attachConsoleErrorListener();
@@ -154,7 +154,7 @@ class ServiceTimelineTableEdgeCasesTest extends BrowserTestBase {
     void emptyDescriptionRendersWithoutFallingBackToHtmlDefault() {
         String username = seedUser("password");
         User u = users.findByUsername(username);
-        ServiceTimeline t = saveItem(u, 1, "Item with no description", "",
+        StatusSheetItem t = saveItem(u, 1, "Item with no description", "",
                 "2025-10-01", "2025-12-01", "");
 
         List<String> errors = attachConsoleErrorListener();
@@ -180,7 +180,7 @@ class ServiceTimelineTableEdgeCasesTest extends BrowserTestBase {
         // If the column is ever widened, bump this; if it shrinks, this test
         // will fail loudly which is the correct behaviour.
         String longText = "X".repeat(240);
-        ServiceTimeline t = saveItem(u, 1, longText, "Inspect",
+        StatusSheetItem t = saveItem(u, 1, longText, "Inspect",
                 "2025-10-01", "2025-12-01", "61 days");
 
         List<String> errors = attachConsoleErrorListener();
@@ -199,7 +199,7 @@ class ServiceTimelineTableEdgeCasesTest extends BrowserTestBase {
         User u = users.findByUsername(username);
         // If Thymeleaf forgets to escape, this string injects markup.
         String injection = "<script>window.__pwned=1</script> & \"quote\" 'apos'";
-        ServiceTimeline t = saveItem(u, 1, injection, injection,
+        StatusSheetItem t = saveItem(u, 1, injection, injection,
                 "2025-10-01", "2025-12-01", "61 days");
 
         List<String> errors = attachConsoleErrorListener();
@@ -222,7 +222,7 @@ class ServiceTimelineTableEdgeCasesTest extends BrowserTestBase {
     }
 
     @Test
-    void multipleRowsRenderInTimelineOrder() {
+    void multipleRowsRenderInStatusSheetOrder() {
         String username = seedUser("password");
         User u = users.findByUsername(username);
         // Insert out of order to make sure the sort actually fires.
@@ -236,7 +236,7 @@ class ServiceTimelineTableEdgeCasesTest extends BrowserTestBase {
 
         var itemTextareas = page.locator("tr.auto-save-row textarea[name='item']");
         assertThat(itemTextareas).hasCount(3);
-        // findByUserOrderByTimelineOrderAsc → First, Second, Third.
+        // findByUserOrderByStatusSheetOrderAsc → First, Second, Third.
         assertThat(itemTextareas.nth(0)).hasValue("First");
         assertThat(itemTextareas.nth(1)).hasValue("Second");
         assertThat(itemTextareas.nth(2)).hasValue("Third");

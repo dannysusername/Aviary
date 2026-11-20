@@ -32,7 +32,7 @@ import com.example.AviaryService.util.Validation;
 //      aircraft's subscription.
 //   2. For each user with no aircraft: creates one from the legacy users
 //      columns (info card, both hours, both baselines, updated-at/source),
-//      then attaches that user's timeline rows, flights, suggestions,
+//      then attaches that user's Status Sheet item rows, flights, suggestions,
 //      subscription and import proposals, and sets last_viewed_aircraft_id.
 //
 // Idempotent: users who already have an aircraft are skipped and only NULL
