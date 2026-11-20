@@ -30,7 +30,7 @@
 | GET | `/login` | — | `login` view | |
 | GET | `/dashboard` | — | `dashboard` view | loads Status Sheet items, flight logs, hours, aircraft info for the auth user |
 | POST | `/dashboard` | JSON Status Sheet fields | row JSON or 302 | adds a Status Sheet row; assigns next `statusSheetOrder` |
-| POST | `/update/{id}` | `StatusSheetItemUpdateDTO` | status JSON | partial update of a Status Sheet row. Ownership checked (403 if not owner) |
+| POST | `/update/{id}` | `StatusSheetItemUpdateDTO` (+ `dueDateTouched`, `dueHoursTouched`) | saved row JSON: `lastDoneDate`, `lastDoneHours`, `dueDateDate`, `dueDateHours`, `timeLeft`, `warnings` | update of a Status Sheet row. Ownership checked (403 if not owner). Auto-fills the Due Date from Last Done + cycle (spec 007, `DueDateAutoFill`); hours must be numbers (400 "Hours must be a number, e.g. 25.0"). Both touched flags missing = older dashboard.js, saved as sent. |
 | DELETE | `/delete/{id}` | — | 200 / 403 / 404 | deletes a Status Sheet row. Ownership checked (403 if not owner) |
 | POST | `/updateOrder` | `List<Long>` ids | void | reorders Status Sheet items; user-scoped, matches ids with `.equals` |
 | POST | `/updateUserInfo` | JSON aircraft fields | status JSON | updates makeModel/tailNumber/ownerName/makeModelSN for auth user |
@@ -47,6 +47,7 @@
 
 ## Time Left + PDF
 - `DueDates.formatTimeLeft(dueDate, dueHours, today, currentTimeInService)` is the one server-side Time Left formatter (smart format, see [FRONTEND](FRONTEND.md)). Used by `PdfExportService` (computed at render time — the stored `timeLeft` column goes stale) and `/completeMaintenance/{id}`.
+- `DueDateAutoFill` (spec 007) decides the Due Date to save when Last Done or the cycle changes: date = `DueDates.nextDueDate` (same as Complete Maintenance, exact day), hours = Last Done + cycle hours. Owner-typed Due Dates are kept (`dueDateAuto` / `dueHoursAuto` = FALSE). Also the one hours formatter for Last Done / Due Date (`formatHours`: 1–3 decimals, `25` → `25.0`). Unit tests: `DueDateAutoFillTest`; endpoint tests: `StatusSheetAutoFillTest`.
 - `GET /pdf?today=yyyy-MM-dd` — optional browser date, trusted only within ±1 day of the server date. PDF includes a Date column for flights (UTC date of block/service start) and prints hours with at least one decimal.
 
 ## Local demo data

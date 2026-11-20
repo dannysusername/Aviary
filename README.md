@@ -12,7 +12,7 @@ No install, no setup, nothing to download. Register a username + password and yo
 
 A multi-user maintenance and flight-hours tracker for general-aviation aircraft owners:
 
-- **Status Sheet** — track every recurring maintenance item (annual, transponder/pitot-static tests, VOR checks, oil changes, etc.) on a **calendar cycle** (days/months/years) *or* an **engine-hours cycle**. Each row shows last-done, next-due, and live "time left," and a one-click **Complete Maintenance** button rolls the dates and hours forward automatically.
+- **Status Sheet** — track every recurring maintenance item (annual, transponder/pitot-static tests, VOR checks, oil changes, etc.) on a **calendar cycle** (days/months/years) *or* an **engine-hours cycle**. Each row shows last-done, next-due, and live "time left." Enter a Last Done date or hours and the **Due Date fills in automatically** from the cycle (a Due Date you typed yourself is never overwritten), and a one-click **Complete Maintenance** button rolls the dates and hours forward. Hours always show a decimal (25.0).
 - **Hours tracking** — Hobbs time and time in service, each with a manual baseline "floor," so log-book activity can only ever raise the displayed hours, never silently lower them.
 - **Log book** — record flights by hand (from/to airport, Hobbs time and time in service out and in) **or import a Garmin avionics CSV** and let the app derive Hobbs time (oil pressure > 15 psi) and airborne time (groundspeed > 35 kt) for you.
 - **Aircraft info card** — make/model, tail number, owner, and serial number, editable inline.
