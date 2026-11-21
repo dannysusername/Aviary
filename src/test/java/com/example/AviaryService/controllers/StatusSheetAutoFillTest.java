@@ -389,4 +389,122 @@ class StatusSheetAutoFillTest {
             .andExpect(status().isForbidden());
         assertEquals("2026-12-01", items.findById(mine.getId()).orElseThrow().getDueDateDate());
     }
+
+    // ── Spec 010: add row fills the Due Date before Add ───────────────
+
+    private org.springframework.test.web.servlet.ResultActions resolve(String json) throws Exception {
+        return mvc.perform(post("/statusSheet/addRowResolve").with(user(owner.getUsername())).with(csrf())
+            .header("X-Aircraft-Id", plane.getId())
+            .contentType(MediaType.APPLICATION_JSON).content(json));
+    }
+
+    @Test
+    void addRowFillsDateAndHoursBeforeAdd() throws Exception {
+        resolve("{\"lastDoneDate\":\"2026-10-30\",\"lastDoneHours\":\"1200.5\","
+                + "\"cycleCalendarValue\":1,\"cycleCalendarUnit\":\"MONTHS\",\"cycleHours\":100}")
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.dueDateDate").value("2026-11-30"))
+            .andExpect(jsonPath("$.dueDateAuto").value(true))
+            .andExpect(jsonPath("$.dueDateHours").value("1300.5"))
+            .andExpect(jsonPath("$.dueHoursAuto").value(true))
+            .andExpect(jsonPath("$.lastDoneHours").value("1200.5"));
+    }
+
+    @Test
+    void addRowFillsWhenTheCycleIsSetAfterLastDone() throws Exception {
+        resolve("{\"prevLastDoneDate\":\"2026-10-30\",\"lastDoneDate\":\"2026-10-30\","
+                + "\"cycleCalendarValue\":1,\"cycleCalendarUnit\":\"MONTHS\"}")
+            .andExpect(jsonPath("$.dueDateDate").value("2026-11-30"));
+        resolve("{\"lastDoneDate\":\"2026-10-30\",\"cycleCalendarValue\":1}")       // no unit yet
+            .andExpect(jsonPath("$.dueDateDate").doesNotExist());
+    }
+
+    @Test
+    void addRowKeepsATypedDueDateAndARemovedOne() throws Exception {
+        // Typed: stays when Last Done changes.
+        resolve("{\"prevLastDoneDate\":\"2026-10-30\",\"prevCycleCalendarValue\":1,\"prevCycleCalendarUnit\":\"MONTHS\","
+                + "\"lastDoneDate\":\"2026-12-05\",\"cycleCalendarValue\":1,\"cycleCalendarUnit\":\"MONTHS\","
+                + "\"dueDateDate\":\"2027-06-01\",\"dueDateAuto\":false}")
+            .andExpect(jsonPath("$.dueDateDate").value("2027-06-01"))
+            .andExpect(jsonPath("$.dueDateAuto").value(false));
+        // Removed: blank and the user's, stays blank with nothing changed...
+        resolve("{\"prevLastDoneDate\":\"2026-10-30\",\"prevCycleCalendarValue\":1,\"prevCycleCalendarUnit\":\"MONTHS\","
+                + "\"lastDoneDate\":\"2026-10-30\",\"cycleCalendarValue\":1,\"cycleCalendarUnit\":\"MONTHS\","
+                + "\"dueDateDate\":\"\",\"dueDateTouched\":true}")
+            .andExpect(jsonPath("$.dueDateDate").doesNotExist())
+            .andExpect(jsonPath("$.dueDateAuto").value(false));
+        // ...and fills again when Last Done changes.
+        resolve("{\"prevLastDoneDate\":\"2026-10-30\",\"prevCycleCalendarValue\":1,\"prevCycleCalendarUnit\":\"MONTHS\","
+                + "\"lastDoneDate\":\"2026-11-15\",\"cycleCalendarValue\":1,\"cycleCalendarUnit\":\"MONTHS\","
+                + "\"dueDateDate\":\"\",\"dueDateAuto\":false}")
+            .andExpect(jsonPath("$.dueDateDate").value("2026-12-15"));
+    }
+
+    @Test
+    void addRowClearsAnAutoDueDateWhenLastDoneIsCleared() throws Exception {
+        resolve("{\"prevLastDoneDate\":\"2026-10-30\",\"prevCycleCalendarValue\":1,\"prevCycleCalendarUnit\":\"MONTHS\","
+                + "\"lastDoneDate\":\"\",\"cycleCalendarValue\":1,\"cycleCalendarUnit\":\"MONTHS\","
+                + "\"dueDateDate\":\"2026-11-30\",\"dueDateAuto\":true}")
+            .andExpect(jsonPath("$.dueDateDate").doesNotExist());
+    }
+
+    @Test
+    void addRowNotesAndBadHours() throws Exception {
+        String future = LocalDate.now().plusYears(1).toString();
+        resolve("{\"lastDoneDate\":\"" + future + "\",\"lastDoneHours\":\"5000\",\"cycleHours\":100}")
+            .andExpect(jsonPath("$.warnings[0]").value("Last Done is in the future. Check the date."))
+            .andExpect(jsonPath("$.warnings[1]").value("Last Done hours are above current Time in Service. Check the hours."));
+        resolve("{\"lastDoneHours\":\"abc\",\"cycleHours\":100}")
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("Hours must be a number, e.g. 25.0"));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions add(String json) throws Exception {
+        return mvc.perform(post("/dashboard").with(user(owner.getUsername())).with(csrf())
+            .header("X-Aircraft-Id", plane.getId())
+            .contentType(MediaType.APPLICATION_JSON).content(json));
+    }
+
+    private StatusSheetItem newest() {
+        return items.findByAircraftOrderByStatusSheetOrderAsc(plane).stream()
+            .reduce((a, b) -> b).orElseThrow();
+    }
+
+    @Test
+    void addedRowKeepsFollowingTheCycleWhenItWasAutoFilled() throws Exception {
+        add("{\"item\":\"Oil\",\"isTitle\":\"false\",\"ajax\":\"true\",\"cycleCalendarValue\":\"1\",\"cycleCalendarUnit\":\"MONTHS\","
+                + "\"lastDoneDate\":\"2026-10-30\",\"dueDateDate\":\"2026-11-30\",\"dueDateAuto\":\"true\"}")
+            .andExpect(status().is2xxSuccessful());
+        StatusSheetItem saved = newest();
+        assertEquals("2026-11-30", saved.getDueDateDate());
+        assertTrue(saved.getDueDateAuto(), "auto-filled in the add row stays auto after Add");
+    }
+
+    @Test
+    void addedRowKeepsATypedOrRemovedDueDate() throws Exception {
+        add("{\"item\":\"Typed\",\"isTitle\":\"false\",\"ajax\":\"true\",\"cycleCalendarValue\":\"1\",\"cycleCalendarUnit\":\"MONTHS\","
+                + "\"lastDoneDate\":\"2026-10-30\",\"dueDateDate\":\"2027-06-01\",\"dueDateAuto\":\"false\"}");
+        StatusSheetItem typed = newest();
+        assertEquals("2027-06-01", typed.getDueDateDate());
+        assertFalse(typed.getDueDateAuto());
+
+        add("{\"item\":\"Removed\",\"isTitle\":\"false\",\"ajax\":\"true\",\"cycleCalendarValue\":\"1\",\"cycleCalendarUnit\":\"MONTHS\","
+                + "\"lastDoneDate\":\"2026-10-30\",\"dueDateDate\":\"\",\"dueDateAuto\":\"false\"}");
+        StatusSheetItem removed = newest();
+        assertEquals(null, removed.getDueDateDate(), "removed in the add row stays removed after Add");
+    }
+
+    @Test
+    void addRowResolveRefusesAnotherAccountsAircraft() throws Exception {
+        User other = new User();
+        other.setUsername("intruder3-" + UUID.randomUUID());
+        other.setPassword("x");
+        other = users.save(other);
+        Aircraft theirs = TestFleet.addAircraft(aircraft, users, other);
+        int code = mvc.perform(post("/statusSheet/addRowResolve").with(user(owner.getUsername())).with(csrf())
+                .header("X-Aircraft-Id", theirs.getId())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"lastDoneHours\":\"1\",\"cycleHours\":1}"))
+            .andReturn().getResponse().getStatus();
+        assertTrue(code == 403 || code == 404, "another account's aircraft must be refused, got " + code);
+    }
 }

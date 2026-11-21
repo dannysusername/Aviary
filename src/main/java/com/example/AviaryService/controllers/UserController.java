@@ -766,6 +766,29 @@ public class UserController {
         return body;
     }
 
+    // POST: what the add row's Due Date should show (spec 010). Calculates
+    // only; nothing is saved. @CurrentAircraft is ownership-checked and only
+    // used for the "above Time in Service" note.
+    @PostMapping(value = "/statusSheet/addRowResolve", consumes = "application/json")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> addRowResolve(
+            @RequestBody Map<String, Object> body,
+            @CurrentAircraft Aircraft aircraft) {
+        try {
+            StatusSheetService.AddRowResolved r = statusSheetService.resolveAddRow(aircraft, body);
+            Map<String, Object> out = new HashMap<>();
+            out.put("dueDateDate", r.dueDateDate());
+            out.put("dueDateAuto", r.dueDateAuto());
+            out.put("dueDateHours", r.dueDateHours());
+            out.put("dueHoursAuto", r.dueHoursAuto());
+            out.put("lastDoneHours", r.lastDoneHours());
+            out.put("warnings", r.warnings());
+            return ResponseEntity.ok(out);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(errorBody(e.getMessage()));
+        }
+    }
+
     // GET: what the "When was this done?" box shows (spec 008). Without params:
     // what it starts with. With doneDate / doneHours: the next Due Date for them.
     @GetMapping("/statusSheet/{id}/completePreview")

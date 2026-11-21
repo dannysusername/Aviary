@@ -83,6 +83,141 @@ document.addEventListener('focusout', (e) => {
     if (formatted !== null && formatted !== el.value) {
         el.value = formatted;
         if (el.closest('.auto-save-row')) autoSave(el);
+        else if (el.closest('.add-row')) scheduleAddRowResolve();
+    }
+});
+
+// ── Add row, spec 010: fill the Due Date before Add ──────────────────
+// The add row isn't saved, so it keeps its own state and asks the server to
+// apply the same rule saved rows use (POST /statusSheet/addRowResolve).
+const addRowState = { prev: null, dateAuto: null, hoursAuto: null,
+                      touched: { date: false, hours: false },
+                      present: { date: false, hours: false }, timer: null, seq: 0 };
+
+function resetAddRowState() {
+    clearTimeout(addRowState.timer);
+    addRowState.prev = null;
+    addRowState.dateAuto = null;
+    addRowState.hoursAuto = null;
+    addRowState.touched = { date: false, hours: false };
+    addRowState.present = { date: false, hours: false };
+    addRowState.seq++;
+    document.querySelector('.add-row .row-warning')?.remove();
+}
+
+function addRowCell(label) {
+    return document.querySelector(`.add-row td[data-label="${label}"] .input-with-dropdown`);
+}
+
+function readAddRow() {
+    const last = addRowCell('Last Done'), due = addRowCell('Due Date');
+    const v = (el) => (el ? el.value.trim() : '');
+    return {
+        lastDoneDate:  v(last?.querySelector('input[type="date"]')),
+        lastDoneHours: v(last?.querySelector('input[type="text"].extra-input')),
+        cycleCalendarValue: v(document.querySelector('.add-row input[name="cycleCalendarValue"]')),
+        cycleCalendarUnit:  v(document.querySelector('.add-row select[name="cycleCalendarUnit"]')),
+        cycleHours:         v(document.querySelector('.add-row input[name="cycleHours"]')),
+        dueDateDate:  v(due?.querySelector('input[type="date"]')),
+        dueDateHours: v(due?.querySelector('input[type="text"].extra-input')),
+        hasDueDateInput:  !!due?.querySelector('input[type="date"]'),
+        hasDueHoursInput: !!due?.querySelector('input[type="text"].extra-input')
+    };
+}
+
+function addRowIsTitle() {
+    return document.getElementById('isTitleHidden')?.value === 'true';
+}
+
+function scheduleAddRowResolve() {
+    clearTimeout(addRowState.timer);
+    if (addRowIsTitle()) { document.querySelector('.add-row .row-warning')?.remove(); return; }
+    addRowState.timer = setTimeout(resolveAddRow, 250);
+}
+
+async function resolveAddRow() {
+    const now = readAddRow();
+    // A Due Date calendar/clock that was there and is now gone = the user removed it.
+    if (addRowState.present.date && !now.hasDueDateInput) addRowState.touched.date = true;
+    if (addRowState.present.hours && !now.hasDueHoursInput) addRowState.touched.hours = true;
+    const prev = addRowState.prev || {};
+    const body = {
+        prevLastDoneDate: prev.lastDoneDate ?? null, prevLastDoneHours: prev.lastDoneHours ?? null,
+        prevCycleCalendarValue: prev.cycleCalendarValue ?? null, prevCycleCalendarUnit: prev.cycleCalendarUnit ?? null,
+        prevCycleHours: prev.cycleHours ?? null,
+        lastDoneDate: now.lastDoneDate, lastDoneHours: now.lastDoneHours,
+        cycleCalendarValue: now.cycleCalendarValue, cycleCalendarUnit: now.cycleCalendarUnit, cycleHours: now.cycleHours,
+        dueDateDate: now.dueDateDate, dueDateHours: now.dueDateHours,
+        dueDateAuto: addRowState.dateAuto, dueHoursAuto: addRowState.hoursAuto,
+        dueDateTouched: addRowState.touched.date, dueHoursTouched: addRowState.touched.hours
+    };
+    const mine = ++addRowState.seq;
+    addRowState.touched = { date: false, hours: false };
+    try {
+        const csrfToken  = document.querySelector('meta[name="_csrf"]').getAttribute('content');
+        const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
+        const r = (await axios.post('/statusSheet/addRowResolve', body, {
+            headers: { [csrfHeader]: csrfToken, 'Content-Type': 'application/json' }
+        })).data;
+        if (mine !== addRowState.seq) return;            // a newer check is on its way
+        addRowState.prev = now;
+        addRowState.dateAuto = r.dueDateAuto;
+        addRowState.hoursAuto = r.dueHoursAuto;
+        const row = document.querySelector('.add-row');
+        const dueCell = addRowCell('Due Date');
+        if (dueCell && !dueCell.contains(document.activeElement)
+                && ((r.dueDateDate || '') !== now.dueDateDate || (r.dueDateHours || '') !== now.dueDateHours)) {
+            repaintDateHoursCell(row, 'dueDate', [r.dueDateDate, r.dueDateHours].filter(Boolean).join(' '));
+        }
+        const after = readAddRow();
+        addRowState.present = { date: after.hasDueDateInput, hours: after.hasDueHoursInput };
+        showAddRowNote(r.warnings || []);
+        updateAddRowTimeLeft();
+    } catch (e) {
+        if (mine !== addRowState.seq) return;
+        showAddRowNote(e?.response?.data?.message ? [e.response.data.message] : []);
+    }
+}
+
+function showAddRowNote(messages) {
+    const td = document.querySelector('.add-row td[data-label="Last Done"]');
+    if (!td) return;
+    let note = td.querySelector('.row-warning');
+    if (!messages.length) { note?.remove(); return; }
+    if (!note) {
+        note = document.createElement('div');
+        note.className = 'row-warning no-print';
+        note.setAttribute('role', 'status');
+        td.appendChild(note);
+    }
+    note.textContent = messages.join(' ');
+}
+
+// Typing in the add row's Last Done or cycle re-checks; typing in its Due Date
+// makes that part the user's.
+document.addEventListener('input', (e) => {
+    const t = e.target;
+    if (!(t instanceof HTMLElement) || !t.closest('.add-row')) return;
+    const dueTd = t.closest('td[data-label="Due Date"]');
+    if (dueTd && t.matches('input.extra-input')) {
+        if (t.type === 'date') addRowState.touched.date = true;
+        else addRowState.touched.hours = true;
+    }
+    if (dueTd || t.closest('td[data-label="Last Done"]') || t.matches('[name^="cycle"]')) {
+        scheduleAddRowResolve();
+    }
+});
+document.addEventListener('change', (e) => {
+    const t = e.target;
+    if (t instanceof HTMLElement && t.closest('.add-row') && t.matches('select[name="cycleCalendarUnit"]')) {
+        scheduleAddRowResolve();
+    }
+});
+// Add / Remove on the add row's calendar or clock changes what is there.
+document.addEventListener('click', (e) => {
+    const b = e.target;
+    if (b instanceof HTMLElement && b.closest('.add-row') && b.matches('.add-type')) {
+        setTimeout(scheduleAddRowResolve, 0);              // after the input is added/removed
     }
 });
 const userInfoSaveTimers = new Map();
@@ -1758,6 +1893,9 @@ document.addEventListener('DOMContentLoaded', () => {
             data[`${field}Date`]  = dateInput ? dateInput.value.trim() : '';
             data[`${field}Hours`] = textInput ? textInput.value.trim() : '';
         });
+        // Spec 010: which Due Date parts were auto-filled / removed in the add row.
+        data.dueDateAuto  = addRowState.dateAuto  === null ? '' : String(addRowState.dateAuto);
+        data.dueHoursAuto = addRowState.hoursAuto === null ? '' : String(addRowState.hoursAuto);
 
         console.log("NEW Status Sheet row, POST request -->: ", data);
 
@@ -1942,6 +2080,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.querySelectorAll('.add-row .input-with-dropdown input.extra-input').forEach(input => input.remove());
                 document.querySelectorAll('.add-row .add-type').forEach(btn => btn.textContent = 'Add');
                 document.querySelector('.add-row .time-left').textContent = '';
+                resetAddRowState();
 
                 selectRowType('item', document.querySelector('.row-type-option[data-type="item"]'));
 
@@ -1952,7 +2091,7 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .catch(error => {
                 console.error('Error adding row:', error.response ? error.response.data : error);
-                showToast('Error adding row: ' + (error.response?.data || error.message), 'error');
+                showToast(error.response?.data?.message || ('Error adding row: ' + (error.response?.data || error.message)), 'error');
             });
         });
     }

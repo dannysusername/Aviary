@@ -71,6 +71,16 @@ public class StatusSheetService {
                 statusSheetItem.getLastDoneDate(), cycleNow, typedDueDate, typedDueDate != null);
             DueDateAutoFill.Resolved hours = DueDateAutoFill.resolveHours(null, null, null, null,
                 statusSheetItem.getLastDoneHours(), cycleNow, typedDueHours, typedDueHours != null);
+            // Spec 010: the add row says which parts the user removed
+            // ("false" with a blank value). Those stay blank instead of being
+            // filled on save. A typed value is the user's unless it equals
+            // Last Done + cycle (same rule as saved rows).
+            if ("false".equals(data.get("dueDateAuto")) && typedDueDate == null) {
+                date = new DueDateAutoFill.Resolved(null, false);
+            }
+            if ("false".equals(data.get("dueHoursAuto")) && typedDueHours == null) {
+                hours = new DueDateAutoFill.Resolved(null, false);
+            }
             statusSheetItem.setDueDateDate(date.value());
             statusSheetItem.setDueDateAuto(date.auto());
             statusSheetItem.setDueDateHours(hours.value());
@@ -243,6 +253,71 @@ public class StatusSheetService {
             joinParts(statusSheetItem.getLastDoneDate(), statusSheetItem.getLastDoneHours()),
             joinParts(statusSheetItem.getDueDateDate(), statusSheetItem.getDueDateHours()),
             timeLeftStr);
+    }
+
+    // ── Add row, spec 010: same Due Date rules before Add ──────────────
+
+    // What the add row should show. Nothing is saved; the add row keeps its
+    // own state (previous inputs, auto/typed per part) and passes it in.
+    public record AddRowResolved(String dueDateDate, boolean dueDateAuto,
+                                 String dueDateHours, boolean dueHoursAuto,
+                                 String lastDoneHours, List<String> warnings) {}
+
+    public AddRowResolved resolveAddRow(Aircraft aircraft, Map<String, Object> in) {
+        DueDateAutoFill.Cycle prevCycle = new DueDateAutoFill.Cycle(
+            intOrNull(in.get("prevCycleCalendarValue")),
+            Parsing.normalizeCalendarUnit(str(in.get("prevCycleCalendarUnit"))),
+            doubleOrNull(in.get("prevCycleHours")));
+        DueDateAutoFill.Cycle cycle = new DueDateAutoFill.Cycle(
+            intOrNull(in.get("cycleCalendarValue")),
+            Parsing.normalizeCalendarUnit(str(in.get("cycleCalendarUnit"))),
+            doubleOrNull(in.get("cycleHours")));
+        String lastDate = blankToNull(str(in.get("lastDoneDate")));
+        String lastHours = DueDateAutoFill.normalizeHours(str(in.get("lastDoneHours")));
+        String prevLastHours = DueDateAutoFill.parseHours(str(in.get("prevLastDoneHours"))) == null
+            ? blankToNull(str(in.get("prevLastDoneHours")))
+            : DueDateAutoFill.normalizeHours(str(in.get("prevLastDoneHours")));
+        boolean dateTouched = Boolean.TRUE.equals(in.get("dueDateTouched"));
+        boolean hoursTouched = Boolean.TRUE.equals(in.get("dueHoursTouched"));
+        String dueHours = str(in.get("dueDateHours"));
+        if (hoursTouched) {
+            dueHours = DueDateAutoFill.normalizeHours(dueHours);
+        }
+
+        DueDateAutoFill.Resolved date = DueDateAutoFill.resolveDate(
+            blankToNull(str(in.get("prevLastDoneDate"))), prevCycle, blankToNull(str(in.get("dueDateDate"))),
+            boolOrNull(in.get("dueDateAuto")), lastDate, cycle, str(in.get("dueDateDate")), dateTouched);
+        DueDateAutoFill.Resolved hours = DueDateAutoFill.resolveHours(
+            prevLastHours, prevCycle, blankToNull(dueHours),
+            boolOrNull(in.get("dueHoursAuto")), lastHours, cycle, dueHours, hoursTouched);
+
+        // Same typo notes as saved rows (warningsFor), on an unsaved item.
+        StatusSheetItem probe = new StatusSheetItem();
+        probe.setLastDoneDate(lastDate);
+        probe.setLastDoneHours(lastHours);
+        probe.setAircraft(aircraft);
+        return new AddRowResolved(date.value(), date.auto(), hours.value(), hours.auto(),
+            lastHours, warningsFor(probe));
+    }
+
+    private static String str(Object o) {
+        return o == null ? null : o.toString();
+    }
+
+    private static Integer intOrNull(Object o) {
+        if (o instanceof Number n) return n.intValue();
+        return Parsing.parseIntOrNull(str(o));
+    }
+
+    private static Double doubleOrNull(Object o) {
+        if (o instanceof Number n) return n.doubleValue();
+        return Parsing.parseDoubleOrNull(str(o));
+    }
+
+    private static Boolean boolOrNull(Object o) {
+        if (o instanceof Boolean b) return b;
+        String s = str(o);
+        return s == null || s.isBlank() ? null : Boolean.valueOf(s);
     }
 
     // ── Mark complete, spec 008: "When was this done?" ─────────────────
