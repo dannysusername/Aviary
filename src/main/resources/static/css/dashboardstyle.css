@@ -2829,3 +2829,52 @@ textarea::placeholder { display: none; }
 :root[data-theme="dark"] .done-next.done-next-error { color: #F2B8B5; }
 .done-box .confirm-actions { justify-content: flex-end; }
 .done-box .confirm-btn.ok:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Spec 011: Time Left pills ([2 mo 12 d] [480 h] overdue) ── */
+:root {
+  --tl-ok-bg: #E3F4EC;   --tl-ok-fg: #1E7A54;
+  --tl-soon-bg: #FFF1D6; --tl-soon-fg: #8A5A00;
+  --tl-over-bg: #FDE4E9; --tl-over-fg: #B3203F;
+}
+:root[data-theme="dark"] {
+  --tl-ok-bg: #173D2C;   --tl-ok-fg: #8FDDB7;
+  --tl-soon-bg: #3D2F12; --tl-soon-fg: #F3C46B;
+  --tl-over-bg: #47202A; --tl-over-fg: #FF9AAE;
+}
+.time-left .tl-pills {
+  display: inline-flex;
+  flex-wrap: wrap;            /* wraps when the table is tight; one line on wide screens (below) */
+  align-items: center;
+  justify-content: center;
+  gap: 4px 6px;
+  max-width: 100%;
+}
+.time-left .tl-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.time-left .tl-pill.tl-ok   { background: var(--tl-ok-bg);   color: var(--tl-ok-fg) !important; }
+.time-left .tl-pill.tl-soon { background: var(--tl-soon-bg); color: var(--tl-soon-fg) !important; }
+.time-left .tl-pill.tl-over { background: var(--tl-over-bg); color: var(--tl-over-fg) !important; }
+.time-left .tl-overdue {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--tl-over-fg) !important;
+  white-space: nowrap;
+}
+/* Screen shows pills; print shows the plain words. */
+.time-left .tl-plain { display: none; }
+@media print {
+  .time-left .tl-pills { display: none !important; }
+  .time-left .tl-plain { display: inline !important; white-space: normal; }
+}
+/* Wide screens: one line, [45 d] [480 h] overdue. Narrower (incl. phone cards):
+   pills wrap so the table never scrolls sideways. */
+@media (min-width: 1200px) {
+  .time-left .tl-pills { flex-wrap: nowrap; }
+}

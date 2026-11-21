@@ -574,7 +574,7 @@ function autoSave(input) {
         const dueDateCal = data.dueDateDate || '';
         const dueDateHrs = data.dueDateHours || '';
         setTimeLeftText(timeLeftSpan, calculateTimeLeft(dueDateCal, dueDateHrs, currentTimeInServiceHours));
-        data.timeLeft = timeLeftSpan.textContent;
+        data.timeLeft = timeLeftSpan.dataset.plain ?? timeLeftSpan.textContent;
     }
 
     // Spec 007: remember (until the save goes out) whether the owner edited the
@@ -797,8 +797,7 @@ async function completeMaintenance(button) {
     const resetValue = [preview.dueDateDate ? formatPlainDate(preview.dueDateDate) : null,
                         preview.dueDateHours ? `${preview.dueDateHours} hrs` : null].filter(Boolean).join(' · ');
     const choice = await showChoice('Mark this maintenance complete, or reset the Due Date?', [
-        { key: 'complete', label: 'Mark complete', primary: true,
-          hint: 'Asks when it was done, then rolls the Due Date forward from there.' },
+        { key: 'complete', label: 'Mark complete', primary: true },
         { key: 'reset', label: resetValue ? `Reset to cycle (${resetValue})` : 'Reset to cycle',
           disabled: !preview.canReset,
           hint: preview.canReset ? 'Keeps Last Done. Due Date goes back to Last Done + cycle.' : preview.reason }
@@ -1222,21 +1221,110 @@ function calculateTimeLeft(dueDateCal, dueDateHrs, currentTimeInServiceHours) {
         const dueDateHours = parseFloat(dueDateTimeValue);
         if (!isNaN(dueDateHours) && !isNaN(currentTimeInServiceHours)) {
             const hoursLeft = Math.round((dueDateHours - currentTimeInServiceHours) * 10) / 10;
-            const hoursText = hoursLeft < 0 ? `${Math.abs(hoursLeft)} hours overdue` : `${hoursLeft} hours left`;
-            output += output ? `\n${hoursText}` : hoursText;
+            const hoursText = hoursLeft < 0 ? `${Math.abs(hoursLeft)} hrs overdue` : `${hoursLeft} hrs left`;
+            output += output ? ` · ${hoursText}` : hoursText;   // same as DueDates.formatTimeLeft (spec 011)
         }
     }
-
-    console.log("calculateTimeLeft OUTPUT--->" + output);
 
     return output || 'N/A';
 }
 
+// Spec 011: each limit's amount, short label, plain words and status.
+// Same amounts and rounding as calculateTimeLeft / DueDates.formatTimeLeft.
+function timeLeftParts(dueDateCal, dueDateHrs, currentTimeInServiceHours) {
+    const table = document.getElementById('sortable-info-table');
+    const leadDays = parseInt(table?.dataset.leadDays, 10);
+    const leadHours = parseFloat(table?.dataset.leadHours);
+    const soonDays = isNaN(leadDays) ? 30 : leadDays;
+    const soonHours = isNaN(leadHours) ? 10 : leadHours;
+    const parts = [];
+    const due = parseIsoDate(dueDateCal);
+    if (due) {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const days = Math.round((due - today) / 86400000);
+        const plain = formatCalendarTimeLeft(dueDateCal, now);
+        parts.push({
+            kind: 'date', plain,
+            label: plain.replace(/ (left|overdue)$/, '').replace(/\bdays?\b/g, 'd'),
+            status: days < 0 ? 'over' : (days <= soonDays ? 'soon' : 'ok')
+        });
+    }
+    const dueHours = parseFloat(dueDateHrs);
+    if (dueDateHrs !== '' && dueDateHrs != null && !isNaN(dueHours) && !isNaN(currentTimeInServiceHours)) {
+        const left = Math.round((dueHours - currentTimeInServiceHours) * 10) / 10;
+        const abs = Math.abs(left);
+        parts.push({
+            kind: 'hours',
+            plain: left < 0 ? `${abs} hrs overdue` : `${abs} hrs left`,
+            label: `${abs} h`,
+            status: left < 0 ? 'over' : (left <= soonHours ? 'soon' : 'ok')
+        });
+    }
+    return parts;
+}
+
+// Due Date parts for the row a Time Left cell belongs to: its inputs, else
+// the row's data attributes (rows not built yet).
+function dueValuesForCell(cell) {
+    const row = cell.closest('tr');
+    const container = row?.querySelector('td:nth-child(6) .input-with-dropdown');
+    if (!row || !container) return null;
+    const dateInput = container.querySelector('input[type="date"]');
+    const textInput = container.querySelector('input[type="text"].extra-input');
+    const hasInputs = dateInput || textInput || !row.hasAttribute('data-dueDateDate');
+    return {
+        date: hasInputs ? (dateInput ? dateInput.value : '') : (row.getAttribute('data-dueDateDate') || ''),
+        hours: hasInputs ? (textInput ? textInput.value : '') : (row.getAttribute('data-dueDateHours') || '')
+    };
+}
+
+// Draws Time Left as colored pills (spec 011): [2 mo 12 d] [480 h] overdue.
+// No icons; the unit tells date from hours. "overdue" follows an overdue
+// pill, once after both if both are. The plain words stay on the cell
+// (data-plain + a print-only span) for print, saving and export.
 function setTimeLeftText(cell, text) {
-    cell.textContent = text;
-    // Color comes from CSS (.time-left / .time-left.overdue) so it follows
-    // the light/dark theme; an inline color here would override both.
-    cell.classList.toggle('overdue', text.includes('overdue'));
+    const due = dueValuesForCell(cell);
+    const tisInput = document.getElementById('current-time-in-service');
+    const tis = tisInput ? parseFloat(tisInput.value) || 0 : 0;
+    const parts = due ? timeLeftParts(due.date, due.hours, tis) : [];
+
+    cell.textContent = '';
+    if (!parts.length) {
+        const plainText = (text && text.trim()) ? text.trim() : (text === '' ? '' : 'N/A');
+        cell.textContent = plainText;
+        cell.dataset.plain = plainText;
+        cell.classList.toggle('overdue', plainText.includes('overdue'));
+        return;
+    }
+    const screen = document.createElement('span');
+    screen.className = 'tl-pills no-print';
+    const bothOver = parts.length === 2 && parts.every(p => p.status === 'over');
+    parts.forEach((p, i) => {
+        const pill = document.createElement('span');
+        pill.className = `tl-pill tl-${p.status}`;
+        pill.textContent = p.label;
+        const what = p.kind === 'date' ? 'Date' : 'Hours';
+        const state = p.status === 'over' ? '' : (p.status === 'soon' ? ', due soon' : '');
+        pill.setAttribute('aria-label', `${what}: ${p.plain}${state}`);
+        screen.appendChild(pill);
+        if (p.status === 'over' && (!bothOver || i === parts.length - 1)) {
+            const word = document.createElement('span');
+            word.className = 'tl-overdue';
+            word.textContent = 'overdue';
+            word.setAttribute('aria-hidden', 'true');   // already in the pill's label
+            screen.appendChild(word);
+        }
+    });
+    const plain = parts.map(p => p.plain).join(' · ');
+    const printSpan = document.createElement('span');
+    printSpan.className = 'print-only tl-plain';
+    printSpan.textContent = plain;
+    cell.appendChild(screen);
+    cell.appendChild(printSpan);
+    cell.dataset.plain = plain;
+    // Color comes from CSS so it follows the light/dark theme.
+    cell.classList.toggle('overdue', parts.some(p => p.status === 'over'));
 }
 
 // Function to update all Time Left cells in real-time
@@ -1865,7 +1953,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const description = document.querySelector('.add-row .custom-dropdown input[name="description"]').value;
-        const timeLeft = document.querySelector('.add-row .time-left').textContent;
+        const addTimeLeftEl = document.querySelector('.add-row .time-left');
+        const timeLeft = addTimeLeftEl.dataset.plain ?? addTimeLeftEl.textContent;
         const addCalVal  = document.querySelector('.add-row input[name="cycleCalendarValue"]')?.value || '';
         const addCalUnit = document.querySelector('.add-row select[name="cycleCalendarUnit"]')?.value || '';
         const addHrs     = document.querySelector('.add-row input[name="cycleHours"]')?.value || '';
@@ -2080,6 +2169,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.querySelectorAll('.add-row .input-with-dropdown input.extra-input').forEach(input => input.remove());
                 document.querySelectorAll('.add-row .add-type').forEach(btn => btn.textContent = 'Add');
                 document.querySelector('.add-row .time-left').textContent = '';
+                delete document.querySelector('.add-row .time-left').dataset.plain;
                 resetAddRowState();
 
                 selectRowType('item', document.querySelector('.row-type-option[data-type="item"]'));
@@ -2339,7 +2429,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Helper to generate Excel formula for Time Left (mimics calculateTimeLeft)
     function getTimeLeftFormula(row) { // row is 1-based Excel row
-        return `=IF(E${row}="","N/A",IF(ISERROR(DATEVALUE(LEFT(E${row},10))),LET(hourVal,VALUE(E${row}),IF(hourVal>B$1,(hourVal-B$1)&" hours left",ABS(hourVal-B$1)&" hours overdue")),LET(dateVal,DATEVALUE(LEFT(E${row},10)),spacePos,FIND(" ",E${row}&" "),hourStr,IF(spacePos=11,"",MID(E${row},spacePos+1,99)),hourVal,IF(hourStr="",NA(),VALUE(hourStr)),daysTxt,IF(dateVal>TODAY(),(dateVal-TODAY())&" days left",IF(dateVal<TODAY(),ABS(dateVal-TODAY())&" days overdue","Due today")),hoursTxt,IF(ISNA(hourVal),"",IF(hourVal>B$1,(hourVal-B$1)&" hours left",ABS(hourVal-B$1)&" hours overdue")),IF(hoursTxt="",daysTxt,daysTxt&CHAR(10)&hoursTxt))))`;
+        return `=IF(E${row}="","N/A",IF(ISERROR(DATEVALUE(LEFT(E${row},10))),LET(hourVal,VALUE(E${row}),IF(hourVal>B$1,(hourVal-B$1)&" hrs left",ABS(hourVal-B$1)&" hrs overdue")),LET(dateVal,DATEVALUE(LEFT(E${row},10)),spacePos,FIND(" ",E${row}&" "),hourStr,IF(spacePos=11,"",MID(E${row},spacePos+1,99)),hourVal,IF(hourStr="",NA(),VALUE(hourStr)),daysTxt,IF(dateVal>TODAY(),(dateVal-TODAY())&" days left",IF(dateVal<TODAY(),ABS(dateVal-TODAY())&" days overdue","Due today")),hoursTxt,IF(ISNA(hourVal),"",IF(hourVal>B$1,(hourVal-B$1)&" hrs left",ABS(hourVal-B$1)&" hrs overdue")),IF(hoursTxt="",daysTxt,daysTxt&" · "&hoursTxt))))`;
     }
 
     // Main export function

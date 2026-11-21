@@ -219,4 +219,20 @@ class DueDateAutoFillTest extends BrowserTestBase {
         page.keyboard().press("Escape");
         if (!errors.isEmpty()) throw new AssertionError("Console errors: " + errors);
     }
+
+    // Spec 011: no hint text under Mark complete; Reset keeps its reason.
+    @Test
+    void markCompleteHasNoHintButResetKeepsItsReason() {
+        String username = seedUser("password");
+        StatusSheetItem item = seedDue(username, 1, "MONTHS", null, "2026-11-01", null, "2026-12-01", null);
+        List<String> errors = open(username);
+        Locator row = page.locator("tr.auto-save-row[data-id='" + item.getId() + "']");
+        row.locator(".complete-btn").click();
+        Locator complete = page.locator(".choice-box .choice-item:has(button[data-choice='complete'])");
+        assertThat(complete.locator(".choice-hint")).hasCount(0);
+        Locator reset = page.locator(".choice-box .choice-item:has(button[data-choice='reset'])");
+        assertThat(reset.locator(".choice-hint")).hasText("Due Date already matches the cycle");
+        page.keyboard().press("Escape");
+        if (!errors.isEmpty()) throw new AssertionError("Console errors: " + errors);
+    }
 }

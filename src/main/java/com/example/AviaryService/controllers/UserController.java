@@ -85,6 +85,9 @@ public class UserController {
     private final GarminCsvService garminCsvService;
     private final AircraftService aircraftService;
     private final FleetSummaryService fleetSummaryService;
+    // Spec 011: Time Left pills use the same "due soon" window as alert emails.
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.example.AviaryService.repositories.AlertPreferenceRepository alertPreferenceRepository;
 
     public UserController(UserRepository userRepository, StatusSheetItemRepository statusSheetItemRepository,
             PasswordEncoder passwordEncoder, DescriptionOptionRepository descriptionOptionRepository,
@@ -182,6 +185,10 @@ public class UserController {
         model.addAttribute("aircraftFlightCount", aircraftService.flightCount(aircraft));
         model.addAttribute("statusSheetItems", statusSheetItemRepository.findByAircraftOrderByStatusSheetOrderAsc(aircraft));
         model.addAttribute("descriptionOptions", descriptionOptionService.cleanupAndLoadDescriptionOptions(user));
+        com.example.AviaryService.entity.AlertPreference pref = alertPreferenceRepository.findByUser(user)
+            .orElseGet(com.example.AviaryService.entity.AlertPreference::new);
+        model.addAttribute("leadTimeDays", pref.getLeadTimeDays());
+        model.addAttribute("leadTimeHours", pref.getLeadTimeHours());
         model.addAttribute("hobbsTimeHours", aircraft.getHobbsTimeHours());
         model.addAttribute("timeInServiceHours", aircraft.getTimeInServiceHours());
 
