@@ -1,5 +1,6 @@
 package com.example.AviaryService.entity;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
@@ -17,11 +18,13 @@ public class FlightLog {
     @Column(nullable = true)
     private String toAirport;
 
-    @Column(nullable = true)
-    private Double blockTimeIn;  // Use Double for decimal hours if needed
+    @Column(name = "block_time_in", nullable = true)
+    @JsonAlias("blockTimeIn")
+    private Double hobbsTimeIn;  // Use Double for decimal hours if needed
 
-    @Column(nullable = true)
-    private Double blockTimeOut;
+    @Column(name = "block_time_out", nullable = true)
+    @JsonAlias("blockTimeOut")
+    private Double hobbsTimeOut;
 
     @Column(nullable = true)
     private Double timeInServiceIn;
@@ -29,15 +32,17 @@ public class FlightLog {
     @Column(nullable = true)
     private Double timeInServiceOut;
 
-    // Engine-start / engine-stop, UTC -- when the blockTimeOut/blockTimeIn
+    // Engine-start / engine-stop, UTC -- when the hobbsTimeOut/hobbsTimeIn
     // readings were taken. Lets the logbook be sorted chronologically and
     // lets HoursService.recomputeChain place this flight correctly relative
     // to others instead of always appending it to the end.
-    @Column(nullable = true)
-    private java.time.Instant blockTimeStart;
+    @Column(name = "block_time_start", nullable = true)
+    @JsonAlias("blockTimeStart")
+    private java.time.Instant hobbsTimeStart;
 
-    @Column(nullable = true)
-    private java.time.Instant blockTimeEnd;
+    @Column(name = "block_time_end", nullable = true)
+    @JsonAlias("blockTimeEnd")
+    private java.time.Instant hobbsTimeEnd;
 
     // Wheels-up / wheels-down, UTC -- when the timeInServiceOut/timeInServiceIn
     // readings were taken. This is also the 14 CFR 1.1 "time in service"
@@ -81,11 +86,11 @@ public class FlightLog {
     // Constructors
     public FlightLog() {}
 
-    public FlightLog(String fromAirport, String toAirport, Double blockTimeIn, Double blockTimeOut, Double timeInServiceIn, Double timeInServiceOut, User user) {
+    public FlightLog(String fromAirport, String toAirport, Double hobbsTimeIn, Double hobbsTimeOut, Double timeInServiceIn, Double timeInServiceOut, User user) {
         this.fromAirport = fromAirport;
         this.toAirport = toAirport;
-        this.blockTimeIn = blockTimeIn;
-        this.blockTimeOut = blockTimeOut;
+        this.hobbsTimeIn = hobbsTimeIn;
+        this.hobbsTimeOut = hobbsTimeOut;
         this.timeInServiceIn = timeInServiceIn;
         this.timeInServiceOut = timeInServiceOut;
         this.user = user;
@@ -98,18 +103,18 @@ public class FlightLog {
     public void setFromAirport(String fromAirport) { this.fromAirport = fromAirport; }
     public String getToAirport() { return toAirport; }
     public void setToAirport(String toAirport) { this.toAirport = toAirport; }
-    public Double getBlockTimeIn() { return blockTimeIn; }
-    public void setBlockTimeIn(Double blockTimeIn) { this.blockTimeIn = blockTimeIn; }
-    public Double getBlockTimeOut() { return blockTimeOut; }
-    public void setBlockTimeOut(Double blockTimeOut) { this.blockTimeOut = blockTimeOut; }
+    public Double getHobbsTimeIn() { return hobbsTimeIn; }
+    public void setHobbsTimeIn(Double hobbsTimeIn) { this.hobbsTimeIn = hobbsTimeIn; }
+    public Double getHobbsTimeOut() { return hobbsTimeOut; }
+    public void setHobbsTimeOut(Double hobbsTimeOut) { this.hobbsTimeOut = hobbsTimeOut; }
     public Double getTimeInServiceIn() { return timeInServiceIn; }
     public void setTimeInServiceIn(Double timeInServiceIn) { this.timeInServiceIn = timeInServiceIn; }
     public Double getTimeInServiceOut() { return timeInServiceOut; }
     public void setTimeInServiceOut(Double timeInServiceOut) { this.timeInServiceOut = timeInServiceOut; }
-    public java.time.Instant getBlockTimeStart() { return blockTimeStart; }
-    public void setBlockTimeStart(java.time.Instant blockTimeStart) { this.blockTimeStart = blockTimeStart; }
-    public java.time.Instant getBlockTimeEnd() { return blockTimeEnd; }
-    public void setBlockTimeEnd(java.time.Instant blockTimeEnd) { this.blockTimeEnd = blockTimeEnd; }
+    public java.time.Instant getHobbsTimeStart() { return hobbsTimeStart; }
+    public void setHobbsTimeStart(java.time.Instant hobbsTimeStart) { this.hobbsTimeStart = hobbsTimeStart; }
+    public java.time.Instant getHobbsTimeEnd() { return hobbsTimeEnd; }
+    public void setHobbsTimeEnd(java.time.Instant hobbsTimeEnd) { this.hobbsTimeEnd = hobbsTimeEnd; }
     public java.time.Instant getTimeInServiceStart() { return timeInServiceStart; }
     public void setTimeInServiceStart(java.time.Instant timeInServiceStart) { this.timeInServiceStart = timeInServiceStart; }
     public java.time.Instant getTimeInServiceEnd() { return timeInServiceEnd; }

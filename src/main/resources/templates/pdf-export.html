@@ -86,21 +86,21 @@
     <table class="info-table">
         <tbody>
             <tr>
-                <td class="label">Owner</td>
-                <td th:text="${ownerName}"></td>
+                <td class="label">Operator</td>
+                <td th:text="${operatorName}"></td>
                 <td class="label">Make/Model S/N</td>
                 <td th:text="${makeModelSN}"></td>
             </tr>
             <tr>
-                <td class="label">Block Time</td>
-                <td th:text="${blockTimeHours}"></td>
+                <td class="label">Hobbs Time</td>
+                <td th:text="${hobbsTimeHours}"></td>
                 <td class="label">Time in Service</td>
                 <td th:text="${timeInServiceHours}"></td>
             </tr>
         </tbody>
     </table>
 
-    <h2>Service Timeline</h2>
+    <h2>Status Sheet</h2>
     <table>
         <thead>
             <tr>
@@ -113,10 +113,10 @@
             </tr>
         </thead>
         <tbody>
-            <tr th:if="${timelineRows.isEmpty()}">
-                <td colspan="6">No service timeline items yet.</td>
+            <tr th:if="${statusSheetRows.isEmpty()}">
+                <td colspan="6">No Status Sheet items yet.</td>
             </tr>
-            <tr th:each="row : ${timelineRows}" th:class="${row.isTitle} ? 'title-row' : ''">
+            <tr th:each="row : ${statusSheetRows}" th:class="${row.isTitle} ? 'title-row' : ''">
                 <td th:if="${row.isTitle}" colspan="6" th:text="${row.item}"></td>
                 <td th:unless="${row.isTitle}" th:text="${row.item}"></td>
                 <td th:unless="${row.isTitle}" th:text="${row.description}"></td>
@@ -135,8 +135,8 @@
                 <th>Date</th>
                 <th>From</th>
                 <th>To</th>
-                <th>Block Time Out</th>
-                <th>Block Time In</th>
+                <th>Hobbs Time Out</th>
+                <th>Hobbs Time In</th>
                 <th>Time in Service Out</th>
                 <th>Time in Service In</th>
             </tr>
@@ -149,8 +149,8 @@
                 <td th:text="${row.date}"></td>
                 <td th:text="${row.fromAirport}"></td>
                 <td th:text="${row.toAirport}"></td>
-                <td th:text="${row.blockTimeOut}"></td>
-                <td th:text="${row.blockTimeIn}"></td>
+                <td th:text="${row.hobbsTimeOut}"></td>
+                <td th:text="${row.hobbsTimeIn}"></td>
                 <td th:text="${row.timeInServiceOut}"></td>
                 <td th:text="${row.timeInServiceIn}"></td>
             </tr>

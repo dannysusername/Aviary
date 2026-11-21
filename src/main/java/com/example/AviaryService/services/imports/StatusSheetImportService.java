@@ -20,36 +20,36 @@ import org.springframework.transaction.support.TransactionTemplate;
 import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.ImportProposal;
 import com.example.AviaryService.entity.OAuthAuthorizationEntity;
-import com.example.AviaryService.entity.ServiceTimeline;
-import com.example.AviaryService.entity.TimelineImportRecord;
+import com.example.AviaryService.entity.StatusSheetItem;
+import com.example.AviaryService.entity.StatusSheetImportRecord;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.ImportProposalRepository;
 import com.example.AviaryService.repositories.OAuthAuthorizationRepository;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
-import com.example.AviaryService.repositories.TimelineImportRecordRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
+import com.example.AviaryService.repositories.StatusSheetImportRecordRepository;
 import com.example.AviaryService.util.DueDates;
 import com.example.AviaryService.util.Formatting;
 import com.example.AviaryService.util.SlidingWindowLimiter;
-import com.example.AviaryService.util.TimelineImportRules;
-import com.example.AviaryService.util.TimelineImportRules.ImportFlag;
-import com.example.AviaryService.util.TimelineImportRules.InputItem;
-import com.example.AviaryService.util.TimelineImportRules.ItemResult;
-import com.example.AviaryService.util.TimelineImportRules.ProposedItem;
-import com.example.AviaryService.util.TimelineImportRules.RejectedRow;
-import com.example.AviaryService.util.TimelineImportRules.SubmissionOutcome;
+import com.example.AviaryService.util.StatusSheetImportRules;
+import com.example.AviaryService.util.StatusSheetImportRules.ImportFlag;
+import com.example.AviaryService.util.StatusSheetImportRules.InputItem;
+import com.example.AviaryService.util.StatusSheetImportRules.ItemResult;
+import com.example.AviaryService.util.StatusSheetImportRules.ProposedItem;
+import com.example.AviaryService.util.StatusSheetImportRules.RejectedRow;
+import com.example.AviaryService.util.StatusSheetImportRules.SubmissionOutcome;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-// Service timeline import through an AI assistant: propose (preview only),
+// Status Sheet import through an AI assistant: propose (preview only),
 // continue a poor fit, confirm (saves exactly the proposal, all or nothing).
 // Imports only ever add rows -- existing items are never changed or deleted.
 // Every lookup is by owner, so one owner can't see or confirm another's
 // proposal.
 @Service
-public class TimelineImportService {
+public class StatusSheetImportService {
 
-    private static final Logger log = LoggerFactory.getLogger(TimelineImportService.class);
+    private static final Logger log = LoggerFactory.getLogger(StatusSheetImportService.class);
 
     static final Duration PROPOSAL_TTL = Duration.ofHours(24);
     static final int PROPOSALS_PER_HOUR = 30;
@@ -77,8 +77,8 @@ public class TimelineImportService {
     }
 
     private final ImportProposalRepository proposalRepository;
-    private final ServiceTimelineRepository timelineRepository;
-    private final TimelineImportRecordRepository recordRepository;
+    private final StatusSheetItemRepository statusSheetItemRepository;
+    private final StatusSheetImportRecordRepository recordRepository;
     private final OAuthAuthorizationRepository authorizationRepository;
     private final TransactionTemplate transaction;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -87,23 +87,23 @@ public class TimelineImportService {
     private final SlidingWindowLimiter confirmLimiter;
 
     @Autowired
-    public TimelineImportService(ImportProposalRepository proposalRepository,
-                                 ServiceTimelineRepository timelineRepository,
-                                 TimelineImportRecordRepository recordRepository,
+    public StatusSheetImportService(ImportProposalRepository proposalRepository,
+                                 StatusSheetItemRepository statusSheetItemRepository,
+                                 StatusSheetImportRecordRepository recordRepository,
                                  OAuthAuthorizationRepository authorizationRepository,
                                  PlatformTransactionManager transactionManager) {
-        this(proposalRepository, timelineRepository, recordRepository, authorizationRepository,
+        this(proposalRepository, statusSheetItemRepository, recordRepository, authorizationRepository,
             transactionManager, Clock.systemUTC());
     }
 
-    TimelineImportService(ImportProposalRepository proposalRepository,
-                          ServiceTimelineRepository timelineRepository,
-                          TimelineImportRecordRepository recordRepository,
+    StatusSheetImportService(ImportProposalRepository proposalRepository,
+                          StatusSheetItemRepository statusSheetItemRepository,
+                          StatusSheetImportRecordRepository recordRepository,
                           OAuthAuthorizationRepository authorizationRepository,
                           PlatformTransactionManager transactionManager,
                           Clock clock) {
         this.proposalRepository = proposalRepository;
-        this.timelineRepository = timelineRepository;
+        this.statusSheetItemRepository = statusSheetItemRepository;
         this.recordRepository = recordRepository;
         this.authorizationRepository = authorizationRepository;
         this.transaction = new TransactionTemplate(transactionManager);
@@ -115,15 +115,15 @@ public class TimelineImportService {
     // ---- propose ----
 
     // Builds and stores a proposal for one aircraft. Changes nothing on the
-    // timeline. Any earlier open proposal of this owner FOR THE SAME AIRCRAFT
+    // Status Sheet item. Any earlier open proposal of this owner FOR THE SAME AIRCRAFT
     // is replaced; a pending proposal for another aircraft is left alone.
     public ImportResult propose(User user, Aircraft aircraft, List<InputItem> items, List<RejectedRow> rejectedBySource, String clientId) {
         List<InputItem> input = items == null ? List.of() : items;
         List<RejectedRow> fromSource = cleanSourceRejects(rejectedBySource);
 
-        if (input.size() > TimelineImportRules.MAX_ITEMS) {
+        if (input.size() > StatusSheetImportRules.MAX_ITEMS) {
             return ImportResult.status("TOO_LARGE", "That's " + input.size() + " items; the most one proposal can hold is "
-                + TimelineImportRules.MAX_ITEMS + ". Split the records and propose each part separately.");
+                + StatusSheetImportRules.MAX_ITEMS + ". Split the records and propose each part separately.");
         }
         if (!proposeLimiter.tryAcquire(user.getUsername())) {
             return rateLimited("Too many proposals in the last hour. Try again later.");
@@ -131,17 +131,17 @@ public class TimelineImportService {
 
         return transaction.execute(tx -> {
             LocalDate today = LocalDate.now(clock.withZone(ZoneOffset.UTC));
-            ItemResult result = TimelineImportRules.evaluate(input, existingNames(aircraft), today);
+            ItemResult result = StatusSheetImportRules.evaluate(input, existingNames(aircraft), today);
             List<RejectedRow> rejected = new ArrayList<>(result.rejected());
             rejected.addAll(fromSource);
             int submitted = input.size() + fromSource.size();
 
-            SubmissionOutcome outcome = TimelineImportRules.classify(input.size(), submitted, rejected.size(), result);
+            SubmissionOutcome outcome = StatusSheetImportRules.classify(input.size(), submitted, rejected.size(), result);
             if (outcome == SubmissionOutcome.REJECTED) {
                 return new ImportResult("REJECTED", null, null, null, rejected, null,
                     "No maintenance items were found, so nothing was proposed. Every row was either missing an item "
                         + "name or set aside as not being a maintenance item (reasons below). See the example for the format.",
-                    TimelineImportRules.FORMAT_EXAMPLE, null, null, null, null);
+                    StatusSheetImportRules.FORMAT_EXAMPLE, null, null, null, null);
             }
 
             for (ImportProposal old : proposalRepository.findByUserAndAircraftAndStatusIn(user, aircraft, LIVE)) {
@@ -221,12 +221,12 @@ public class TimelineImportService {
 
                 LocalDate today = LocalDate.now(clock.withZone(ZoneOffset.UTC));
                 Double currentTis = aircraft.getTimeInServiceHours();
-                Integer max = timelineRepository.findMaxTimelineOrderByAircraft(aircraft);
+                Integer max = statusSheetItemRepository.findMaxStatusSheetOrderByAircraft(aircraft);
                 int order = max == null ? 0 : max + 1;
                 int added = 0;
 
                 for (ProposedItem item : items) {
-                    boolean matches = existing.contains(TimelineImportRules.normalizeName(item.item()));
+                    boolean matches = existing.contains(StatusSheetImportRules.normalizeName(item.item()));
                     if (matches && !optIn.contains(item.index())) {
                         if (item.flags().contains(ImportFlag.DUPLICATE_EXISTING)) {
                             skipped.add(item.item());
@@ -235,7 +235,7 @@ public class TimelineImportService {
                         }
                         continue;
                     }
-                    timelineRepository.save(toRow(user, aircraft, item, order++, today, currentTis));
+                    statusSheetItemRepository.save(toRow(user, aircraft, item, order++, today, currentTis));
                     added++;
                 }
 
@@ -244,7 +244,7 @@ public class TimelineImportService {
                 proposal.setConfirmedAt(now);
                 proposalRepository.save(proposal);
 
-                TimelineImportRecord record = new TimelineImportRecord();
+                StatusSheetImportRecord record = new StatusSheetImportRecord();
                 record.setUser(user);
                 record.setProposalId(proposal.getId());
                 record.setClientId(proposal.getConnectionClientId());
@@ -255,17 +255,17 @@ public class TimelineImportService {
                 recordRepository.save(record);
 
                 String message = "Added " + added + (added == 1 ? " item" : " items") + " to "
-                    + aircraft.getDisplayName() + "'s service timeline.";
+                    + aircraft.getDisplayName() + "'s Status Sheet.";
                 if (!skipped.isEmpty() || !newDuplicates.isEmpty()) {
                     message += " Skipped " + (skipped.size() + newDuplicates.size())
-                        + " that match items already on the timeline.";
+                        + " that match items already on the Status Sheet.";
                 }
                 return new ImportResult("IMPORTED", proposal.getId(), null, null, null, null, message, null,
                     added, skipped, newDuplicates, null);
             });
         } catch (RuntimeException e) {
             // The transaction rolled back, so nothing from this proposal was saved.
-            log.warn("Timeline import {} failed for {}", proposalId, user.getUsername(), e);
+            log.warn("Status Sheet item import {} failed for {}", proposalId, user.getUsername(), e);
             return ImportResult.status("FAILED",
                 "The import failed and nothing was added. The proposal is still open; try confirming again.");
         }
@@ -305,13 +305,13 @@ public class TimelineImportService {
         }
     }
 
-    private ServiceTimeline toRow(User user, Aircraft aircraft, ProposedItem item, int order, LocalDate today, Double currentTis) {
-        ServiceTimeline row = new ServiceTimeline();
+    private StatusSheetItem toRow(User user, Aircraft aircraft, ProposedItem item, int order, LocalDate today, Double currentTis) {
+        StatusSheetItem row = new StatusSheetItem();
         row.setUser(user);
         row.setAircraft(aircraft);
         row.setItem(item.item());
         row.setIsTitle(item.isTitle());
-        row.setTimelineOrder(order);
+        row.setStatusSheetOrder(order);
         if (item.isTitle()) {
             return row;
         }
@@ -328,7 +328,7 @@ public class TimelineImportService {
         return row;
     }
 
-    // The timeline has no on-condition column, so the description says it --
+    // The Status Sheet item has no on-condition column, so the description says it --
     // otherwise the row shows up with every date blank and no explanation.
     static String onConditionDescription(String description) {
         if (description == null || description.isBlank()) return "On condition";
@@ -341,8 +341,8 @@ public class TimelineImportService {
     // on another plane is not a duplicate.
     private Set<String> existingNames(Aircraft aircraft) {
         Set<String> names = new HashSet<>();
-        for (ServiceTimeline row : timelineRepository.findByAircraftOrderByTimelineOrderAsc(aircraft)) {
-            names.add(TimelineImportRules.normalizeName(row.getItem()));
+        for (StatusSheetItem row : statusSheetItemRepository.findByAircraftOrderByStatusSheetOrderAsc(aircraft)) {
+            names.add(StatusSheetImportRules.normalizeName(row.getItem()));
         }
         return names;
     }
@@ -370,7 +370,7 @@ public class TimelineImportService {
         if (titles > 0) sb.append(" and ").append(titles).append(titles == 1 ? " title row" : " title rows");
         sb.append(" to add");
         if (flagged > 0) sb.append(", ").append(flagged).append(" flagged for the owner to check");
-        if (duplicates > 0) sb.append(" (").append(duplicates).append(" already on the timeline and skipped unless the owner opts in)");
+        if (duplicates > 0) sb.append(" (").append(duplicates).append(" already on the Status Sheet and skipped unless the owner opts in)");
         if (onCondition > 0) sb.append("; ").append(onCondition).append(" on condition");
         if (noSchedule > 0) sb.append("; ").append(noSchedule).append(" with no due date or interval (Time Left shows N/A)");
         if (dropped > 0) sb.append("; ").append(dropped).append(" with a value left blank (see notes)");
@@ -390,7 +390,7 @@ public class TimelineImportService {
 
     private static String truncate(String s) {
         if (s == null) return "";
-        return s.length() > TimelineImportRules.MAX_SOURCE_ROW ? s.substring(0, TimelineImportRules.MAX_SOURCE_ROW) : s;
+        return s.length() > StatusSheetImportRules.MAX_SOURCE_ROW ? s.substring(0, StatusSheetImportRules.MAX_SOURCE_ROW) : s;
     }
 
     private static ImportResult rateLimited(String message) {

@@ -18,10 +18,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.AviaryService.entity.Aircraft;
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.AircraftRepository;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.support.TestFleet;
 
@@ -35,7 +35,7 @@ class PdfPerAircraftTest {
     @Autowired MockMvc mvc;
     @Autowired UserRepository userRepository;
     @Autowired AircraftRepository aircraftRepository;
-    @Autowired ServiceTimelineRepository timelineRepository;
+    @Autowired StatusSheetItemRepository statusSheetItemRepository;
 
     @Test
     void pdfHasOnlyTheChosenAircraft() throws Exception {
@@ -63,12 +63,12 @@ class PdfPerAircraftTest {
     }
 
     private void row(User owner, Aircraft a, String item) {
-        ServiceTimeline t = new ServiceTimeline();
+        StatusSheetItem t = new StatusSheetItem();
         t.setUser(owner);
         t.setAircraft(a);
         t.setItem(item);
         t.setIsTitle(false);
-        t.setTimelineOrder(0);
-        timelineRepository.save(t);
+        t.setStatusSheetOrder(0);
+        statusSheetItemRepository.save(t);
     }
 }

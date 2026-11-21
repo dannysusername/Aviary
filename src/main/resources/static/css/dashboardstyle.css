@@ -152,7 +152,7 @@ input[type="checkbox"]:focus-visible {
 .fixed-header #subscribe,
 .edit-hours-btn,
 .back-to-full-list-button,
-#add-block-time-btn,
+#add-hobbs-time-btn,
 #add-time-in-service-btn,
 .add-button,
 .add-log-button,
@@ -307,7 +307,7 @@ input[type="checkbox"]:focus-visible {
 .edit-hours-btn:hover,
 .back-to-full-list-button:hover { background: var(--primary-light); border-color: var(--primary); }
 
-/* Shown above the Service Timeline while one section (title) is filtered. */
+/* Shown above the Status Sheet while one section (title) is filtered. */
 .section-filter-bar {
   display: flex;
   align-items: center;
@@ -327,16 +327,16 @@ input[type="checkbox"]:focus-visible {
 .section-filter-label strong { color: var(--text); }
 
 
-#add-block-time-btn,
+#add-hobbs-time-btn,
 #add-time-in-service-btn {
   background: var(--primary);
   color: #fff;
   padding: 5px 10px;
 }
-#add-block-time-btn:hover, #add-time-in-service-btn:hover { background: var(--primary-dark); }
+#add-hobbs-time-btn:hover, #add-time-in-service-btn:hover { background: var(--primary-dark); }
 
 /* Utility actions — quiet outline style so they don't compete with the
-   page's real work (the timeline and log book). */
+   page's real work (the statusSheetItem and log book). */
 #print-dashboard,
 #export-excel {
   background: var(--surface);
@@ -385,7 +385,7 @@ input[type="checkbox"]:focus-visible {
   flex-wrap: wrap;
 }
 
-.current-block-time-display,
+.current-hobbs-time-display,
 .current-time-in-service-display {
   font-size: 15px;
   font-weight: 600;
@@ -397,6 +397,12 @@ input[type="checkbox"]:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.hours-label-row {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
 }
 
 .hours-updated {
@@ -574,7 +580,7 @@ input[type="checkbox"]:focus-visible {
   width: auto;
 }
 
-/* ── Service timeline table ── */
+/* ── Status Sheet table ── */
 #sortable-info-table {
   table-layout: auto;
   border-collapse: collapse;
@@ -706,7 +712,9 @@ td.add-cell {
 .title-row .title-cell { cursor: pointer; }  /* click a title to show just that section */
 /* Hover highlight only with a real mouse -- on touch it stuck after a tap. */
 @media (hover: hover) {
-  .title-row .title-cell:hover { background: var(--primary-dark); }
+  /* Whole bar darkens together: grip, title, empty cell and trash can (spec 009).
+     Not while the row is being dragged, so no dark color sticks after a drop. */
+  .title-row:not(.sortable-chosen):not(.sortable-ghost):hover td { background: var(--primary-dark); }
 }
 /* No grid hairlines inside the solid green title bar */
 .title-row td { border-color: transparent; }
@@ -1346,11 +1354,11 @@ textarea::placeholder { display: none; }
 .add-row.title-mode td:nth-child(n+3):nth-child(-n+7) * { visibility: hidden; }
 
 /* ── Mobile / narrow (≤960px) ──
-   The service-timeline table has a hard min-content width of ~903px (the Last
+   The status-sheet table has a hard min-content width of ~903px (the Last
    Done / Due Date columns floor at 150px so the date inputs never clip). Below
    that the table would grow past the viewport and the whole page would scroll
    sideways. So we switch to the stacked card layout at ≤960px (comfortably
-   above 903) — the cards always fit, so the timeline never overflows. ── */
+   above 903) — the cards always fit, so the statusSheetItem never overflows. ── */
 @media screen and (max-width: 960px) {
   .header { padding: 16px clamp(8px, 3vw, 24px) 0; }
   .main   { padding: 12px clamp(8px, 3vw, 24px); }
@@ -1582,7 +1590,7 @@ textarea::placeholder { display: none; }
     padding: 0;
   }
 
-  /* ════ Service Timeline cards ════
+  /* ════ Status Sheet cards ════
      Saved item cards and the add card share every rule below through
      `#sortable-info-table :is(.sortable tr:not(.title-row), .add-row)`, so the
      add card always matches the saved ones. The #id prefix also lets these
@@ -2046,7 +2054,7 @@ textarea::placeholder { display: none; }
   .logbook-table thead { display: none; }
   .logbook-table tbody#logbook-body { display: flex; flex-direction: column; gap: 8px; margin: 0; }
 
-  /* Option C: each log = 2-col grid (From|To, Block Time Out|In, Time in Service Out|In) */
+  /* Option C: each log = 2-col grid (From|To, Hobbs Time Out|In, Time in Service Out|In) */
   .logbook-table tr.log-row,
   .logbook-table tr.add-log-row {
     display: grid;
@@ -2148,7 +2156,7 @@ textarea::placeholder { display: none; }
     margin: 0;
     padding: 8px 24px 0;
   }
-  #service-tab { padding: 0; }
+  #status-sheet-tab { padding: 0; }
 
   /* One line per Time Left entry ("12 days left" / "181.3 hours left"),
      wrapping only between the calendar and hours lines. */
@@ -2654,7 +2662,7 @@ textarea::placeholder { display: none; }
 #add-aircraft-save.saving::after { content: "…"; }
 
 /* Empty aircraft: first step is visible right away. */
-#empty-timeline { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+#empty-statusSheetItem { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
 .add-first-item-btn {
   align-self: flex-start;
   min-height: 44px;
@@ -2738,5 +2746,135 @@ textarea::placeholder { display: none; }
   #aircraft-picker-btn .aircraft-picker-caret { display: none; }
 }
 @media print {
-  .aircraft-picker, #empty-timeline { display: none !important; }
+  .aircraft-picker, #empty-statusSheetItem { display: none !important; }
+}
+
+/* Info marks next to Hobbs Time / Time in Service (My Hours). The tooltip
+   text comes from data-tip; it shows on hover, keyboard focus, or tap
+   (.open, toggled in dashboard.js). */
+.info-mark {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.9em;
+  cursor: help;
+  vertical-align: middle;
+}
+.info-mark:focus-visible { outline: 2px solid var(--text-muted); outline-offset: 2px; border-radius: 50%; }
+.info-mark::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 6px);
+  transform: translateX(calc(-50% + var(--tip-shift, 0px)));
+  width: max-content;
+  max-width: min(260px, calc(100vw - 32px));
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: normal;
+  line-height: 1.35;
+  text-align: left;
+  white-space: normal;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  z-index: 50;
+  display: none;
+  pointer-events: none;
+}
+.info-mark:hover::after,
+.info-mark:focus-visible::after,
+.info-mark.open::after { display: block; }
+/* Phones: the info marks add ~17px per hours block. Tighter column spacing
+   keeps both blocks on one line, so My Hours doesn't grow taller. */
+@media (max-width: 480px) {
+  .hours-display-and-editbutton-container { column-gap: 12px; }
+}
+/* Status Sheet tab info mark sits between the two tab buttons. */
+.tabs .info-mark { align-self: center; margin-left: 0; margin-right: 4px; }
+/* Spec 007: typo check under Last Done (e.g. a future date). */
+.row-warning {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: #9A5B00;
+}
+:root[data-theme="dark"] .row-warning { color: #F0B65A; }
+/* Spec 007: roll-forward box with two choices (Mark complete / Reset to cycle). */
+.choice-box { max-width: 400px; }
+.choice-list { display: flex; flex-direction: column; gap: 14px; margin-bottom: 16px; text-align: left; }
+.choice-item .confirm-btn { width: 100%; min-height: 44px; }
+.confirm-btn.choice-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+.confirm-btn.choice-secondary:hover:not(:disabled) { background: var(--primary-light); }
+.choice-item .confirm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.choice-hint { margin-top: 4px; font-size: 12px; line-height: 1.35; color: var(--text-muted); }
+/* Spec 008: "When was this done?" box. */
+.done-box { max-width: 380px; text-align: left; }
+.done-box .confirm-message { text-align: center; }
+.done-fields { display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; }
+.done-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; color: var(--text); }
+.done-field input {
+  font: inherit; font-size: 16px; font-weight: normal; padding: 8px 10px; min-height: 44px;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text);
+}
+.done-next { min-height: 20px; margin-bottom: 16px; font-size: 14px; color: var(--text); }
+.done-next.done-next-error { color: #B3261E; }
+:root[data-theme="dark"] .done-next.done-next-error { color: #F2B8B5; }
+.done-box .confirm-actions { justify-content: flex-end; }
+.done-box .confirm-btn.ok:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Spec 011: Time Left pills ([2 mo 12 d] [480 h] overdue) ── */
+:root {
+  --tl-ok-bg: #E3F4EC;   --tl-ok-fg: #1E7A54;
+  --tl-soon-bg: #FFF1D6; --tl-soon-fg: #8A5A00;
+  --tl-over-bg: #FDE4E9; --tl-over-fg: #B3203F;
+}
+:root[data-theme="dark"] {
+  --tl-ok-bg: #173D2C;   --tl-ok-fg: #8FDDB7;
+  --tl-soon-bg: #3D2F12; --tl-soon-fg: #F3C46B;
+  --tl-over-bg: #47202A; --tl-over-fg: #FF9AAE;
+}
+.time-left .tl-pills {
+  display: inline-flex;
+  flex-wrap: wrap;            /* wraps when the table is tight; one line on wide screens (below) */
+  align-items: center;
+  justify-content: center;
+  gap: 4px 6px;
+  max-width: 100%;
+}
+.time-left .tl-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.time-left .tl-pill.tl-ok   { background: var(--tl-ok-bg);   color: var(--tl-ok-fg) !important; }
+.time-left .tl-pill.tl-soon { background: var(--tl-soon-bg); color: var(--tl-soon-fg) !important; }
+.time-left .tl-pill.tl-over { background: var(--tl-over-bg); color: var(--tl-over-fg) !important; }
+.time-left .tl-overdue {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--tl-over-fg) !important;
+  white-space: nowrap;
+}
+/* Screen shows pills; print shows the plain words. */
+.time-left .tl-plain { display: none; }
+@media print {
+  .time-left .tl-pills { display: none !important; }
+  .time-left .tl-plain { display: inline !important; white-space: normal; }
+}
+/* Wide screens: one line, [45 d] [480 h] overdue. Narrower (incl. phone cards):
+   pills wrap so the table never scrolls sideways. */
+@media (min-width: 1200px) {
+  .time-left .tl-pills { flex-wrap: nowrap; }
 }

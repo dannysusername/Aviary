@@ -25,7 +25,7 @@ public class User {
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     @JsonManagedReference
-    private List<ServiceTimeline> serviceTimeline;
+    private List<StatusSheetItem> statusSheet;
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     @JsonManagedReference
@@ -89,8 +89,8 @@ public class User {
         return password;
     }
 
-    public List<ServiceTimeline> getServiceTimeline() {
-        return serviceTimeline;
+    public List<StatusSheetItem> getStatusSheetItem() {
+        return statusSheet;
     }
 
     public void setId(long id) {
@@ -105,8 +105,8 @@ public class User {
         this.password = password;
     }
 
-    public void setServiceTimeline(List<ServiceTimeline> serviceTimeline) {
-        this.serviceTimeline = serviceTimeline;
+    public void setStatusSheetItem(List<StatusSheetItem> statusSheet) {
+        this.statusSheet = statusSheet;
     }
 
     public List<FlightLog> getFlightLogs() {

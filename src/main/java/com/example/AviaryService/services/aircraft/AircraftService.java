@@ -12,7 +12,7 @@ import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.FlightLogRepository;
 import com.example.AviaryService.repositories.FlightSuggestionRepository;
 import com.example.AviaryService.repositories.ImportProposalRepository;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.repositories.SubscriptionRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.util.Validation;
@@ -25,19 +25,19 @@ public class AircraftService {
 
     private final AircraftRepository aircraftRepository;
     private final UserRepository userRepository;
-    private final ServiceTimelineRepository timelineRepository;
+    private final StatusSheetItemRepository statusSheetItemRepository;
     private final FlightLogRepository flightLogRepository;
     private final FlightSuggestionRepository suggestionRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final ImportProposalRepository proposalRepository;
 
     public AircraftService(AircraftRepository aircraftRepository, UserRepository userRepository,
-            ServiceTimelineRepository timelineRepository, FlightLogRepository flightLogRepository,
+            StatusSheetItemRepository statusSheetItemRepository, FlightLogRepository flightLogRepository,
             FlightSuggestionRepository suggestionRepository, SubscriptionRepository subscriptionRepository,
             ImportProposalRepository proposalRepository) {
         this.aircraftRepository = aircraftRepository;
         this.userRepository = userRepository;
-        this.timelineRepository = timelineRepository;
+        this.statusSheetItemRepository = statusSheetItemRepository;
         this.flightLogRepository = flightLogRepository;
         this.suggestionRepository = suggestionRepository;
         this.subscriptionRepository = subscriptionRepository;
@@ -52,14 +52,14 @@ public class AircraftService {
     // required here (the info card can add the rest later). Becomes the
     // aircraft the dashboard opens on.
     @Transactional
-    public Aircraft create(User user, String tailNumber, String makeModel, String ownerName, String makeModelSN) {
+    public Aircraft create(User user, String tailNumber, String makeModel, String operatorName, String makeModelSN) {
         try {
             Validation.requireValidTailNumber(tailNumber, true);
         } catch (IllegalArgumentException e) {
             throw new AircraftValidationException("tailNumber", e.getMessage());
         }
         checkLength("makeModel", "Make/model", makeModel);
-        checkLength("ownerName", "Owner name", ownerName);
+        checkLength("operatorName", "Operator name", operatorName);
         checkLength("makeModelSN", "Serial number", makeModelSN);
 
         if (aircraftRepository.countByUser(user) >= Aircraft.MAX_PER_USER) {
@@ -73,7 +73,7 @@ public class AircraftService {
         Aircraft aircraft = new Aircraft(user);
         aircraft.setTailNumber(tailNumber);
         aircraft.setMakeModel(trimToEmpty(makeModel));
-        aircraft.setOwnerName(trimToEmpty(ownerName));
+        aircraft.setOperatorName(trimToEmpty(operatorName));
         aircraft.setMakeModelSN(trimToEmpty(makeModelSN));
         aircraft = aircraftRepository.save(aircraft);
 
@@ -136,7 +136,7 @@ public class AircraftService {
         suggestionRepository.deleteByAircraft(aircraft);
         subscriptionRepository.deleteByAircraft(aircraft);
         flightLogRepository.deleteByAircraft(aircraft);
-        timelineRepository.deleteByAircraft(aircraft);
+        statusSheetItemRepository.deleteByAircraft(aircraft);
 
         Aircraft next = aircraftRepository.findByUserOrderByIdAsc(user).stream()
             .filter(a -> !a.getId().equals(aircraft.getId()))
@@ -153,7 +153,7 @@ public class AircraftService {
 
     // How much a remove would delete, for the confirm dialog.
     public long rowCount(Aircraft aircraft) {
-        return timelineRepository.countByAircraft(aircraft);
+        return statusSheetItemRepository.countByAircraft(aircraft);
     }
 
     public long flightCount(Aircraft aircraft) {

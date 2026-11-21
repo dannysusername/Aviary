@@ -3,7 +3,7 @@
 Status: **Backend + email built (Amazon SES); SMS = model + logging sender only; UI = functional** · Last updated: 2026-10-18
 
 Alerts the aircraft owner (and anyone they add — a maintenance shop, a partner)
-when a Service Timeline item is near or past its due date. Email goes through
+when a Status Sheet item is near or past its due date. Email goes through
 Amazon SES (`SesEmailService`). SMS is stubbed (`LoggingSmsSender`) until a real
 provider is wired up.
 
@@ -18,13 +18,13 @@ for this tail". This is a different concern with its own entities.
   one check per user per day.
 - `checkHour` is in the **server's time zone** (`ZoneId.systemDefault()`). On
   Heroku that is UTC.
-- On a check, every non-title item on the Service Timeline gets a **level**:
+- On a check, every non-title item on the Status Sheet gets a **level**:
   `OK` → `DUE_SOON` → `OVERDUE`.
   - `OVERDUE`  — `daysLeft < 0` or `hoursLeft < 0`
   - `DUE_SOON` — `0 ≤ daysLeft ≤ leadTimeDays` or `0 ≤ hoursLeft ≤ leadTimeHours`
   - else `OK`
   - An item has two limits (calendar and flight hours); the worse one wins.
-- Each item stores the level it **last alerted at** (`ServiceTimeline.alertLevel`)
+- Each item stores the level it **last alerted at** (`StatusSheetItem.alertLevel`)
   and when (`alertLastFiredAt`).
 - A digest is sent only if **either**:
   1. some item moved to a worse level than it last alerted at, **or**
@@ -43,7 +43,7 @@ settings, and a readiness line. Backed by `PUT /alerts/preferences`.
   `GET /alerts/preferences` → `readiness.missing`:
   - "Add at least one maintenance item"
   - "Set your tail number"
-  - "Set your owner name"
+  - "Set your operator name"
   - "Enter aircraft hours"
   Advisory only; the server does not block turning alerts on.
 - **Every time** `enabled` flips false→true, the server snapshots each item's
@@ -63,7 +63,7 @@ settings, and a readiness line. Backed by `PUT /alerts/preferences`.
 | `confirmToken` | random URL-safe token, unique |
 | `createdAt`, `confirmedAt`, `reminderSentAt` | timestamps |
 
-Flow: **add → PENDING** → confirm email sent ("[owner name] added you to receive
+Flow: **add → PENDING** → confirm email sent ("[operator name] added you to receive
 maintenance alerts for [tail]", with Confirm and Decline links) → recipient
 confirms (`ACCEPTED`) or declines (`DECLINED`). Only `ACCEPTED` recipients get
 digests.
@@ -71,7 +71,7 @@ digests.
 Rules on add (`AlertRecipientService.add`), checked in this order:
 
 1. Address is valid (not blank, ≤ 254 chars, email or E.164 format); label ≤ 100.
-2. Owner has an **owner name** and **tail number** (`requireProfile`). Also
+2. Owner has an **operator name** and **tail number** (`requireProfile`). Also
    checked on Resend. If either is cleared later, emails fall back to
    "The aircraft owner" / "your aircraft" (`AlertText`).
 3. Same channel + address already on the list:
@@ -111,10 +111,10 @@ nothing is saved.
 - **Body (plain text):** "Maintenance status for [tail] ([make/model])" + timestamp
   → baseline note or "What changed" → full status, worst first. Each line puts
   the overdue part first, e.g. `OVERDUE  Annual Inspection — 480.0 hrs overdue ·
-  106 days left` → aircraft hours (Block Time / Time in Service).
+  106 days left` → aircraft hours (Hobbs Time / Time in Service).
 - **Attachment:** dashboard PDF (`PdfExportService.generateDashboardPdf`), built
   once per digest.
-- **Footer:** "You're receiving this because [owner name] added you to maintenance
+- **Footer:** "You're receiving this because [operator name] added you to maintenance
   alerts for [tail]. The full dashboard is attached as a PDF." + unsubscribe link
   (`/alerts/unsubscribe?token=…`) + postal address if configured (CAN-SPAM).
   **No dashboard link:** recipients have no login.
@@ -132,7 +132,7 @@ Per-user defaults in `AlertPreference`: `leadTimeDays` (30), `leadTimeHours`
   `overdueRenudgeDays` (7, min 1), `lastCheckedOn` (LocalDate, null),
   `baselineSentAt` (Instant, null).
 - **`AlertRecipient`** — as table above.
-- **`ServiceTimeline`** has `alertLevel` (String, nullable) and
+- **`StatusSheetItem`** has `alertLevel` (String, nullable) and
   `alertLastFiredAt` (Instant, nullable).
 - **`AlertSendLog`** — `recipientId`, `channel`, `sentAt`. Backs the digest rate
   limit. Rows older than 30 days are pruned.

@@ -152,11 +152,11 @@ public class AlertRecipientService {
         String declineUrl = base.isBlank() ? "" : base + "/alerts/decline?token=" + r.getConfirmToken();
         List<Aircraft> fleet = aircraftRepository.findByUserOrderByIdAsc(r.getUser());
         String tail = AlertText.tail(fleet);
-        String owner = AlertText.owner(fleet);
+        String operator = AlertText.operator(fleet);
 
         if (r.getChannelEnum() == Channel.EMAIL) {
             String body = ""
-                + owner + " added you to receive maintenance alerts for " + tail + ".\n\n"
+                + operator + " added you to receive maintenance alerts for " + tail + ".\n\n"
                 + "Confirm you want these: " + confirmUrl + "\n"
                 + (declineUrl.isEmpty() ? "" : "Not you / no thanks: " + declineUrl + "\n")
                 + "\nThis link expires in " + AlertRecipient.CONFIRM_EXPIRY_DAYS + " days. "
@@ -165,7 +165,7 @@ public class AlertRecipientService {
                 "Confirm maintenance alerts for " + tail, body);
         } else {
             notificationService.sendPlainSms(r.getDestination(),
-                owner + " added you to maintenance alerts for " + tail
+                operator + " added you to maintenance alerts for " + tail
                 + ". Reply YES to confirm, STOP to decline. " + confirmUrl);
         }
         log.info("Sent {} confirmation to recipient {}", r.getChannel(), r.getId());
@@ -180,16 +180,16 @@ public class AlertRecipientService {
         return r;
     }
 
-    // A recipient's emails name the owner and aircraft, so both must be set
+    // A recipient's emails name the operator and aircraft, so both must be set
     // before anyone is invited
     private void requireProfile(User user) {
         List<Aircraft> fleet = aircraftRepository.findByUserOrderByIdAsc(user);
-        boolean hasOwner = AlertText.anyOwnerName(fleet);
+        boolean hasOperator = AlertText.anyOperatorName(fleet);
         boolean hasTail = AlertText.anyTailNumber(fleet);
-        if (!hasOwner && !hasTail) {
+        if (!hasOperator && !hasTail) {
             throw new IllegalArgumentException("Add your name AND tail number in Aircraft Info first.");
         }
-        if (!hasOwner) {
+        if (!hasOperator) {
             throw new IllegalArgumentException("Add your name in Aircraft Info first.");
         }
         if (!hasTail) {

@@ -3,8 +3,225 @@ console.log('dashboard.js loaded');
 // One debounce timer per row / per aircraft-info field. A single shared timer
 // meant editing a second row (or field) within 500ms cancelled the first save.
 const rowSaveTimers = new Map();
+// Spec 007: per row, whether the owner edited the Due Date date / hours since
+// the last save went out (kept across the 500ms debounce).
+const rowDueTouched = new Map();
+// The pending (debounced) save per row, and the save currently in flight.
+const rowPendingSends = new Map();
+const rowInFlight = new Map();
+
+// Hours with 1-3 decimals: "25" -> "25.0", "25.12345" -> "25.123" (half up).
+// Same rule as DueDateAutoFill.formatHours on the server. null if not a number.
+function formatSheetHours(raw) {
+    const s = String(raw ?? '').trim();
+    if (!/^(\d+(\.\d*)?|\.\d+)$/.test(s)) return null;
+    let [i, f = ''] = s.split('.');
+    i = i.replace(/^0+(?=\d)/, '') || '0';
+    if (f.length > 3) {
+        const n = BigInt(i + f.slice(0, 3)) + (f[3] >= '5' ? 1n : 0n);
+        const str = n.toString().padStart(4, '0');
+        i = str.slice(0, -3);
+        f = str.slice(-3);
+    }
+    f = f.replace(/0+$/, '') || '0';
+    return `${i}.${f}`;
+}
+
+// Shows what the server saved for a row (spec 007): an auto-filled Due Date
+// appears right after Last Done is entered, no reload. Never rewrites a box
+// the owner is typing in.
+function applySavedRow(row, saved) {
+    if (!row || !saved || saved.status !== 'success') return;
+    const lastCell = row.querySelector('td:nth-child(5) .input-with-dropdown');
+    const dueCell = row.querySelector('td:nth-child(6) .input-with-dropdown');
+    const focused = document.activeElement;
+
+    if (dueCell && !dueCell.contains(focused)) {
+        const shownDate = dueCell.querySelector('input[type="date"]')?.value || '';
+        const shownHours = dueCell.querySelector('input[type="text"].extra-input')?.value || '';
+        const newDate = saved.dueDateDate || '';
+        const newHours = saved.dueDateHours || '';
+        if (shownDate !== newDate || shownHours !== newHours) {
+            repaintDateHoursCell(row, 'dueDate', [newDate, newHours].filter(Boolean).join(' '));
+        }
+    }
+    const lastHoursInput = lastCell?.querySelector('input[type="text"].extra-input');
+    if (lastHoursInput && lastHoursInput !== focused && saved.lastDoneHours != null
+            && lastHoursInput.value !== saved.lastDoneHours) {
+        lastHoursInput.value = saved.lastDoneHours;
+    }
+
+    row.setAttribute('data-lastDoneDate', saved.lastDoneDate || '');
+    row.setAttribute('data-lastDoneHours', saved.lastDoneHours || '');
+    row.setAttribute('data-dueDateDate', saved.dueDateDate || '');
+    row.setAttribute('data-dueDateHours', saved.dueDateHours || '');
+
+    const tl = row.querySelector('td:nth-child(7) .time-left');
+    if (tl && saved.timeLeft) setTimeLeftText(tl, saved.timeLeft);
+
+    const lastTd = row.querySelector('td:nth-child(5)');
+    let note = lastTd?.querySelector('.row-warning');
+    const warnings = Array.isArray(saved.warnings) ? saved.warnings : [];
+    if (warnings.length && lastTd) {
+        if (!note) {
+            note = document.createElement('div');
+            note.className = 'row-warning no-print';
+            note.setAttribute('role', 'status');
+            lastTd.appendChild(note);
+        }
+        note.textContent = warnings.join(' ');
+    } else if (note) {
+        note.remove();
+    }
+}
+
+// Tidy Status Sheet hours when the owner leaves the box (never mid-typing).
+document.addEventListener('focusout', (e) => {
+    const el = e.target;
+    if (!(el instanceof HTMLInputElement) || !el.matches('.input-with-dropdown input.extra-input[type="text"]')) return;
+    const formatted = formatSheetHours(el.value);
+    if (formatted !== null && formatted !== el.value) {
+        el.value = formatted;
+        if (el.closest('.auto-save-row')) autoSave(el);
+        else if (el.closest('.add-row')) scheduleAddRowResolve();
+    }
+});
+
+// ── Add row, spec 010: fill the Due Date before Add ──────────────────
+// The add row isn't saved, so it keeps its own state and asks the server to
+// apply the same rule saved rows use (POST /statusSheet/addRowResolve).
+const addRowState = { prev: null, dateAuto: null, hoursAuto: null,
+                      touched: { date: false, hours: false },
+                      present: { date: false, hours: false }, timer: null, seq: 0 };
+
+function resetAddRowState() {
+    clearTimeout(addRowState.timer);
+    addRowState.prev = null;
+    addRowState.dateAuto = null;
+    addRowState.hoursAuto = null;
+    addRowState.touched = { date: false, hours: false };
+    addRowState.present = { date: false, hours: false };
+    addRowState.seq++;
+    document.querySelector('.add-row .row-warning')?.remove();
+}
+
+function addRowCell(label) {
+    return document.querySelector(`.add-row td[data-label="${label}"] .input-with-dropdown`);
+}
+
+function readAddRow() {
+    const last = addRowCell('Last Done'), due = addRowCell('Due Date');
+    const v = (el) => (el ? el.value.trim() : '');
+    return {
+        lastDoneDate:  v(last?.querySelector('input[type="date"]')),
+        lastDoneHours: v(last?.querySelector('input[type="text"].extra-input')),
+        cycleCalendarValue: v(document.querySelector('.add-row input[name="cycleCalendarValue"]')),
+        cycleCalendarUnit:  v(document.querySelector('.add-row select[name="cycleCalendarUnit"]')),
+        cycleHours:         v(document.querySelector('.add-row input[name="cycleHours"]')),
+        dueDateDate:  v(due?.querySelector('input[type="date"]')),
+        dueDateHours: v(due?.querySelector('input[type="text"].extra-input')),
+        hasDueDateInput:  !!due?.querySelector('input[type="date"]'),
+        hasDueHoursInput: !!due?.querySelector('input[type="text"].extra-input')
+    };
+}
+
+function addRowIsTitle() {
+    return document.getElementById('isTitleHidden')?.value === 'true';
+}
+
+function scheduleAddRowResolve() {
+    clearTimeout(addRowState.timer);
+    if (addRowIsTitle()) { document.querySelector('.add-row .row-warning')?.remove(); return; }
+    addRowState.timer = setTimeout(resolveAddRow, 250);
+}
+
+async function resolveAddRow() {
+    const now = readAddRow();
+    // A Due Date calendar/clock that was there and is now gone = the user removed it.
+    if (addRowState.present.date && !now.hasDueDateInput) addRowState.touched.date = true;
+    if (addRowState.present.hours && !now.hasDueHoursInput) addRowState.touched.hours = true;
+    const prev = addRowState.prev || {};
+    const body = {
+        prevLastDoneDate: prev.lastDoneDate ?? null, prevLastDoneHours: prev.lastDoneHours ?? null,
+        prevCycleCalendarValue: prev.cycleCalendarValue ?? null, prevCycleCalendarUnit: prev.cycleCalendarUnit ?? null,
+        prevCycleHours: prev.cycleHours ?? null,
+        lastDoneDate: now.lastDoneDate, lastDoneHours: now.lastDoneHours,
+        cycleCalendarValue: now.cycleCalendarValue, cycleCalendarUnit: now.cycleCalendarUnit, cycleHours: now.cycleHours,
+        dueDateDate: now.dueDateDate, dueDateHours: now.dueDateHours,
+        dueDateAuto: addRowState.dateAuto, dueHoursAuto: addRowState.hoursAuto,
+        dueDateTouched: addRowState.touched.date, dueHoursTouched: addRowState.touched.hours
+    };
+    const mine = ++addRowState.seq;
+    addRowState.touched = { date: false, hours: false };
+    try {
+        const csrfToken  = document.querySelector('meta[name="_csrf"]').getAttribute('content');
+        const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
+        const r = (await axios.post('/statusSheet/addRowResolve', body, {
+            headers: { [csrfHeader]: csrfToken, 'Content-Type': 'application/json' }
+        })).data;
+        if (mine !== addRowState.seq) return;            // a newer check is on its way
+        addRowState.prev = now;
+        addRowState.dateAuto = r.dueDateAuto;
+        addRowState.hoursAuto = r.dueHoursAuto;
+        const row = document.querySelector('.add-row');
+        const dueCell = addRowCell('Due Date');
+        if (dueCell && !dueCell.contains(document.activeElement)
+                && ((r.dueDateDate || '') !== now.dueDateDate || (r.dueDateHours || '') !== now.dueDateHours)) {
+            repaintDateHoursCell(row, 'dueDate', [r.dueDateDate, r.dueDateHours].filter(Boolean).join(' '));
+        }
+        const after = readAddRow();
+        addRowState.present = { date: after.hasDueDateInput, hours: after.hasDueHoursInput };
+        showAddRowNote(r.warnings || []);
+        updateAddRowTimeLeft();
+    } catch (e) {
+        if (mine !== addRowState.seq) return;
+        showAddRowNote(e?.response?.data?.message ? [e.response.data.message] : []);
+    }
+}
+
+function showAddRowNote(messages) {
+    const td = document.querySelector('.add-row td[data-label="Last Done"]');
+    if (!td) return;
+    let note = td.querySelector('.row-warning');
+    if (!messages.length) { note?.remove(); return; }
+    if (!note) {
+        note = document.createElement('div');
+        note.className = 'row-warning no-print';
+        note.setAttribute('role', 'status');
+        td.appendChild(note);
+    }
+    note.textContent = messages.join(' ');
+}
+
+// Typing in the add row's Last Done or cycle re-checks; typing in its Due Date
+// makes that part the user's.
+document.addEventListener('input', (e) => {
+    const t = e.target;
+    if (!(t instanceof HTMLElement) || !t.closest('.add-row')) return;
+    const dueTd = t.closest('td[data-label="Due Date"]');
+    if (dueTd && t.matches('input.extra-input')) {
+        if (t.type === 'date') addRowState.touched.date = true;
+        else addRowState.touched.hours = true;
+    }
+    if (dueTd || t.closest('td[data-label="Last Done"]') || t.matches('[name^="cycle"]')) {
+        scheduleAddRowResolve();
+    }
+});
+document.addEventListener('change', (e) => {
+    const t = e.target;
+    if (t instanceof HTMLElement && t.closest('.add-row') && t.matches('select[name="cycleCalendarUnit"]')) {
+        scheduleAddRowResolve();
+    }
+});
+// Add / Remove on the add row's calendar or clock changes what is there.
+document.addEventListener('click', (e) => {
+    const b = e.target;
+    if (b instanceof HTMLElement && b.closest('.add-row') && b.matches('.add-type')) {
+        setTimeout(scheduleAddRowResolve, 0);              // after the input is added/removed
+    }
+});
 const userInfoSaveTimers = new Map();
-let previousBlockTimeHours = document.getElementById('current-block-time')?.value || 0;
+let previousHobbsTimeHours = document.getElementById('current-hobbs-time')?.value || 0;
 let previousTimeInServiceHours = document.getElementById('current-time-in-service')?.value || 0;
 // True from a successful CSV parse until the next Add (or a fresh upload) --
 // tells the server this Out/In pair was computed from CSV data, not typed by
@@ -108,6 +325,93 @@ function showConfirm(message, confirmLabel = 'Confirm') {
 }
 
 
+// A confirm box with several actions (spec 007: roll-forward box). choices =
+// [{ key, label, hint, disabled, primary }]. Resolves with the chosen key, or
+// null for Cancel / Esc / click outside. Disabled choices stay visible with
+// their hint so the owner sees why.
+function showChoice(message, choices) {
+    return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.className = 'confirm-overlay';
+        const box = document.createElement('div');
+        box.className = 'confirm-box choice-box';
+        box.setAttribute('role', 'dialog');
+        box.setAttribute('aria-modal', 'true');
+        const msg = document.createElement('div');
+        msg.className = 'confirm-message';
+        msg.textContent = message;
+        box.appendChild(msg);
+
+        const list = document.createElement('div');
+        list.className = 'choice-list';
+        choices.forEach(c => {
+            const item = document.createElement('div');
+            item.className = 'choice-item';
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'confirm-btn ' + (c.primary ? 'ok' : 'choice-secondary');
+            btn.dataset.choice = c.key;
+            btn.textContent = c.label;
+            if (c.disabled) btn.disabled = true;
+            item.appendChild(btn);
+            if (c.hint) {
+                const hint = document.createElement('div');
+                hint.className = 'choice-hint';
+                hint.textContent = c.hint;
+                item.appendChild(hint);
+            }
+            btn.addEventListener('click', () => close(c.key));
+            list.appendChild(item);
+        });
+        box.appendChild(list);
+
+        const actions = document.createElement('div');
+        actions.className = 'confirm-actions';
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'confirm-btn cancel';
+        cancel.textContent = 'Cancel';
+        cancel.addEventListener('click', () => close(null));
+        actions.appendChild(cancel);
+        box.appendChild(actions);
+
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+        requestAnimationFrame(() => overlay.classList.add('show'));
+
+        function onKey(e) { if (e.key === 'Escape') close(null); }
+        function close(result) {
+            overlay.classList.remove('show');
+            setTimeout(() => overlay.remove(), 150);
+            document.removeEventListener('keydown', onKey);
+            resolve(result);
+        }
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(null); });
+        document.addEventListener('keydown', onKey);
+    });
+}
+
+// "2021-01-01" -> "01/01/2021" by hand, so a time zone can never shift the day.
+function formatPlainDate(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+    return m ? `${m[2]}/${m[3]}/${m[1]}` : (iso || '');
+}
+
+// "Reset to cycle" from the roll-forward box: Due Date = Last Done + cycle.
+async function resetDueToCycle(row, id) {
+    try {
+        const csrfToken  = document.querySelector('meta[name="_csrf"]').getAttribute('content');
+        const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
+        const response = await axios.post(`/resetDueToCycle/${id}`, {}, {
+            headers: { [csrfHeader]: csrfToken, 'Content-Type': 'application/json' }
+        });
+        applySavedRow(row, response.data);
+        showToast('Due Date reset to the cycle.', 'success');
+    } catch (error) {
+        showToast(error?.response?.data?.message || 'Could not reset the Due Date.', 'error');
+    }
+}
+
 // ── "Last updated" formatting for the My Hours card ──
 function relativeTime(date) {
     const sec = Math.round((Date.now() - date.getTime()) / 1000);
@@ -141,7 +445,7 @@ function renderUpdatedFromData(elId) {
     if (el) el.textContent = formatUpdated(el.getAttribute('data-updated'), el.getAttribute('data-source'));
 }
 
-// When a Block Time / Time in Service reading was actually taken -- distinct
+// When a Hobbs Time / Time in Service reading was actually taken -- distinct
 // from formatUpdated above, which is "when this field was last edited."
 function formatLogTimestamp(iso) {
     if (!iso) return '';
@@ -197,8 +501,8 @@ function buildLogRowHtml(log) {
     return `
         <td data-label="From"><span class="print-only">${escapeHtml(log.fromAirport)}</span><input type="text" name="fromAirport" class="no-print" value="${escapeHtml(log.fromAirport)}" readonly></td>
         <td data-label="To"><span class="print-only">${escapeHtml(log.toAirport)}</span><input type="text" name="toAirport" class="no-print" value="${escapeHtml(log.toAirport)}" readonly><i class="fa-solid fa-chevron-down card-caret no-print"></i></td>
-        <td data-label="Block Time Out"><span class="print-only">${log.blockTimeOut ?? ''}</span><input type="number" name="blockTimeOut" class="no-print" value="${log.blockTimeOut ?? ''}" readonly step="0.1"><span class="log-timestamp">${formatLogTimestamp(log.blockTimeStart)}</span></td>
-        <td data-label="Block Time In"><span class="print-only">${log.blockTimeIn ?? ''}</span><input type="number" name="blockTimeIn" class="no-print" value="${log.blockTimeIn ?? ''}" readonly step="0.1"><span class="log-timestamp">${formatLogTimestamp(log.blockTimeEnd)}</span></td>
+        <td data-label="Hobbs Time Out"><span class="print-only">${log.hobbsTimeOut ?? ''}</span><input type="number" name="hobbsTimeOut" class="no-print" value="${log.hobbsTimeOut ?? ''}" readonly step="0.1"><span class="log-timestamp">${formatLogTimestamp(log.hobbsTimeStart)}</span></td>
+        <td data-label="Hobbs Time In"><span class="print-only">${log.hobbsTimeIn ?? ''}</span><input type="number" name="hobbsTimeIn" class="no-print" value="${log.hobbsTimeIn ?? ''}" readonly step="0.1"><span class="log-timestamp">${formatLogTimestamp(log.hobbsTimeEnd)}</span></td>
         <td data-label="Time in Service Out"><span class="print-only">${log.timeInServiceOut ?? ''}</span><input type="number" name="timeInServiceOut" class="no-print" value="${log.timeInServiceOut ?? ''}" readonly step="0.1"><span class="log-timestamp">${formatLogTimestamp(log.timeInServiceStart)}</span></td>
         <td data-label="Time in Service In"><span class="print-only">${log.timeInServiceIn ?? ''}</span><input type="number" name="timeInServiceIn" class="no-print" value="${log.timeInServiceIn ?? ''}" readonly step="0.1"><span class="log-timestamp">${formatLogTimestamp(log.timeInServiceEnd)}</span></td>
         <td class="delete-cell no-print" data-label=""><button class="delete-log-icon"><i class="fa-solid fa-trash-can fa-xl"></i></button></td>
@@ -270,33 +574,65 @@ function autoSave(input) {
         const dueDateCal = data.dueDateDate || '';
         const dueDateHrs = data.dueDateHours || '';
         setTimeLeftText(timeLeftSpan, calculateTimeLeft(dueDateCal, dueDateHrs, currentTimeInServiceHours));
-        data.timeLeft = timeLeftSpan.textContent;
+        data.timeLeft = timeLeftSpan.dataset.plain ?? timeLeftSpan.textContent;
     }
+
+    // Spec 007: remember (until the save goes out) whether the owner edited the
+    // Due Date date or hours themselves, so the server never overwrites it.
+    const dueCell = row.querySelector('td:nth-child(6)');
+    const touched = rowDueTouched.get(id) || { date: false, hours: false };
+    if (dueCell && dueCell.contains(input)) {
+        // Typing in a Due Date box, or tapping Remove on its calendar/clock
+        // (autoSave is then called with the Remove button), both count as
+        // the owner editing that part.
+        const removedType = input.classList?.contains('add-type') ? input.getAttribute('data-type') : null;
+        if (input.type === 'date' || removedType === 'calendar') touched.date = true;
+        else if ((input.type === 'text' && !removedType) || removedType === 'clock') touched.hours = true;
+    }
+    rowDueTouched.set(id, touched);
 
     clearTimeout(rowSaveTimers.get(id));
     //status.textContent = '...';
     //status.className = 'save-status saving';
 
-    rowSaveTimers.set(id, setTimeout(() => {
+    const send = () => {
         rowSaveTimers.delete(id);
+        rowPendingSends.delete(id);
         const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
         const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
 
-        console.log(data);
-        axios.post(`/update/${id}`, data, {
+        const sentTouched = rowDueTouched.get(id) || { date: false, hours: false };
+        rowDueTouched.delete(id);
+        data.dueDateTouched = sentTouched.date;
+        data.dueHoursTouched = sentTouched.hours;
+
+        const p = axios.post(`/update/${id}`, data, {
             headers: { [csrfHeader]: csrfToken }
         })
         .then(response => {
-            
-            console.log ('Row id: ' + id + ' saved ✓');
+            applySavedRow(row, response.data);
         })
         .catch(error => {
-            //status.textContent = '✖';
-            //status.className = 'save-status error';
             console.error('Error saving:', error.response ? error.response.data : error);
             showToast(error.response?.data?.message || 'Could not save that change. Check your connection and try again.', 'error');
-        });
-    }, 500));
+        })
+        .finally(() => { if (rowInFlight.get(id) === p) rowInFlight.delete(id); });
+        rowInFlight.set(id, p);
+        return p;
+    };
+    rowPendingSends.set(id, send);
+    rowSaveTimers.set(id, setTimeout(send, 500));
+}
+
+// Finish this row's pending save now (skip the 500ms wait) and wait for any
+// save already on its way, so a following action sees what is on screen.
+function flushRowSave(id) {
+    const pending = rowPendingSends.get(id);
+    if (pending) {
+        clearTimeout(rowSaveTimers.get(id));
+        return pending();
+    }
+    return rowInFlight.get(id) || Promise.resolve();
 }
 
 async function loadAeroApiUsage() {
@@ -450,32 +786,150 @@ async function completeMaintenance(button) {
         showToast('Could not identify row.', 'error');
         return;
     }
-    const confirmed = await showConfirm(
-        'Mark this maintenance as just completed? This will reset Last Done to today / current hours and roll Due Date forward by the cycle.',
-        'Mark complete');
-    if (!confirmed) return;
+    // Make sure the server has what is on screen before previewing (spec 007).
+    await flushRowSave(id);
+    let preview = null;
     try {
-        const csrfToken  = document.querySelector('meta[name="_csrf"]').getAttribute('content');
-        const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
-        const response = await axios.post(`/completeMaintenance/${id}`, {}, {
-            headers: { [csrfHeader]: csrfToken, 'Content-Type': 'application/json' }
-        });
-        const { lastDone, dueDate, timeLeft } = response.data;
-        repaintDateHoursCell(row, 'lastDone', lastDone);
-        repaintDateHoursCell(row, 'dueDate',  dueDate);
-        const parseSplit = (s) => { const [d, ...h] = (s || '').split(' '); return { date: d || '', hours: h.join(' ') }; };
-        const ld = parseSplit(lastDone), dd = parseSplit(dueDate);
-        row.setAttribute('data-lastDoneDate',  ld.date);
-        row.setAttribute('data-lastDoneHours', ld.hours);
-        row.setAttribute('data-dueDateDate',   dd.date);
-        row.setAttribute('data-dueDateHours',  dd.hours);
-        const tl = row.querySelector('td:nth-child(7) .time-left');
-        if (tl) setTimeLeftText(tl, timeLeft || 'N/A');
-        showToast('Maintenance completed. Due Date rolled forward.', 'success');
-    } catch (error) {
-        const msg = error?.response?.data?.message || 'Failed to update maintenance.';
-        showToast(msg, 'error');
+        preview = (await axios.get(`/statusSheet/${id}/cyclePreview`)).data;
+    } catch (e) {
+        preview = { canReset: false, reason: 'Could not load the cycle date.' };
     }
+    const resetValue = [preview.dueDateDate ? formatPlainDate(preview.dueDateDate) : null,
+                        preview.dueDateHours ? `${preview.dueDateHours} hrs` : null].filter(Boolean).join(' · ');
+    const choice = await showChoice('Mark this maintenance complete, or reset the Due Date?', [
+        { key: 'complete', label: 'Mark complete', primary: true },
+        { key: 'reset', label: resetValue ? `Reset to cycle (${resetValue})` : 'Reset to cycle',
+          disabled: !preview.canReset,
+          hint: preview.canReset ? 'Keeps Last Done. Due Date goes back to Last Done + cycle.' : preview.reason }
+    ]);
+    if (choice === 'reset') { await resetDueToCycle(row, id); return; }
+    if (choice !== 'complete') return;
+    await openDoneBox(row, id);
+}
+
+// Spec 008: "When was this done?" box. Starts with the row's Due Date (the
+// server decides the prefill), shows the next Due Date as the owner edits,
+// and saves Last Done = that date / hours, Due = + cycle. The Due Date the box
+// was opened with is sent back so a double-click or a second tab can never
+// roll the row twice (the server answers 409).
+async function openDoneBox(row, id) {
+    let start;
+    try {
+        start = (await axios.get(`/statusSheet/${id}/completePreview`)).data;
+    } catch (e) {
+        showToast(e?.response?.data?.message || 'Could not open Mark complete. Try again.', 'error');
+        return;
+    }
+    if (!start.hasCalendar && !start.hasHours) {
+        showToast(start.reason || 'Set a cycle first.', 'error');
+        return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML =
+        '<div class="confirm-box done-box" role="dialog" aria-modal="true" aria-labelledby="done-box-title">' +
+        '  <div class="confirm-message" id="done-box-title">When was this done?</div>' +
+        '  <div class="done-fields">' +
+        '    <label class="done-field" data-part="date">Date <input type="date" name="doneDate"></label>' +
+        '    <label class="done-field" data-part="hours">Hours <input type="text" inputmode="decimal" name="doneHours" placeholder="Leave empty to skip hours"></label>' +
+        '  </div>' +
+        '  <div class="done-next" aria-live="polite"></div>' +
+        '  <div class="confirm-actions">' +
+        '    <button type="button" class="confirm-btn cancel">Cancel</button>' +
+        '    <button type="button" class="confirm-btn ok">Save</button>' +
+        '  </div>' +
+        '</div>';
+    const dateField = overlay.querySelector('[data-part="date"]');
+    const hoursField = overlay.querySelector('[data-part="hours"]');
+    const dateInput = dateField.querySelector('input');
+    const hoursInput = hoursField.querySelector('input');
+    const next = overlay.querySelector('.done-next');
+    const save = overlay.querySelector('.confirm-btn.ok');
+    if (start.hasCalendar) dateInput.value = start.doneDate || ''; else dateField.remove();
+    if (start.hasHours) hoursInput.value = start.doneHours || ''; else hoursField.remove();
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('show'));
+    (start.hasCalendar ? dateInput : hoursInput).focus();
+
+    const showResult = (p) => {
+        const parts = [p.nextDueDate ? formatPlainDate(p.nextDueDate) : null,
+                       p.nextDueHours ? `${p.nextDueHours} hrs` : null].filter(Boolean);
+        next.textContent = p.canSave ? `Next due: ${parts.join(' · ')}` : (p.reason || '');
+        next.classList.toggle('done-next-error', !p.canSave);
+        save.disabled = !p.canSave;
+    };
+    showResult(start);
+
+    let timer = null, seq = 0;
+    const refresh = () => {
+        clearTimeout(timer);
+        save.disabled = true;
+        timer = setTimeout(async () => {
+            const mine = ++seq;
+            const params = new URLSearchParams({
+                doneDate: start.hasCalendar ? dateInput.value : '',
+                doneHours: start.hasHours ? hoursInput.value : ''
+            });
+            try {
+                const p = (await axios.get(`/statusSheet/${id}/completePreview?${params}`)).data;
+                if (mine === seq) showResult(p);
+            } catch (e) {
+                if (mine === seq) { next.textContent = 'Could not check that date. Try again.'; save.disabled = true; }
+            }
+        }, 250);
+    };
+    dateInput.addEventListener('input', refresh);
+    hoursInput.addEventListener('input', refresh);
+    hoursInput.addEventListener('blur', () => {
+        const f = formatSheetHours(hoursInput.value);
+        if (f !== null && f !== hoursInput.value) { hoursInput.value = f; refresh(); }
+    });
+
+    let closed = false;
+    const close = () => {
+        if (closed) return;
+        closed = true;
+        clearTimeout(timer);
+        overlay.classList.remove('show');
+        setTimeout(() => overlay.remove(), 150);
+        document.removeEventListener('keydown', onKey);
+    };
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    document.addEventListener('keydown', onKey);
+    overlay.querySelector('.confirm-btn.cancel').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+    save.addEventListener('click', async () => {
+        if (save.disabled) return;
+        save.disabled = true;                 // one save per box, even on a double-click
+        try {
+            const csrfToken  = document.querySelector('meta[name="_csrf"]').getAttribute('content');
+            const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
+            const response = await axios.post(`/completeMaintenance/${id}`, {
+                doneDate: start.hasCalendar ? dateInput.value : '',
+                doneHours: start.hasHours ? hoursInput.value : '',
+                expectedDueDate: start.expectedDueDate || '',
+                expectedDueHours: start.expectedDueHours || ''
+            }, { headers: { [csrfHeader]: csrfToken, 'Content-Type': 'application/json' } });
+            const saved = response.data;
+            repaintDateHoursCell(row, 'lastDone', [saved.lastDoneDate, saved.lastDoneHours].filter(Boolean).join(' '));
+            repaintDateHoursCell(row, 'dueDate', [saved.dueDateDate, saved.dueDateHours].filter(Boolean).join(' '));
+            applySavedRow(row, saved);
+            close();
+            const last = [saved.lastDoneDate ? formatPlainDate(saved.lastDoneDate) : null,
+                          saved.lastDoneHours ? `${saved.lastDoneHours} hrs` : null].filter(Boolean).join(' · ');
+            const due = [saved.dueDateDate ? formatPlainDate(saved.dueDateDate) : null,
+                         saved.dueDateHours ? `${saved.dueDateHours} hrs` : null].filter(Boolean).join(' · ');
+            showToast(`Rolled forward. Last Done ${last}, Due ${due}.`, 'success');
+        } catch (error) {
+            const msg = error?.response?.data?.message || 'Could not save. Nothing was changed.';
+            next.textContent = msg;
+            next.classList.add('done-next-error');
+            showToast(msg, 'error');
+            if (error?.response?.status !== 409) save.disabled = false;   // 409: reopen to review
+        }
+    });
 }
 
 // Rebuilds the dual-input cell (date input and/or hours input) from a
@@ -767,21 +1221,110 @@ function calculateTimeLeft(dueDateCal, dueDateHrs, currentTimeInServiceHours) {
         const dueDateHours = parseFloat(dueDateTimeValue);
         if (!isNaN(dueDateHours) && !isNaN(currentTimeInServiceHours)) {
             const hoursLeft = Math.round((dueDateHours - currentTimeInServiceHours) * 10) / 10;
-            const hoursText = hoursLeft < 0 ? `${Math.abs(hoursLeft)} hours overdue` : `${hoursLeft} hours left`;
-            output += output ? `\n${hoursText}` : hoursText;
+            const hoursText = hoursLeft < 0 ? `${Math.abs(hoursLeft)} hrs overdue` : `${hoursLeft} hrs left`;
+            output += output ? ` · ${hoursText}` : hoursText;   // same as DueDates.formatTimeLeft (spec 011)
         }
     }
-
-    console.log("calculateTimeLeft OUTPUT--->" + output);
 
     return output || 'N/A';
 }
 
+// Spec 011: each limit's amount, short label, plain words and status.
+// Same amounts and rounding as calculateTimeLeft / DueDates.formatTimeLeft.
+function timeLeftParts(dueDateCal, dueDateHrs, currentTimeInServiceHours) {
+    const table = document.getElementById('sortable-info-table');
+    const leadDays = parseInt(table?.dataset.leadDays, 10);
+    const leadHours = parseFloat(table?.dataset.leadHours);
+    const soonDays = isNaN(leadDays) ? 30 : leadDays;
+    const soonHours = isNaN(leadHours) ? 10 : leadHours;
+    const parts = [];
+    const due = parseIsoDate(dueDateCal);
+    if (due) {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const days = Math.round((due - today) / 86400000);
+        const plain = formatCalendarTimeLeft(dueDateCal, now);
+        parts.push({
+            kind: 'date', plain,
+            label: plain.replace(/ (left|overdue)$/, '').replace(/\bdays?\b/g, 'd'),
+            status: days < 0 ? 'over' : (days <= soonDays ? 'soon' : 'ok')
+        });
+    }
+    const dueHours = parseFloat(dueDateHrs);
+    if (dueDateHrs !== '' && dueDateHrs != null && !isNaN(dueHours) && !isNaN(currentTimeInServiceHours)) {
+        const left = Math.round((dueHours - currentTimeInServiceHours) * 10) / 10;
+        const abs = Math.abs(left);
+        parts.push({
+            kind: 'hours',
+            plain: left < 0 ? `${abs} hrs overdue` : `${abs} hrs left`,
+            label: `${abs} h`,
+            status: left < 0 ? 'over' : (left <= soonHours ? 'soon' : 'ok')
+        });
+    }
+    return parts;
+}
+
+// Due Date parts for the row a Time Left cell belongs to: its inputs, else
+// the row's data attributes (rows not built yet).
+function dueValuesForCell(cell) {
+    const row = cell.closest('tr');
+    const container = row?.querySelector('td:nth-child(6) .input-with-dropdown');
+    if (!row || !container) return null;
+    const dateInput = container.querySelector('input[type="date"]');
+    const textInput = container.querySelector('input[type="text"].extra-input');
+    const hasInputs = dateInput || textInput || !row.hasAttribute('data-dueDateDate');
+    return {
+        date: hasInputs ? (dateInput ? dateInput.value : '') : (row.getAttribute('data-dueDateDate') || ''),
+        hours: hasInputs ? (textInput ? textInput.value : '') : (row.getAttribute('data-dueDateHours') || '')
+    };
+}
+
+// Draws Time Left as colored pills (spec 011): [2 mo 12 d] [480 h] overdue.
+// No icons; the unit tells date from hours. "overdue" follows an overdue
+// pill, once after both if both are. The plain words stay on the cell
+// (data-plain + a print-only span) for print, saving and export.
 function setTimeLeftText(cell, text) {
-    cell.textContent = text;
-    // Color comes from CSS (.time-left / .time-left.overdue) so it follows
-    // the light/dark theme; an inline color here would override both.
-    cell.classList.toggle('overdue', text.includes('overdue'));
+    const due = dueValuesForCell(cell);
+    const tisInput = document.getElementById('current-time-in-service');
+    const tis = tisInput ? parseFloat(tisInput.value) || 0 : 0;
+    const parts = due ? timeLeftParts(due.date, due.hours, tis) : [];
+
+    cell.textContent = '';
+    if (!parts.length) {
+        const plainText = (text && text.trim()) ? text.trim() : (text === '' ? '' : 'N/A');
+        cell.textContent = plainText;
+        cell.dataset.plain = plainText;
+        cell.classList.toggle('overdue', plainText.includes('overdue'));
+        return;
+    }
+    const screen = document.createElement('span');
+    screen.className = 'tl-pills no-print';
+    const bothOver = parts.length === 2 && parts.every(p => p.status === 'over');
+    parts.forEach((p, i) => {
+        const pill = document.createElement('span');
+        pill.className = `tl-pill tl-${p.status}`;
+        pill.textContent = p.label;
+        const what = p.kind === 'date' ? 'Date' : 'Hours';
+        const state = p.status === 'over' ? '' : (p.status === 'soon' ? ', due soon' : '');
+        pill.setAttribute('aria-label', `${what}: ${p.plain}${state}`);
+        screen.appendChild(pill);
+        if (p.status === 'over' && (!bothOver || i === parts.length - 1)) {
+            const word = document.createElement('span');
+            word.className = 'tl-overdue';
+            word.textContent = 'overdue';
+            word.setAttribute('aria-hidden', 'true');   // already in the pill's label
+            screen.appendChild(word);
+        }
+    });
+    const plain = parts.map(p => p.plain).join(' · ');
+    const printSpan = document.createElement('span');
+    printSpan.className = 'print-only tl-plain';
+    printSpan.textContent = plain;
+    cell.appendChild(screen);
+    cell.appendChild(printSpan);
+    cell.dataset.plain = plain;
+    // Color comes from CSS so it follows the light/dark theme.
+    cell.classList.toggle('overdue', parts.some(p => p.status === 'over'));
 }
 
 // Function to update all Time Left cells in real-time
@@ -873,10 +1416,10 @@ document.addEventListener('DOMContentLoaded', () => {
     scheduleMidnightUpdate();
 
     // My Hours "last updated" lines (initial render from server data)
-    renderUpdatedFromData('block-time-updated');
+    renderUpdatedFromData('hobbs-time-updated');
     renderUpdatedFromData('time-in-service-updated');
 
-    // Flight log rows: when each Block Time/Time in Service reading was taken
+    // Flight log rows: when each Hobbs Time/Time in Service reading was taken
     renderLogTimestamps();
 
     // Cycle hours come from the server as a Double ("500.0"); show whole
@@ -1059,7 +1602,7 @@ document.addEventListener('DOMContentLoaded', () => {
             button.closest('.type-dropdown').style.display = 'none';
         } else if (event.target.classList.contains('edit-hours-btn')) {
             document.getElementById('add-time-in-service').value = '';
-            document.getElementById('add-block-time').value = '';
+            document.getElementById('add-hobbs-time').value = '';
             const editSection = document.querySelector('.edit-hours-section');
             editSection.style.display = editSection.style.display === 'flex' ? 'none' : 'flex';
         }
@@ -1167,7 +1710,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Mobile/narrow: tap a flight log card to collapse it down to just From/To;
-    // tap again to expand. Same 960px gate as the timeline cards above. The
+    // tap again to expand. Same 960px gate as the Status Sheet cards above. The
     // delete button keeps its own click.
     document.getElementById('logbook-body').addEventListener('click', function(e) {
         if (!window.matchMedia('(max-width: 960px)').matches) return;
@@ -1206,7 +1749,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentSectionId = null;
     }
 
-    // A bar directly above the Service Timeline table (it used to be inserted
+    // A bar directly above the Status Sheet table (it used to be inserted
     // above the page's FIRST table -- the aircraft info -- so it was off screen).
     function addBackButton(sectionName) {
         document.querySelector('.section-filter-bar')?.remove();
@@ -1242,19 +1785,19 @@ document.addEventListener('DOMContentLoaded', () => {
         options.forEach(option => option.onclick = () => selectOption(option));
     });
 
-    let previousBlockTimeHours = 0;
+    let previousHobbsTimeHours = 0;
     let previousTimeInServiceHours = 0;
 
     // One timer per field. A single shared timer meant that typing in TimeInService
-    // within 500ms of typing in BlockTime cancelled the pending BlockTime save.
-    let blockTimeout;
+    // within 500ms of typing in HobbsTime cancelled the pending HobbsTime save.
+    let hobbsTimeout;
     let timeInServiceTimeout;
 
     // The typed value still waiting out the 500ms debounce, or null if none.
-    let pendingBlockTimeSet = null;
+    let pendingHobbsTimeSet = null;
     let pendingTimeInServiceSet = null;
 
-    const currentBlockTimeHoursInput = document.getElementById('current-block-time');
+    const currentHobbsTimeHoursInput = document.getElementById('current-hobbs-time');
     const currentTimeInServiceHoursInput = document.getElementById('current-time-in-service');
 
     function csrfHeaders() {
@@ -1266,23 +1809,23 @@ document.addEventListener('DOMContentLoaded', () => {
     // Sends "set hours to exactly this". Returns a promise so callers can wait
     // for it to land before doing anything else.
     async function sendSetHours(kind, value) {
-        const isBlockTime = kind === 'blockTime';
-        const input = isBlockTime ? currentBlockTimeHoursInput : currentTimeInServiceHoursInput;
-        const displayId = isBlockTime ? 'current-block-time-display' : 'current-time-in-service-display';
-        const label = isBlockTime ? 'Block Time' : 'Time in Service';
-        const previous = isBlockTime ? previousBlockTimeHours : previousTimeInServiceHours;
+        const isHobbsTime = kind === 'hobbsTime';
+        const input = isHobbsTime ? currentHobbsTimeHoursInput : currentTimeInServiceHoursInput;
+        const displayId = isHobbsTime ? 'current-hobbs-time-display' : 'current-time-in-service-display';
+        const label = isHobbsTime ? 'Hobbs Time' : 'Time in Service';
+        const previous = isHobbsTime ? previousHobbsTimeHours : previousTimeInServiceHours;
 
         const params = new URLSearchParams();
-        params.append(isBlockTime ? 'newBlockTime' : 'newTimeInService', parseFloat(value));
+        params.append(isHobbsTime ? 'newHobbsTime' : 'newTimeInService', parseFloat(value));
 
         try {
             const response = await axios.post('/updateHours', params, { headers: csrfHeaders() });
             if (response.data.status === 'success') {
-                if (isBlockTime) previousBlockTimeHours = value; else previousTimeInServiceHours = value;
+                if (isHobbsTime) previousHobbsTimeHours = value; else previousTimeInServiceHours = value;
                 document.getElementById(displayId).textContent = `${label}: ${value}`;
-                markUpdatedNow(isBlockTime ? 'block-time-updated' : 'time-in-service-updated', 'manual');
+                markUpdatedNow(isHobbsTime ? 'hobbs-time-updated' : 'time-in-service-updated', 'manual');
                 console.log(`${label} hours updated successfully:`,
-                    isBlockTime ? response.data.newBlockTime : response.data.newTimeInService);
+                    isHobbsTime ? response.data.newHobbsTime : response.data.newTimeInService);
                 return true;
             }
             console.error(`Failed to update ${label} hours:`, response.data.message);
@@ -1299,31 +1842,31 @@ document.addEventListener('DOMContentLoaded', () => {
     // Called before "add hours" so a delayed set can never land afterwards and
     // overwrite the addition.
     async function flushPendingHours() {
-        clearTimeout(blockTimeout);
+        clearTimeout(hobbsTimeout);
         clearTimeout(timeInServiceTimeout);
-        const blockTime = pendingBlockTimeSet;
+        const hobbsTime = pendingHobbsTimeSet;
         const timeInService = pendingTimeInServiceSet;
-        pendingBlockTimeSet = null;
+        pendingHobbsTimeSet = null;
         pendingTimeInServiceSet = null;
-        if (blockTime !== null) await sendSetHours('blockTime', blockTime);
+        if (hobbsTime !== null) await sendSetHours('hobbsTime', hobbsTime);
         if (timeInService !== null) await sendSetHours('timeInService', timeInService);
     }
 
-    if (currentBlockTimeHoursInput) {
-        previousBlockTimeHours = currentBlockTimeHoursInput.value || 0;
-        currentBlockTimeHoursInput.addEventListener('input', function() {
+    if (currentHobbsTimeHoursInput) {
+        previousHobbsTimeHours = currentHobbsTimeHoursInput.value || 0;
+        currentHobbsTimeHoursInput.addEventListener('input', function() {
             updateAllTimeLeft();
             updateAddRowTimeLeft();
-            clearTimeout(blockTimeout);
-            const newBlockTimeHours = this.value.trim();
-            if (newBlockTimeHours === '' || isNaN(parseFloat(newBlockTimeHours))) {
-                pendingBlockTimeSet = null;
+            clearTimeout(hobbsTimeout);
+            const newHobbsTimeHours = this.value.trim();
+            if (newHobbsTimeHours === '' || isNaN(parseFloat(newHobbsTimeHours))) {
+                pendingHobbsTimeSet = null;
                 return;
             }
-            pendingBlockTimeSet = newBlockTimeHours;
-            blockTimeout = setTimeout(() => {
-                pendingBlockTimeSet = null;
-                sendSetHours('blockTime', newBlockTimeHours);
+            pendingHobbsTimeSet = newHobbsTimeHours;
+            hobbsTimeout = setTimeout(() => {
+                pendingHobbsTimeSet = null;
+                sendSetHours('hobbsTime', newHobbsTimeHours);
             }, 500);
         });
     }
@@ -1410,7 +1953,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const description = document.querySelector('.add-row .custom-dropdown input[name="description"]').value;
-        const timeLeft = document.querySelector('.add-row .time-left').textContent;
+        const addTimeLeftEl = document.querySelector('.add-row .time-left');
+        const timeLeft = addTimeLeftEl.dataset.plain ?? addTimeLeftEl.textContent;
         const addCalVal  = document.querySelector('.add-row input[name="cycleCalendarValue"]')?.value || '';
         const addCalUnit = document.querySelector('.add-row select[name="cycleCalendarUnit"]')?.value || '';
         const addHrs     = document.querySelector('.add-row input[name="cycleHours"]')?.value || '';
@@ -1438,8 +1982,11 @@ document.addEventListener('DOMContentLoaded', () => {
             data[`${field}Date`]  = dateInput ? dateInput.value.trim() : '';
             data[`${field}Hours`] = textInput ? textInput.value.trim() : '';
         });
+        // Spec 010: which Due Date parts were auto-filled / removed in the add row.
+        data.dueDateAuto  = addRowState.dateAuto  === null ? '' : String(addRowState.dateAuto);
+        data.dueHoursAuto = addRowState.hoursAuto === null ? '' : String(addRowState.hoursAuto);
 
-        console.log("NEW Service timeline row, POST request -->: ", data);
+        console.log("NEW Status Sheet row, POST request -->: ", data);
 
         axios.post('/dashboard', data, {
             headers: {
@@ -1622,6 +2169,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.querySelectorAll('.add-row .input-with-dropdown input.extra-input').forEach(input => input.remove());
                 document.querySelectorAll('.add-row .add-type').forEach(btn => btn.textContent = 'Add');
                 document.querySelector('.add-row .time-left').textContent = '';
+                delete document.querySelector('.add-row .time-left').dataset.plain;
+                resetAddRowState();
 
                 selectRowType('item', document.querySelector('.row-type-option[data-type="item"]'));
 
@@ -1632,7 +2181,7 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .catch(error => {
                 console.error('Error adding row:', error.response ? error.response.data : error);
-                showToast('Error adding row: ' + (error.response?.data || error.message), 'error');
+                showToast(error.response?.data?.message || ('Error adding row: ' + (error.response?.data || error.message)), 'error');
             });
         });
     }
@@ -1641,9 +2190,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.addEventListener('click', function(event) {
         
-        if (event.target.id === 'add-block-time-btn') {
-            const blockTimeToAdd = document.getElementById('add-block-time').value.trim();
-            addBlockTimeHours(blockTimeToAdd);
+        if (event.target.id === 'add-hobbs-time-btn') {
+            const hobbsTimeToAdd = document.getElementById('add-hobbs-time').value.trim();
+            addHobbsTimeHours(hobbsTimeToAdd);
 
         } else if (event.target.id === 'add-time-in-service-btn') {
             const timeInServiceToAdd = document.getElementById('add-time-in-service').value.trim();
@@ -1808,10 +2357,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     });
     
-    async function addBlockTimeHours(blockTimeToAdd) {
-        if (blockTimeToAdd && !isNaN(blockTimeToAdd)) {
+    async function addHobbsTimeHours(hobbsTimeToAdd) {
+        if (hobbsTimeToAdd && !isNaN(hobbsTimeToAdd)) {
             await flushPendingHours();
-            await updateHours({ blockTimeToAdd: parseFloat(blockTimeToAdd) });
+            await updateHours({ hobbsTimeToAdd: parseFloat(hobbsTimeToAdd) });
         }
     }
     
@@ -1840,13 +2389,13 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     
             if (response.data.status === 'success') {
-                const { newBlockTime, newTimeInService } = response.data;
+                const { newHobbsTime, newTimeInService } = response.data;
     
-                if (newBlockTime !== undefined) {
-                    document.getElementById('current-block-time').value = newBlockTime;
-                    document.getElementById('current-block-time-display').textContent = `Block Time: ${newBlockTime}`;
-                    previousBlockTimeHours = newBlockTime;
-                    console.log('Block time updated successfully:', newBlockTime);
+                if (newHobbsTime !== undefined) {
+                    document.getElementById('current-hobbs-time').value = newHobbsTime;
+                    document.getElementById('current-hobbs-time-display').textContent = `Hobbs Time: ${newHobbsTime}`;
+                    previousHobbsTimeHours = newHobbsTime;
+                    console.log('Hobbs time updated successfully:', newHobbsTime);
                 }
     
                 if (newTimeInService !== undefined) {
@@ -1856,7 +2405,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log('Time in Service updated successfully:', newTimeInService);
                 }
     
-                if ('blockTimeToAdd' in updateParams) markUpdatedNow('block-time-updated', 'manual');
+                if ('hobbsTimeToAdd' in updateParams) markUpdatedNow('hobbs-time-updated', 'manual');
                 if ('timeInServiceToAdd' in updateParams) markUpdatedNow('time-in-service-updated', 'manual');
 
                 // Update time left displays if needed (from your existing functions)
@@ -1880,7 +2429,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Helper to generate Excel formula for Time Left (mimics calculateTimeLeft)
     function getTimeLeftFormula(row) { // row is 1-based Excel row
-        return `=IF(E${row}="","N/A",IF(ISERROR(DATEVALUE(LEFT(E${row},10))),LET(hourVal,VALUE(E${row}),IF(hourVal>B$1,(hourVal-B$1)&" hours left",ABS(hourVal-B$1)&" hours overdue")),LET(dateVal,DATEVALUE(LEFT(E${row},10)),spacePos,FIND(" ",E${row}&" "),hourStr,IF(spacePos=11,"",MID(E${row},spacePos+1,99)),hourVal,IF(hourStr="",NA(),VALUE(hourStr)),daysTxt,IF(dateVal>TODAY(),(dateVal-TODAY())&" days left",IF(dateVal<TODAY(),ABS(dateVal-TODAY())&" days overdue","Due today")),hoursTxt,IF(ISNA(hourVal),"",IF(hourVal>B$1,(hourVal-B$1)&" hours left",ABS(hourVal-B$1)&" hours overdue")),IF(hoursTxt="",daysTxt,daysTxt&CHAR(10)&hoursTxt))))`;
+        return `=IF(E${row}="","N/A",IF(ISERROR(DATEVALUE(LEFT(E${row},10))),LET(hourVal,VALUE(E${row}),IF(hourVal>B$1,(hourVal-B$1)&" hrs left",ABS(hourVal-B$1)&" hrs overdue")),LET(dateVal,DATEVALUE(LEFT(E${row},10)),spacePos,FIND(" ",E${row}&" "),hourStr,IF(spacePos=11,"",MID(E${row},spacePos+1,99)),hourVal,IF(hourStr="",NA(),VALUE(hourStr)),daysTxt,IF(dateVal>TODAY(),(dateVal-TODAY())&" days left",IF(dateVal<TODAY(),ABS(dateVal-TODAY())&" days overdue","Due today")),hoursTxt,IF(ISNA(hourVal),"",IF(hourVal>B$1,(hourVal-B$1)&" hrs left",ABS(hourVal-B$1)&" hrs overdue")),IF(hoursTxt="",daysTxt,daysTxt&" · "&hoursTxt))))`;
     }
 
     // Main export function
@@ -1954,8 +2503,8 @@ document.addEventListener('DOMContentLoaded', () => {
         ws['!cols'] = colWidths;
 
         // Add sheet and download
-        XLSX.utils.book_append_sheet(wb, ws, "Service Timeline");
-        XLSX.writeFile(wb, `Aircraft_Service_Timeline_${new Date().toISOString().split('T')[0]}.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, "Status Sheet");
+        XLSX.writeFile(wb, `Aircraft_Status_Sheet_${new Date().toISOString().split('T')[0]}.xlsx`);
     }
 
     // Share menu: a popover card under the Share button. Opens on click,
@@ -2356,18 +2905,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { [csrfHeader]: csrfToken }
                 });
                 allSuggestionsStale = true; // deleting can reset a suggestion back to pending
-                const { newBlockTime, newTimeInService } = deleteResponse.data;
-                if (newBlockTime !== undefined) {
-                    document.getElementById('current-block-time').value = newBlockTime;
-                    document.getElementById('current-block-time-display').textContent = `Block Time: ${newBlockTime}`;
-                    previousBlockTimeHours = newBlockTime;
+                const { newHobbsTime, newTimeInService } = deleteResponse.data;
+                if (newHobbsTime !== undefined) {
+                    document.getElementById('current-hobbs-time').value = newHobbsTime;
+                    document.getElementById('current-hobbs-time-display').textContent = `Hobbs Time: ${newHobbsTime}`;
+                    previousHobbsTimeHours = newHobbsTime;
                 }
                 if (newTimeInService !== undefined) {
                     document.getElementById('current-time-in-service').value = newTimeInService;
                     document.getElementById('current-time-in-service-display').textContent = `Time in Service: ${newTimeInService}`;
                     previousTimeInServiceHours = newTimeInService;
                 }
-                markUpdatedNow('block-time-updated', 'flightlog');
+                markUpdatedNow('hobbs-time-updated', 'flightlog');
                 markUpdatedNow('time-in-service-updated', 'flightlog');
 
                 // A delete can shift other rows' Out/In too (see
@@ -2385,8 +2934,8 @@ document.addEventListener('DOMContentLoaded', () => {
     async function submitAddFlightLog(force) {
         // Read raw strings first so an empty input stays null (not 0), letting
         // the server enforce the "complete pair" rule cleanly.
-        const rawBlockTimeIn  = parseFloat(parseFloat(document.getElementById('blockTimeIn').value.trim()).toFixed(2));
-        const rawBlockTimeOut = parseFloat(parseFloat(document.getElementById('blockTimeOut').value.trim()).toFixed(2));
+        const rawHobbsTimeIn  = parseFloat(parseFloat(document.getElementById('hobbsTimeIn').value.trim()).toFixed(2));
+        const rawHobbsTimeOut = parseFloat(parseFloat(document.getElementById('hobbsTimeOut').value.trim()).toFixed(2));
         const rawTimeInServiceIn   = parseFloat(parseFloat(document.getElementById('timeInServiceIn').value.trim()).toFixed(2));
         const rawTimeInServiceOut  = parseFloat(parseFloat(document.getElementById('timeInServiceOut').value.trim()).toFixed(2));
         const numOrNull = (s) => (s === '' || isNaN(parseFloat(s))) ? null : parseFloat(s);
@@ -2394,12 +2943,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = {
             fromAirport: document.getElementById('fromAirport').value,
             toAirport: document.getElementById('toAirport').value,
-            blockTimeOut: numOrNull(rawBlockTimeOut),
-            blockTimeIn:  numOrNull(rawBlockTimeIn),
+            hobbsTimeOut: numOrNull(rawHobbsTimeOut),
+            hobbsTimeIn:  numOrNull(rawHobbsTimeIn),
             timeInServiceOut:  numOrNull(rawTimeInServiceOut),
             timeInServiceIn:   numOrNull(rawTimeInServiceIn),
-            blockTimeStart: datetimeLocalToIso(document.getElementById('blockTimeStart').value),
-            blockTimeEnd: datetimeLocalToIso(document.getElementById('blockTimeEnd').value),
+            hobbsTimeStart: datetimeLocalToIso(document.getElementById('hobbsTimeStart').value),
+            hobbsTimeEnd: datetimeLocalToIso(document.getElementById('hobbsTimeEnd').value),
             timeInServiceStart: datetimeLocalToIso(document.getElementById('timeInServiceStart').value),
             timeInServiceEnd: datetimeLocalToIso(document.getElementById('timeInServiceEnd').value),
             source: csvPrefilled ? 'csv' : 'manual',
@@ -2428,28 +2977,28 @@ document.addEventListener('DOMContentLoaded', () => {
             await refreshLogbookRows();
 
             // Update hours display from backend-calculated totals
-            if (log.newBlockTime !== undefined && log.newBlockTime !== null) {
-                document.getElementById('current-block-time').value = log.newBlockTime;
-                document.getElementById('current-block-time-display').textContent = `Block Time: ${log.newBlockTime}`;
-                previousBlockTimeHours = log.newBlockTime;
+            if (log.newHobbsTime !== undefined && log.newHobbsTime !== null) {
+                document.getElementById('current-hobbs-time').value = log.newHobbsTime;
+                document.getElementById('current-hobbs-time-display').textContent = `Hobbs Time: ${log.newHobbsTime}`;
+                previousHobbsTimeHours = log.newHobbsTime;
             }
             if (log.newTimeInService !== undefined && log.newTimeInService !== null) {
                 document.getElementById('current-time-in-service').value = log.newTimeInService;
                 document.getElementById('current-time-in-service-display').textContent = `Time in Service: ${log.newTimeInService}`;
                 previousTimeInServiceHours = log.newTimeInService;
             }
-            markUpdatedNow('block-time-updated', 'flightlog');
+            markUpdatedNow('hobbs-time-updated', 'flightlog');
             markUpdatedNow('time-in-service-updated', 'flightlog');
 
             // Clear inputs
             document.getElementById('fromAirport').value = '';
             document.getElementById('toAirport').value = '';
-            document.getElementById('blockTimeIn').value = '';
-            document.getElementById('blockTimeOut').value = '';
+            document.getElementById('hobbsTimeIn').value = '';
+            document.getElementById('hobbsTimeOut').value = '';
             document.getElementById('timeInServiceIn').value = '';
             document.getElementById('timeInServiceOut').value = '';
-            document.getElementById('blockTimeStart').value = '';
-            document.getElementById('blockTimeEnd').value = '';
+            document.getElementById('hobbsTimeStart').value = '';
+            document.getElementById('hobbsTimeEnd').value = '';
             document.getElementById('timeInServiceStart').value = '';
             document.getElementById('timeInServiceEnd').value = '';
             csvPrefilled = false;
@@ -2501,18 +3050,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 allSuggestionsStale = true; // deleting can reset a suggestion back to pending
                 console.log(`Log ${id} deleted`);
-                const { newBlockTime, newTimeInService } = deleteResponse.data;
-                if (newBlockTime !== undefined) {
-                    document.getElementById('current-block-time').value = newBlockTime;
-                    document.getElementById('current-block-time-display').textContent = `Block Time: ${newBlockTime}`;
-                    previousBlockTimeHours = newBlockTime;
+                const { newHobbsTime, newTimeInService } = deleteResponse.data;
+                if (newHobbsTime !== undefined) {
+                    document.getElementById('current-hobbs-time').value = newHobbsTime;
+                    document.getElementById('current-hobbs-time-display').textContent = `Hobbs Time: ${newHobbsTime}`;
+                    previousHobbsTimeHours = newHobbsTime;
                 }
                 if (newTimeInService !== undefined) {
                     document.getElementById('current-time-in-service').value = newTimeInService;
                     document.getElementById('current-time-in-service-display').textContent = `Time in Service: ${newTimeInService}`;
                     previousTimeInServiceHours = newTimeInService;
                 }
-                markUpdatedNow('block-time-updated', 'flightlog');
+                markUpdatedNow('hobbs-time-updated', 'flightlog');
                 markUpdatedNow('time-in-service-updated', 'flightlog');
                 updateAllTimeLeft();
                 updateAddRowTimeLeft();
@@ -2567,12 +3116,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = response.data;
             showToast("CSV parsed successfully", 'info');
 
-            document.getElementById("blockTimeOut").value = data.blockTimeOut ?? '';
-            document.getElementById("blockTimeIn").value = data.blockTimeIn ?? '';
+            document.getElementById("hobbsTimeOut").value = data.hobbsTimeOut ?? '';
+            document.getElementById("hobbsTimeIn").value = data.hobbsTimeIn ?? '';
             document.getElementById("timeInServiceOut").value = data.timeInServiceOut ?? '';
             document.getElementById("timeInServiceIn").value = data.timeInServiceIn ?? '';
-            document.getElementById("blockTimeStart").value = isoToDatetimeLocal(data.blockTimeStart);
-            document.getElementById("blockTimeEnd").value = isoToDatetimeLocal(data.blockTimeEnd);
+            document.getElementById("hobbsTimeStart").value = isoToDatetimeLocal(data.hobbsTimeStart);
+            document.getElementById("hobbsTimeEnd").value = isoToDatetimeLocal(data.hobbsTimeEnd);
             document.getElementById("timeInServiceStart").value = isoToDatetimeLocal(data.timeInServiceStart);
             document.getElementById("timeInServiceEnd").value = isoToDatetimeLocal(data.timeInServiceEnd);
             csvPrefilled = true;
@@ -2588,9 +3137,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const errorMessage = error.response?.data?.error || 'Upload failed';
             showToast(errorMessage, 'error');
 
-            console.log(errorData?.error);        // "Could not detect airtime or block time"
-            console.log(errorData?.blockStart);   // ISO instant string
-            console.log(errorData?.blockEnd);
+            console.log(errorData?.error);        // "Could not detect airtime or Hobbs time"
+            console.log(errorData?.hobbsStart);   // ISO instant string
+            console.log(errorData?.hobbsEnd);
             console.log(errorData?.airborneStart);
             console.log(errorData?.airborneEnd);
 
@@ -2783,10 +3332,10 @@ document.addEventListener('DOMContentLoaded', () => {
     loadRecipients();
 });
 
-// Empty-timeline "Import with AI" prompt: remove it as soon as the timeline
+// empty Status Sheet "Import with AI" prompt: remove it as soon as the Status Sheet
 // gets its first row, so it never sits above real items.
 document.addEventListener('DOMContentLoaded', function () {
-    const prompt = document.getElementById('empty-timeline');
+    const prompt = document.getElementById('empty-statusSheetItem');
     const tbody = document.querySelector('.sortable');
     if (!prompt || !tbody) return;
     const observer = new MutationObserver(function () {
@@ -2895,7 +3444,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const r = await axios.post('/aircraft', {
                 tailNumber: tailInput.value,
                 makeModel: document.getElementById('new-make-model').value,
-                ownerName: document.getElementById('new-owner-name').value,
+                operatorName: document.getElementById('new-operator-name').value,
                 makeModelSN: document.getElementById('new-serial').value,
             }, { headers: csrfHeaderOnly() });
             window.location.href = r.data.redirect;
@@ -2968,4 +3517,38 @@ document.addEventListener('DOMContentLoaded', function () {
             okBtn.disabled = false;
         }
     });
+});
+
+// Info marks (My Hours). Hover and keyboard focus are handled in CSS; this
+// adds tap-to-toggle for touch screens, closes on tap outside or Esc, and
+// nudges the tooltip sideways so it never runs off a narrow screen.
+function placeInfoTip(mark) {
+    const r = mark.getBoundingClientRect();
+    const vw = document.documentElement.clientWidth;
+    const half = Math.min(260, vw - 32) / 2;
+    const center = r.left + r.width / 2;
+    let shift = 0;
+    if (center - half < 16) shift = 16 - (center - half);
+    else if (center + half > vw - 16) shift = (vw - 16) - (center + half);
+    mark.style.setProperty('--tip-shift', shift + 'px');
+}
+document.addEventListener('mouseover', (e) => {
+    const mark = e.target.closest('.info-mark');
+    if (mark) placeInfoTip(mark);
+});
+document.addEventListener('focusin', (e) => {
+    const mark = e.target.closest('.info-mark');
+    if (mark) placeInfoTip(mark);
+});
+document.addEventListener('click', (e) => {
+    const mark = e.target.closest('.info-mark');
+    document.querySelectorAll('.info-mark.open').forEach((m) => {
+        if (m !== mark) m.classList.remove('open');
+    });
+    if (mark) { placeInfoTip(mark); mark.classList.toggle('open'); }
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.info-mark.open').forEach((m) => m.classList.remove('open'));
+    }
 });

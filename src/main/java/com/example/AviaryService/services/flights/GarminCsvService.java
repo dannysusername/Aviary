@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 import com.example.AviaryService.entity.Aircraft;
 
 // Reads a Garmin G1000 CSV file for the logbook's "Upload CSV" button and works
-// out the block time and airborne time. Only reads; nothing is saved until the
+// out the Hobbs time and airborne time. Only reads; nothing is saved until the
 // user submits the pre-filled flight log.
 @Service
 public class GarminCsvService {
@@ -25,16 +25,16 @@ public class GarminCsvService {
         }
     }
 
-    // Reads a Garmin engine-data CSV and works out the flight's block time
+    // Reads a Garmin engine-data CSV and works out the flight's Hobbs time
     // (engine running) and airborne time, then pre-fills Out/In readings
     // from the user's current hours. Returns ok=false with an "error" entry
     // when the file isn't a Garmin CSV or no engine run is found.
     public CsvParseResult parse(InputStream in, Aircraft aircraft) {
 
-        // Block time: first → last row where oil pressure > 15 psi.
-        // Mirrors the physical BlockTime meter on the Cirrus, which is oil-pressure activated.
-        java.time.Instant blockStart = null;
-        java.time.Instant blockEnd   = null;
+        // Hobbs time: first → last row where oil pressure > 15 psi.
+        // Mirrors the physical HobbsTime meter on the Cirrus, which is oil-pressure activated.
+        java.time.Instant hobbsStart = null;
+        java.time.Instant hobbsEnd   = null;
 
         // Flight (airborne) time: GndSpd > 35 kt sustained for 3+ consecutive seconds.
         // Falls back to IAS when GndSpd is empty (no GPS fix yet).
@@ -102,13 +102,13 @@ public class GarminCsvService {
                     rowTime = java.time.OffsetDateTime.parse(cols[dateIdx] + "T" + cols[timeIdx] + cols[ofstIdx]).toInstant();
                 } catch (Exception e) { continue; }
 
-                // ── Block time via oil pressure ──────────────────────────────────
+                // ── Hobbs time via oil pressure ──────────────────────────────────
                 Integer oilPIdx = headerIndexMap.get("E1 OilP");
                 if(oilPIdx != null && cols.length > oilPIdx && !cols[oilPIdx].isEmpty()) {
                     try {
                         if(Double.parseDouble(cols[oilPIdx]) > 15.0) {
-                            if(blockStart == null) blockStart = rowTime;
-                            blockEnd = rowTime;
+                            if(hobbsStart == null) hobbsStart = rowTime;
+                            hobbsEnd = rowTime;
                         }
                     } catch(NumberFormatException ignored) {}
                 }
@@ -137,29 +137,29 @@ public class GarminCsvService {
                 }
             }
 
-            if(blockStart == null && airborneStart == null) {
+            if(hobbsStart == null && airborneStart == null) {
                 return CsvParseResult.error(
-                    csvValues("Could not detect airtime or block time", blockStart, blockEnd, airborneStart, airborneEnd));
+                    csvValues("Could not detect airtime or Hobbs time", hobbsStart, hobbsEnd, airborneStart, airborneEnd));
             }
             
-            if(blockStart == null || blockEnd == null) {
+            if(hobbsStart == null || hobbsEnd == null) {
                 return CsvParseResult.error(
-                    csvValues("Could not detect engine run — Oil pressure does not go up by 15psi", blockStart, blockEnd, airborneStart, airborneEnd));
+                    csvValues("Could not detect engine run — Oil pressure does not go up by 15psi", hobbsStart, hobbsEnd, airborneStart, airborneEnd));
             }
             
 
             /* 
             if(airborneStart == null || airborneEnd == null) {
                 return CsvParseResult.error(
-                    csvValues("Could not detect air time — Speed does not go above 35kts", blockStart, blockEnd, airborneStart, airborneEnd));
+                    csvValues("Could not detect air time — Speed does not go above 35kts", hobbsStart, hobbsEnd, airborneStart, airborneEnd));
             }
 
             */
 
             //Calculate Block duration
             //Create Block String H: M: S: 
-            Duration blockDuration = Duration.between(blockStart, blockEnd);
-            String blockStr = "H:" + blockDuration.toHoursPart() + " M:" + blockDuration.toMinutesPart() + " S:" + blockDuration.toSecondsPart();
+            Duration hobbsDuration = Duration.between(hobbsStart, hobbsEnd);
+            String hobbsStr = "H:" + hobbsDuration.toHoursPart() + " M:" + hobbsDuration.toMinutesPart() + " S:" + hobbsDuration.toSecondsPart();
 
 
             String airStr = "N/A";
@@ -169,8 +169,8 @@ public class GarminCsvService {
                 airStr = "H:" + airDuration.toHoursPart() + " M:" + airDuration.toMinutesPart() + " S:" + airDuration.toSecondsPart();
             }
 
-            double blockTimeOut = aircraft.getBlockTimeHours();
-            double blockTimeIn  = Math.round((blockTimeOut + blockDuration.toSeconds() / 3600.0) * 100.0) / 100.0;
+            double hobbsTimeOut = aircraft.getHobbsTimeHours();
+            double hobbsTimeIn  = Math.round((hobbsTimeOut + hobbsDuration.toSeconds() / 3600.0) * 100.0) / 100.0;
             double timeInServiceOut  = aircraft.getTimeInServiceHours();
             Double timeInServiceIn   = airDuration != null
                 ? Math.round((timeInServiceOut + airDuration.toSeconds() / 3600.0) * 100.0) / 100.0
@@ -178,12 +178,16 @@ public class GarminCsvService {
 
             Map<String, Object> result = new HashMap<>();
             result.put("message",        "CSV parse completed");
-            result.put("flightDuration", blockStr);
+            result.put("flightDuration", hobbsStr);
             result.put("airDuration",    airStr);
-            result.put("blockTimeOut",       blockTimeOut);
-            result.put("blockTimeIn",        blockTimeIn);
-            result.put("blockTimeStart",     blockStart.toString());
-            result.put("blockTimeEnd",       blockEnd.toString());
+            result.put("hobbsTimeOut",       hobbsTimeOut);
+            result.put("blockTimeOut", hobbsTimeOut); // legacy key, remove after 2026-12-31
+            result.put("hobbsTimeIn",        hobbsTimeIn);
+            result.put("blockTimeIn", hobbsTimeIn); // legacy key, remove after 2026-12-31
+            result.put("hobbsTimeStart",     hobbsStart.toString());
+            result.put("blockTimeStart", hobbsStart.toString()); // legacy key, remove after 2026-12-31
+            result.put("hobbsTimeEnd",       hobbsEnd.toString());
+            result.put("blockTimeEnd", hobbsEnd.toString()); // legacy key, remove after 2026-12-31
             result.put("timeInServiceOut",        timeInServiceIn != null ? timeInServiceOut : null);
             result.put("timeInServiceIn",         timeInServiceIn);
             result.put("timeInServiceStart",      airborneStart != null ? airborneStart.toString() : null);
@@ -199,11 +203,13 @@ public class GarminCsvService {
 
     }
 
-    private static Map<String, Object> csvValues(String error, java.time.Instant blockStart, java.time.Instant blockEnd, java.time.Instant airborneStart, java.time.Instant airborneEnd) {
+    private static Map<String, Object> csvValues(String error, java.time.Instant hobbsStart, java.time.Instant hobbsEnd, java.time.Instant airborneStart, java.time.Instant airborneEnd) {
         Map<String, Object> map = new HashMap<>();
         map.put("error", error);
-        map.put("blockStart", blockStart);
-        map.put("blockEnd", blockEnd);
+        map.put("hobbsStart", hobbsStart);
+        map.put("blockStart", hobbsStart); // legacy key, remove after 2026-12-31
+        map.put("hobbsEnd", hobbsEnd);
+        map.put("blockEnd", hobbsEnd); // legacy key, remove after 2026-12-31
         map.put("airborneStart", airborneStart);
         map.put("airborneEnd", airborneEnd);
 

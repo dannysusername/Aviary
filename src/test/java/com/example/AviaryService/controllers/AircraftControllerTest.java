@@ -182,4 +182,45 @@ class AircraftControllerTest {
             .andExpect(jsonPath("$.message").value("You already have an aircraft with this tail number."));
         assertEquals("N731KR", aircraftRepository.findById(b.getId()).orElseThrow().getTailNumber());
     }
+
+    // ---- spec 009: Owner field renamed to Operator ----
+
+    @Test
+    void operatorNameSavesAndOldOwnerNameKeyStillWorks() throws Exception {
+        mvc.perform(post("/updateUserInfo").with(user(owner.getUsername())).with(csrf())
+                .header("X-Aircraft-Id", a.getId())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"operatorName\":\"Jane Pilot\"}"))
+            .andExpect(status().isOk());
+        assertEquals("Jane Pilot", aircraftRepository.findById(a.getId()).orElseThrow().getOperatorName());
+
+        // A tab still running the pre-rename page sends "ownerName".
+        mvc.perform(post("/updateUserInfo").with(user(owner.getUsername())).with(csrf())
+                .header("X-Aircraft-Id", a.getId())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"ownerName\":\"Old Tab Pilot\"}"))
+            .andExpect(status().isOk());
+        assertEquals("Old Tab Pilot", aircraftRepository.findById(a.getId()).orElseThrow().getOperatorName());
+
+        // New key wins when both are sent.
+        mvc.perform(post("/updateUserInfo").with(user(owner.getUsername())).with(csrf())
+                .header("X-Aircraft-Id", a.getId())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"operatorName\":\"New\",\"ownerName\":\"Old\"}"))
+            .andExpect(status().isOk());
+        assertEquals("New", aircraftRepository.findById(a.getId()).orElseThrow().getOperatorName());
+    }
+
+    @Test
+    void addAircraftAcceptsOperatorNameAndTheOldKey() throws Exception {
+        mvc.perform(post("/aircraft").with(user(owner.getUsername())).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"tailNumber\":\"N100OP\",\"operatorName\":\"Op One\"}"))
+            .andExpect(status().isCreated());
+        mvc.perform(post("/aircraft").with(user(owner.getUsername())).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"tailNumber\":\"N200OP\",\"ownerName\":\"Op Two\"}"))
+            .andExpect(status().isCreated());
+        java.util.List<String> names = aircraftRepository.findAll().stream()
+            .filter(x -> x.getTailNumber() != null && x.getTailNumber().endsWith("OP"))
+            .map(Aircraft::getOperatorName).sorted().toList();
+        assertEquals(java.util.List.of("Op One", "Op Two"), names);
+    }
 }

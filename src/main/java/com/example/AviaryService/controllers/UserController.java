@@ -16,11 +16,11 @@ import com.example.AviaryService.config.CurrentAircraft;
 import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.DescriptionOption;
 import com.example.AviaryService.entity.FlightLog;
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
-import com.example.AviaryService.entity.DTO.TimelineUpdateDTO;
+import com.example.AviaryService.entity.DTO.StatusSheetItemUpdateDTO;
 import com.example.AviaryService.repositories.DescriptionOptionRepository;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.services.flights.AeroApiClient;
 import com.example.AviaryService.services.dashboard.DescriptionOptionService;
@@ -33,11 +33,12 @@ import com.example.AviaryService.services.messaging.OutboundEmailLimiter;
 import com.example.AviaryService.services.dashboard.PdfExportService;
 import com.example.AviaryService.services.messaging.EmailSender;
 import com.example.AviaryService.services.flights.SubscriptionService;
-import com.example.AviaryService.services.dashboard.TimelineService;
+import com.example.AviaryService.services.dashboard.StatusSheetService;
 import com.example.AviaryService.services.account.UserService;
 import com.example.AviaryService.services.aircraft.AircraftService;
 import com.example.AviaryService.services.aircraft.AircraftValidationException;
 import com.example.AviaryService.services.aircraft.FleetSummaryService;
+import com.example.AviaryService.util.DueDateAutoFill;
 import com.example.AviaryService.util.Validation;
 
 import org.apache.catalina.connector.Response;
@@ -55,7 +56,7 @@ import java.util.Map;
 
 // The main app. Handles almost everything a logged-in owner does:
 // register and login pages, the dashboard, aircraft hours, the maintenance
-// timeline, flight logs (including Garmin CSV upload), suggested flights,
+// Status Sheet item, flight logs (including Garmin CSV upload), suggested flights,
 // flight-tracking subscriptions, and the PDF report.
 //
 // Uses @Controller (not @RestController) so it can return HTML pages like
@@ -63,13 +64,13 @@ import java.util.Map;
 @Controller
 public class UserController {
     private final UserRepository userRepository;
-    private final ServiceTimelineRepository serviceTimelineRepository;
+    private final StatusSheetItemRepository statusSheetItemRepository;
     private final PasswordEncoder passwordEncoder;
     private static final Logger log = LoggerFactory.getLogger(UserController.class);
 
     private final SubscriptionService subscriptionService;
     private final UserService userService;
-    private final TimelineService timelineService;
+    private final StatusSheetService statusSheetService;
     private final DescriptionOptionService descriptionOptionService;
     private final HoursService hoursService;
     private final FlightSuggestionService flightSuggestionService;
@@ -84,11 +85,14 @@ public class UserController {
     private final GarminCsvService garminCsvService;
     private final AircraftService aircraftService;
     private final FleetSummaryService fleetSummaryService;
+    // Spec 011: Time Left pills use the same "due soon" window as alert emails.
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.example.AviaryService.repositories.AlertPreferenceRepository alertPreferenceRepository;
 
-    public UserController(UserRepository userRepository, ServiceTimelineRepository serviceTimelineRepository,
+    public UserController(UserRepository userRepository, StatusSheetItemRepository statusSheetItemRepository,
             PasswordEncoder passwordEncoder, DescriptionOptionRepository descriptionOptionRepository,
             SubscriptionService subscriptionService, UserService userService,
-            TimelineService timelineService, DescriptionOptionService descriptionOptionService, HoursService hoursService,
+            StatusSheetService statusSheetService, DescriptionOptionService descriptionOptionService, HoursService hoursService,
             FlightSuggestionService flightSuggestionService,
             com.example.AviaryService.repositories.FlightSuggestionRepository flightSuggestionRepository,
             com.example.AviaryService.repositories.SubscriptionRepository subscriptionRepository,
@@ -98,12 +102,12 @@ public class UserController {
             AircraftService aircraftService, FleetSummaryService fleetSummaryService) {
 
         this.userRepository = userRepository;
-        this.serviceTimelineRepository = serviceTimelineRepository;
+        this.statusSheetItemRepository = statusSheetItemRepository;
         this.passwordEncoder = passwordEncoder;
 
         this.subscriptionService = subscriptionService;
         this.userService = userService;
-        this.timelineService = timelineService;
+        this.statusSheetService = statusSheetService;
         this.descriptionOptionService = descriptionOptionService;
         this.hoursService = hoursService;
         this.flightSuggestionService = flightSuggestionService;
@@ -179,19 +183,23 @@ public class UserController {
             .anyMatch(e -> !e.getKey().equals(currentId) && e.getValue().overdue() > 0));
         model.addAttribute("aircraftRowCount", aircraftService.rowCount(aircraft));
         model.addAttribute("aircraftFlightCount", aircraftService.flightCount(aircraft));
-        model.addAttribute("timelines", serviceTimelineRepository.findByAircraftOrderByTimelineOrderAsc(aircraft));
+        model.addAttribute("statusSheetItems", statusSheetItemRepository.findByAircraftOrderByStatusSheetOrderAsc(aircraft));
         model.addAttribute("descriptionOptions", descriptionOptionService.cleanupAndLoadDescriptionOptions(user));
-        model.addAttribute("blockTimeHours", aircraft.getBlockTimeHours());
+        com.example.AviaryService.entity.AlertPreference pref = alertPreferenceRepository.findByUser(user)
+            .orElseGet(com.example.AviaryService.entity.AlertPreference::new);
+        model.addAttribute("leadTimeDays", pref.getLeadTimeDays());
+        model.addAttribute("leadTimeHours", pref.getLeadTimeHours());
+        model.addAttribute("hobbsTimeHours", aircraft.getHobbsTimeHours());
         model.addAttribute("timeInServiceHours", aircraft.getTimeInServiceHours());
 
         model.addAttribute("makeModel", aircraft.getMakeModel());
         model.addAttribute("tailNumber", aircraft.getTailNumber());
-        model.addAttribute("ownerName", aircraft.getOwnerName());
+        model.addAttribute("operatorName", aircraft.getOperatorName());
         model.addAttribute("makeModelSN", aircraft.getMakeModelSN());
         model.addAttribute("flightlogs", flightLogService.listFor(aircraft));
-        model.addAttribute("blockTimeUpdatedAt", aircraft.getBlockTimeUpdatedAt() != null ? aircraft.getBlockTimeUpdatedAt().toString() : null);
+        model.addAttribute("hobbsTimeUpdatedAt", aircraft.getHobbsTimeUpdatedAt() != null ? aircraft.getHobbsTimeUpdatedAt().toString() : null);
         model.addAttribute("timeInServiceUpdatedAt", aircraft.getTimeInServiceUpdatedAt() != null ? aircraft.getTimeInServiceUpdatedAt().toString() : null);
-        model.addAttribute("blockTimeUpdatedSource", aircraft.getBlockTimeUpdatedSource());
+        model.addAttribute("hobbsTimeUpdatedSource", aircraft.getHobbsTimeUpdatedSource());
         model.addAttribute("timeInServiceUpdatedSource", aircraft.getTimeInServiceUpdatedSource());
         String aeroApiKey = user.getAeroApiKey();
         boolean hasAeroApiKey = aeroApiKey != null && !aeroApiKey.isEmpty();
@@ -393,8 +401,10 @@ public class UserController {
             response.put("id", flightLog.getId());
             response.put("fromAirport", flightLog.getFromAirport());
             response.put("toAirport", flightLog.getToAirport());
-            response.put("blockTimeIn", flightLog.getBlockTimeIn());
-            response.put("blockTimeOut", flightLog.getBlockTimeOut());
+            response.put("hobbsTimeIn", flightLog.getHobbsTimeIn());
+            response.put("blockTimeIn", flightLog.getHobbsTimeIn()); // legacy key, remove after 2026-12-31
+            response.put("hobbsTimeOut", flightLog.getHobbsTimeOut());
+            response.put("blockTimeOut", flightLog.getHobbsTimeOut()); // legacy key, remove after 2026-12-31
             response.put("timeInServiceIn", flightLog.getTimeInServiceIn());
             response.put("timeInServiceOut", flightLog.getTimeInServiceOut());
             response.put("timeInServiceStart", flightLog.getTimeInServiceStart() != null ? flightLog.getTimeInServiceStart().toString() : null);
@@ -435,7 +445,7 @@ public class UserController {
     }
 
     @PostMapping("/dashboard")
-    public ResponseEntity<?> addTimeline(
+    public ResponseEntity<?> addStatusSheet(
             @RequestBody Map<String, String> data,
             @CurrentAircraft Aircraft aircraft,
             Authentication authentication) {
@@ -453,22 +463,22 @@ public class UserController {
 
         String ajax = data.getOrDefault("ajax", "false");
         User user = userRepository.findByUsername(authentication.getName());
-        ServiceTimeline timeline = timelineService.addTimeline(data, user, aircraft);
+        StatusSheetItem statusSheetItem = statusSheetService.addStatusSheet(data, user, aircraft);
 
         if ("true".equals(ajax)) {
             Map<String, Object> response = new HashMap<>();
-            response.put("id", timeline.getId());
-            response.put("item", timeline.getItem());
-            response.put("description", timeline.getDescription());
-            response.put("cycleCalendarValue", timeline.getCycleCalendarValue());
-            response.put("cycleCalendarUnit", timeline.getCycleCalendarUnit());
-            response.put("cycleHours", timeline.getCycleHours());
-            response.put("lastDoneDate", timeline.getLastDoneDate());
-            response.put("lastDoneHours", timeline.getLastDoneHours());
-            response.put("dueDateDate", timeline.getDueDateDate());
-            response.put("dueDateHours", timeline.getDueDateHours());
-            response.put("timeLeft", timeline.getTimeLeft());
-            response.put("isTitle", timeline.getIsTitle());
+            response.put("id", statusSheetItem.getId());
+            response.put("item", statusSheetItem.getItem());
+            response.put("description", statusSheetItem.getDescription());
+            response.put("cycleCalendarValue", statusSheetItem.getCycleCalendarValue());
+            response.put("cycleCalendarUnit", statusSheetItem.getCycleCalendarUnit());
+            response.put("cycleHours", statusSheetItem.getCycleHours());
+            response.put("lastDoneDate", statusSheetItem.getLastDoneDate());
+            response.put("lastDoneHours", statusSheetItem.getLastDoneHours());
+            response.put("dueDateDate", statusSheetItem.getDueDateDate());
+            response.put("dueDateHours", statusSheetItem.getDueDateHours());
+            response.put("timeLeft", statusSheetItem.getTimeLeft());
+            response.put("isTitle", statusSheetItem.getIsTitle());
             return ResponseEntity.ok(response);
         } else {
             return ResponseEntity.status(HttpStatus.FOUND).location(URI.create("/dashboard?aircraft=" + aircraft.getId())).build();
@@ -529,10 +539,14 @@ public class UserController {
     @PostMapping("/updateHours")
     @ResponseBody
     public ResponseEntity<Map<String, String>> updateHours(
-            @RequestParam(required = false) Double blockTimeToAdd,
+            @RequestParam(required = false) Double hobbsTimeToAdd,
             @RequestParam(required = false) Double timeInServiceToAdd,
-            @RequestParam(required = false) Double newBlockTime,
+            @RequestParam(required = false) Double newHobbsTime,
             @RequestParam(required = false) Double newTimeInService,
+            // Pre-rename names (Block Time). Accepted for one release so a tab still
+            // running the old dashboard.js keeps saving. Remove after 2026-12-31.
+            @RequestParam(name = "blockTimeToAdd", required = false) Double legacyHobbsTimeToAdd,
+            @RequestParam(name = "newBlockTime", required = false) Double legacyNewHobbsTime,
             @CurrentAircraft Aircraft aircraft,
             Authentication authentication) {
         try {
@@ -540,10 +554,13 @@ public class UserController {
             if (user == null) {
                 throw new IllegalArgumentException("User not found");
             }
-            hoursService.updateHours(blockTimeToAdd, timeInServiceToAdd, newBlockTime, newTimeInService, aircraft);
+            if (hobbsTimeToAdd == null) hobbsTimeToAdd = legacyHobbsTimeToAdd;
+            if (newHobbsTime == null) newHobbsTime = legacyNewHobbsTime;
+            hoursService.updateHours(hobbsTimeToAdd, timeInServiceToAdd, newHobbsTime, newTimeInService, aircraft);
             Map<String, String> response = new HashMap<>();
             response.put("status", "success");
-            response.put("newBlockTime", String.valueOf(aircraft.getBlockTimeHours()));
+            response.put("newHobbsTime", String.valueOf(aircraft.getHobbsTimeHours()));
+            response.put("newBlockTime", String.valueOf(aircraft.getHobbsTimeHours())); // legacy key, remove after 2026-12-31
             response.put("newTimeInService", String.valueOf(aircraft.getTimeInServiceHours()));
             return ResponseEntity.ok(response);
             
@@ -558,32 +575,80 @@ public class UserController {
 
     @PostMapping("/update/{id}")
     @ResponseBody
-    public ResponseEntity<Map<String, String>> updateTimeline(
+    public ResponseEntity<Map<String, Object>> updateStatusSheet(
             @PathVariable Long id,
-            @RequestBody TimelineUpdateDTO updateDTO,
+            @RequestBody StatusSheetItemUpdateDTO updateDTO,
             Authentication authentication) {
         try {
             User user = userRepository.findByUsername(authentication.getName());
-            timelineService.updateTimeline(user, id, updateDTO);
-            return ResponseEntity.ok(Map.of("status", "success"));
+            StatusSheetItem saved = statusSheetService.updateStatusSheet(user, id, updateDTO);
+            return ResponseEntity.ok(savedRow(saved));
         } catch (SecurityException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(Map.of("status", "error", "message", e.getMessage()));
         } catch (IllegalArgumentException | java.util.NoSuchElementException e) {
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
         } catch (Exception e) {
-            log.error("Failed to update timeline {}", id, e);
+            log.error("Failed to update Status Sheet item {}", id, e);
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "Could not save that change."));
         }
     }
 
 
+    // The saved row, so the dashboard shows an auto-filled Due Date right away
+    // without a reload (spec 007). Same shape for /update and /resetDueToCycle.
+    private Map<String, Object> savedRow(StatusSheetItem saved) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("lastDoneDate", saved.getLastDoneDate());
+        response.put("lastDoneHours", DueDateAutoFill.displayHours(saved.getLastDoneHours()));
+        response.put("dueDateDate", saved.getDueDateDate());
+        response.put("dueDateHours", DueDateAutoFill.displayHours(saved.getDueDateHours()));
+        response.put("timeLeft", saved.getTimeLeft());
+        response.put("warnings", statusSheetService.warningsFor(saved));
+        return response;
+    }
+
+    // What the "Reset to cycle" choice in the roll-forward box would set.
+    @GetMapping("/statusSheet/{id}/cyclePreview")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> cyclePreview(@PathVariable Long id, Authentication authentication) {
+        try {
+            User user = userRepository.findByUsername(authentication.getName());
+            StatusSheetService.CyclePreview p = statusSheetService.cyclePreview(user, id);
+            Map<String, Object> body = new HashMap<>();
+            body.put("dueDateDate", p.dueDateDate());
+            body.put("dueDateHours", p.dueDateHours());
+            body.put("canReset", p.canReset());
+            body.put("reason", p.reason());
+            return ResponseEntity.ok(body);
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("status", "error", "message", e.getMessage()));
+        } catch (java.util.NoSuchElementException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    // "Reset to cycle": Due Date = Last Done + cycle, Last Done unchanged.
+    @PostMapping("/resetDueToCycle/{id}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> resetDueToCycle(@PathVariable Long id, Authentication authentication) {
+        try {
+            User user = userRepository.findByUsername(authentication.getName());
+            return ResponseEntity.ok(savedRow(statusSheetService.resetDueToCycle(user, id)));
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("status", "error", "message", e.getMessage()));
+        } catch (IllegalArgumentException | java.util.NoSuchElementException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
     @DeleteMapping("/delete/{id}")
     @ResponseBody
-    public ResponseEntity<Void> deleteTimeline(@PathVariable Long id, Authentication authentication) {
+    public ResponseEntity<Void> deleteStatusSheet(@PathVariable Long id, Authentication authentication) {
         User user = userRepository.findByUsername(authentication.getName());
         try {
-            timelineService.deleteTimeline(user, id);
+            statusSheetService.deleteStatusSheet(user, id);
             return ResponseEntity.ok().build();
         } catch (java.util.NoSuchElementException e) {
             return ResponseEntity.notFound().build();
@@ -614,7 +679,7 @@ public class UserController {
     @ResponseBody
     public ResponseEntity<Map<String, Object>> updateOrder(@RequestBody List<Long> ids, @CurrentAircraft Aircraft aircraft) {
         try {
-            timelineService.reorder(aircraft, ids);
+            statusSheetService.reorder(aircraft, ids);
             return ResponseEntity.ok(Map.of("status", "success"));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(errorBody(e.getMessage()));
@@ -661,15 +726,20 @@ public class UserController {
         response.put("id", savedLog.getId());
         response.put("fromAirport", savedLog.getFromAirport());
         response.put("toAirport", savedLog.getToAirport());
-        response.put("blockTimeIn", savedLog.getBlockTimeIn());
-        response.put("blockTimeOut", savedLog.getBlockTimeOut());
-        response.put("blockTimeStart", savedLog.getBlockTimeStart() != null ? savedLog.getBlockTimeStart().toString() : null);
-        response.put("blockTimeEnd", savedLog.getBlockTimeEnd() != null ? savedLog.getBlockTimeEnd().toString() : null);
+        response.put("hobbsTimeIn", savedLog.getHobbsTimeIn());
+        response.put("blockTimeIn", savedLog.getHobbsTimeIn()); // legacy key, remove after 2026-12-31
+        response.put("hobbsTimeOut", savedLog.getHobbsTimeOut());
+        response.put("blockTimeOut", savedLog.getHobbsTimeOut()); // legacy key, remove after 2026-12-31
+        response.put("hobbsTimeStart", savedLog.getHobbsTimeStart() != null ? savedLog.getHobbsTimeStart().toString() : null);
+        response.put("blockTimeStart", savedLog.getHobbsTimeStart() != null ? savedLog.getHobbsTimeStart().toString() : null); // legacy key, remove after 2026-12-31
+        response.put("hobbsTimeEnd", savedLog.getHobbsTimeEnd() != null ? savedLog.getHobbsTimeEnd().toString() : null);
+        response.put("blockTimeEnd", savedLog.getHobbsTimeEnd() != null ? savedLog.getHobbsTimeEnd().toString() : null); // legacy key, remove after 2026-12-31
         response.put("timeInServiceIn", savedLog.getTimeInServiceIn());
         response.put("timeInServiceOut", savedLog.getTimeInServiceOut());
         response.put("timeInServiceStart", savedLog.getTimeInServiceStart() != null ? savedLog.getTimeInServiceStart().toString() : null);
         response.put("timeInServiceEnd", savedLog.getTimeInServiceEnd() != null ? savedLog.getTimeInServiceEnd().toString() : null);
-        response.put("newBlockTime", added.totals().blockTime());
+        response.put("newHobbsTime", added.totals().hobbsTime());
+        response.put("newBlockTime", added.totals().hobbsTime()); // legacy key, remove after 2026-12-31
         response.put("newTimeInService", added.totals().timeInService());
         return ResponseEntity.ok(response);
     }
@@ -703,18 +773,98 @@ public class UserController {
         return body;
     }
 
-    // POST: complete maintenance on a row. See TimelineService.completeMaintenance.
+    // POST: what the add row's Due Date should show (spec 010). Calculates
+    // only; nothing is saved. @CurrentAircraft is ownership-checked and only
+    // used for the "above Time in Service" note.
+    @PostMapping(value = "/statusSheet/addRowResolve", consumes = "application/json")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> addRowResolve(
+            @RequestBody Map<String, Object> body,
+            @CurrentAircraft Aircraft aircraft) {
+        try {
+            StatusSheetService.AddRowResolved r = statusSheetService.resolveAddRow(aircraft, body);
+            Map<String, Object> out = new HashMap<>();
+            out.put("dueDateDate", r.dueDateDate());
+            out.put("dueDateAuto", r.dueDateAuto());
+            out.put("dueDateHours", r.dueDateHours());
+            out.put("dueHoursAuto", r.dueHoursAuto());
+            out.put("lastDoneHours", r.lastDoneHours());
+            out.put("warnings", r.warnings());
+            return ResponseEntity.ok(out);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(errorBody(e.getMessage()));
+        }
+    }
+
+    // GET: what the "When was this done?" box shows (spec 008). Without params:
+    // what it starts with. With doneDate / doneHours: the next Due Date for them.
+    @GetMapping("/statusSheet/{id}/completePreview")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> completePreview(
+            @PathVariable Long id,
+            @RequestParam(required = false) String doneDate,
+            @RequestParam(required = false) String doneHours,
+            Authentication authentication) {
+        try {
+            User user = userRepository.findByUsername(authentication.getName());
+            StatusSheetService.CompletePreview p = statusSheetService.completePreview(user, id, doneDate, doneHours);
+            Map<String, Object> out = new HashMap<>();
+            out.put("hasCalendar", p.hasCalendar());
+            out.put("hasHours", p.hasHours());
+            out.put("doneDate", p.doneDate());
+            out.put("doneHours", p.doneHours());
+            out.put("nextDueDate", p.nextDueDate());
+            out.put("nextDueHours", p.nextDueHours());
+            out.put("expectedDueDate", p.expectedDueDate());
+            out.put("expectedDueHours", p.expectedDueHours());
+            out.put("canSave", p.canSave());
+            out.put("reason", p.reason());
+            return ResponseEntity.ok(out);
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorBody("You do not own this row"));
+        } catch (java.util.NoSuchElementException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorBody("Row not found"));
+        }
+    }
+
+    // POST: complete maintenance on a row. See StatusSheetService.completeMaintenance.
     @PostMapping("/completeMaintenance/{id}")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> completeMaintenance(
-            @PathVariable Long id, Authentication authentication) {
+            @PathVariable Long id,
+            @RequestBody(required = false) Map<String, String> body,
+            Authentication authentication) {
         User user = userRepository.findByUsername(authentication.getName());
         if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorBody("User not authenticated"));
         }
-        TimelineService.CompletedMaintenance done;
+        // Spec 008: the "When was this done?" box sends the chosen values and
+        // the Due Date it was opened with. An empty body is an older cached
+        // dashboard.js: keep its today-based behavior until it reloads.
+        if (body != null && !body.isEmpty()) {
+            try {
+                StatusSheetItem saved = statusSheetService.completeMaintenance(user, id,
+                    body.get("doneDate"), body.get("doneHours"),
+                    body.get("expectedDueDate"), body.get("expectedDueHours"));
+                Map<String, Object> resp = savedRow(saved);
+                resp.put("lastDone", java.util.stream.Stream.of(saved.getLastDoneDate(), DueDateAutoFill.displayHours(saved.getLastDoneHours()))
+                    .filter(s -> s != null && !s.isEmpty()).collect(java.util.stream.Collectors.joining(" ")));
+                resp.put("dueDate", java.util.stream.Stream.of(saved.getDueDateDate(), DueDateAutoFill.displayHours(saved.getDueDateHours()))
+                    .filter(s -> s != null && !s.isEmpty()).collect(java.util.stream.Collectors.joining(" ")));
+                return ResponseEntity.ok(resp);
+            } catch (StatusSheetService.RowChangedException e) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(errorBody(e.getMessage()));
+            } catch (java.util.NoSuchElementException e) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorBody("Row not found"));
+            } catch (SecurityException e) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorBody("You do not own this row"));
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest().body(errorBody(e.getMessage()));
+            }
+        }
+        StatusSheetService.CompletedMaintenance done;
         try {
-            done = timelineService.completeMaintenance(user, id);
+            done = statusSheetService.completeMaintenance(user, id);
         } catch (java.util.NoSuchElementException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorBody("Row not found"));
         } catch (SecurityException e) {
@@ -764,7 +914,8 @@ public class UserController {
 
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
-            response.put("newBlockTime", totals.blockTime());
+            response.put("newHobbsTime", totals.hobbsTime());
+            response.put("newBlockTime", totals.hobbsTime()); // legacy key, remove after 2026-12-31
             response.put("newTimeInService", totals.timeInService());
             return ResponseEntity.ok(response);
         } catch (SecurityException e) {

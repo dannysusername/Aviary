@@ -11,13 +11,13 @@ final class AlertText {
     // Alerts are account-wide, so these take the whole fleet (ordered by id).
     private AlertText() {}
 
-    // The first owner name set on any aircraft, first aircraft first.
-    static String owner(List<Aircraft> fleet) {
+    // The first operator name set on any aircraft, first aircraft first.
+    static String operator(List<Aircraft> fleet) {
         for (Aircraft a : fleet) {
-            String name = a.getOwnerName();
+            String name = a.getOperatorName();
             if (name != null && !name.isBlank()) return name.trim();
         }
-        return "The aircraft owner";
+        return "The aircraft operator";
     }
 
     // One aircraft: its tail number. Several: "your fleet (3 aircraft)".
@@ -31,8 +31,8 @@ final class AlertText {
         return tail == null || tail.isBlank() ? fallback : tail.trim();
     }
 
-    static boolean anyOwnerName(List<Aircraft> fleet) {
-        return fleet.stream().anyMatch(a -> a.getOwnerName() != null && !a.getOwnerName().isBlank());
+    static boolean anyOperatorName(List<Aircraft> fleet) {
+        return fleet.stream().anyMatch(a -> a.getOperatorName() != null && !a.getOperatorName().isBlank());
     }
 
     static boolean anyTailNumber(List<Aircraft> fleet) {

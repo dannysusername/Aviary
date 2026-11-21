@@ -12,29 +12,33 @@ All ids are `@GeneratedValue(IDENTITY)`. Every row belongs to a `User` via `user
 
 ### `users` (`User`)
 `id`, `username` (unique, not null), `password` (BCrypt, not null), `aeroApiKey` (encrypted, see `AeroApiKeyConverter`; one key per account), `last_viewed_aircraft_id` (FK → `aircraft`, nullable — the aircraft the dashboard opens on).
-One-to-many (cascade ALL) → `aircraft`, `serviceTimeline`, `flightLogs`.
+One-to-many (cascade ALL) → `aircraft`, `statusSheet`, `flightLogs`.
 
 **Legacy columns (kept, unmapped):** `block_time_hours`, `time_in_service_hours`, `make_model`, `tail_number`, `owner_name`, `make_modelsn`, both `*_updated_at`, both `*_updated_source`, both `*_manual_baseline`. These held the single aircraft before fleets. `AircraftBackfill` copies them into each account's first aircraft on boot; nothing else reads them. They stay one release so a rollback still works, then get dropped (see `docs/migrations/2026-11-09_multi_aircraft.sql`).
 
 ### `aircraft` (`Aircraft`)
-`id`, `user_id` (not null), `tailNumber` (upper-cased, spaces removed), `tail_number_key` (comparison key, null when blank; unique with `user_id`), `makeModel`, `ownerName`, `makeModelSN`, `blockTimeHours` / `timeInServiceHours` (Double), `blockTimeManualBaseline` / `timeInServiceManualBaseline` (Double, manually-set floor so log activity can't silently lower the displayed total), `blockTimeUpdatedAt` / `timeInServiceUpdatedAt` (`Instant`), `blockTimeUpdatedSource` / `timeInServiceUpdatedSource` ("manual" | "flightlog"), `createdAt`. One airplane in the owner's fleet; at most 25 per user, at least 1.
+`id`, `user_id` (not null), `tailNumber` (upper-cased, spaces removed), `tail_number_key` (comparison key, null when blank; unique with `user_id`), `makeModel`, `operatorName` (column `owner_name`; renamed in code Nov 2026, spec 009 — `OperatorColumnMappingTest` guards the pin), `makeModelSN`, `hobbsTimeHours` / `timeInServiceHours` (Double), `hobbsTimeManualBaseline` / `timeInServiceManualBaseline` (Double, manually-set floor so log activity can't silently lower the displayed total), `hobbsTimeUpdatedAt` / `timeInServiceUpdatedAt` (`Instant`), `hobbsTimeUpdatedSource` / `timeInServiceUpdatedSource` ("manual" | "flightlog"), `createdAt`. One airplane in the owner's fleet; at most 25 per user, at least 1.
 
-### `service_timelines` (`ServiceTimeline`)
-`id`, `item`, `isTitle` (boolean — title row vs item row), `description`, `cycle`, `lastDone`, `dueDate`, `timeLeft`, `timelineOrder` (Integer, display order **within one aircraft**), `user_id`, `aircraft_id`.
+### `service_timelines` (`StatusSheetItem`)
+`id`, `item`, `isTitle` (boolean — title row vs item row), `description`, `cycle`, `cycleCalendarValue` + `cycleCalendarUnit` (DAYS | MONTHS | YEARS), `cycleHours`, `lastDoneDate`, `lastDoneHours`, `dueDateDate`, `dueDateHours` (hours stored as text in the `25.0` format, 1–3 decimals; legacy non-numeric text kept as is), `dueDateAuto`, `dueHoursAuto` (Boolean, nullable — spec 007: TRUE = Due Date part auto-filled from Last Done + cycle, FALSE = typed by the owner and never overwritten, null = row from before Nov 2026, decided by comparing with the cycle math), `timeLeft`, `statusSheetOrder` (Integer, display order **within one aircraft**), `user_id`, `aircraft_id`.
+
+**Status Sheet keeps its old storage names.** `StatusSheetItem` is pinned to table `service_timelines` and `statusSheetOrder` to column `timeline_order`; `StatusSheetImportRecord` to `timeline_import_records`. The Nov 2026 rename changed only the Java names, so no data moved. `StatusSheetColumnMappingTest` guards this.
 
 ### `flight_logs` (`FlightLog`)
-`id`, `fromAirport`, `toAirport`, `blockTimeIn`, `blockTimeOut`, `timeInServiceIn`, `timeInServiceOut` (all Double, nullable), `blockTimeStart`, `blockTimeEnd` (`Instant`, nullable — engine start/stop, UTC), `timeInServiceStart`, `timeInServiceEnd` (`Instant`, nullable — wheels-off/wheels-on, UTC), `source` (String "manual" | "csv" | "aeroapi", nullable — see `FlightLog.getEffectiveSource()` and `HoursService.recomputeChain`), `faFlightId` (String, nullable — set only when the row came from an accepted `FlightSuggestion`), `user_id`, `aircraft_id`. Hours math only ever looks at one aircraft's flights.
+`id`, `fromAirport`, `toAirport`, `hobbsTimeIn`, `hobbsTimeOut`, `timeInServiceIn`, `timeInServiceOut` (all Double, nullable), `hobbsTimeStart`, `hobbsTimeEnd` (`Instant`, nullable — engine start/stop, UTC), `timeInServiceStart`, `timeInServiceEnd` (`Instant`, nullable — wheels-off/wheels-on, UTC), `source` (String "manual" | "csv" | "aeroapi", nullable — see `FlightLog.getEffectiveSource()` and `HoursService.recomputeChain`), `faFlightId` (String, nullable — set only when the row came from an accepted `FlightSuggestion`), `user_id`, `aircraft_id`. Hours math only ever looks at one aircraft's flights.
+
+**Hobbs columns keep their old names.** In `aircraft` and `flight_logs`, every `hobbsTime*` field is pinned with `@Column(name = "block_time_…")` (e.g. `hobbsTimeHours` → `block_time_hours`, `hobbsTimeOut` → `block_time_out`). The Nov 2026 rename changed only the Java names, so no data moved. Do not remove those pins: `ddl-auto=update` would add new, empty `hobbs_time_*` columns. `HobbsColumnMappingTest` guards this.
 
 ### `description_options` (`DescriptionOption`)
-`id`, `option` (not null), `user_id`. Stores a user's custom Service Timeline description choices.
+`id`, `option` (not null), `user_id`. Stores a user's custom Status Sheet description choices.
 
 ### `flight_suggestions` (`FlightSuggestion`)
 `id`, `tailNumber`, `faFlightId` (unique per user), `departureTime`, `arrivalTime` (`Instant`), `origin`, `destination`, `status` (String "pending" | "accepted" | "dismissed"), `createdAt`, `user_id`, `aircraft_id` (the aircraft whose subscription found it). AeroAPI-detected flights awaiting a user decision — see `docs/ADSB_SYNC_SPEC.md`.
 
 ### `import_proposals` (`ImportProposal`)
-`id`, `user_id` (not null), `status` ("OPEN" | "NEEDS_FIT_CONFIRMATION" | "CONFIRMED" | "REPLACED" | "EXPIRED"), `itemsJson` / `rejectedJson` (TEXT, JSON lists), `submittedCount`, `createdAt`, `expiresAt` (+24 h), `confirmedAt`, `connectionClientId`, `aircraft_id` (target aircraft; null after that aircraft is removed). An AI assistant's previewed timeline import; at most one OPEN/NEEDS_FIT_CONFIRMATION per user per aircraft.
+`id`, `user_id` (not null), `status` ("OPEN" | "NEEDS_FIT_CONFIRMATION" | "CONFIRMED" | "REPLACED" | "EXPIRED"), `itemsJson` / `rejectedJson` (TEXT, JSON lists), `submittedCount`, `createdAt`, `expiresAt` (+24 h), `confirmedAt`, `connectionClientId`, `aircraft_id` (target aircraft; null after that aircraft is removed). An AI assistant's previewed Status Sheet import; at most one OPEN/NEEDS_FIT_CONFIRMATION per user per aircraft.
 
-### `timeline_import_records` (`TimelineImportRecord`)
+### `timeline_import_records` (`StatusSheetImportRecord`)
 `id`, `user_id` (not null), `proposalId`, `clientId`, `clientName`, `itemCount`, `importedAt`, `aircraftLabel` (tail number at import time, text). One row per confirmed import; shown on Connected assistants.
 
 ### `subscriptions` (`Subscription`)
@@ -47,7 +51,7 @@ String `id`, `registeredClientId` (assistant's CIMD URL), `principalName` (usern
 Composite key (`registeredClientId`, `principalName`), `authorities`. Approved scopes per assistant per owner.
 
 ## Relationships
-`User` 1—* `Aircraft` (1..25). `Aircraft` 1—* `ServiceTimeline`, `FlightLog`, `FlightSuggestion`; 0..1 `Subscription`. Child rows keep `user_id` too, so ownership checks never depend on a join; services keep `row.user == row.aircraft.user`. `User` 1—* `DescriptionOption`, alert settings and recipients stay account-wide. `User` 1—* `ServiceTimeline`, `FlightLog` are cascade ALL with JSON managed/back references.
+`User` 1—* `Aircraft` (1..25). `Aircraft` 1—* `StatusSheetItem`, `FlightLog`, `FlightSuggestion`; 0..1 `Subscription`. Child rows keep `user_id` too, so ownership checks never depend on a join; services keep `row.user == row.aircraft.user`. `User` 1—* `DescriptionOption`, alert settings and recipients stay account-wide. `User` 1—* `StatusSheetItem`, `FlightLog` are cascade ALL with JSON managed/back references.
 
 ## Boot-time backfill
 `config/AircraftBackfill` runs before the seeders on every boot: it drops the old `subscriptions(user_id)` unique constraint and, for each user without an aircraft, creates one from the legacy `users` columns and sets `aircraft_id` on that user's rows where it is null. Idempotent; logs `Aircraft backfill: N users, M rows attached`. The `aircraft_id` columns are nullable in the schema only because `ddl-auto=update` can't add NOT NULL to a populated table.
@@ -56,7 +60,7 @@ Composite key (`registeredClientId`, `principalName`), `authorities`. Approved s
 - `UserRepository.findByUsername`
 - `AircraftRepository.findByIdAndUser` (the only way to load a client-supplied aircraft id) / `findByUserOrderByIdAsc`
 - `FlightLogRepository.findByAircraft`
-- `ServiceTimelineRepository.findByAircraftOrderByTimelineOrderAsc` / `findMaxTimelineOrderByAircraft` (`@Query` for max order) / `findByUserOrderByAircraftIdAscTimelineOrderAsc` (whole fleet, for alerts and picker counts)
+- `StatusSheetItemRepository.findByAircraftOrderByStatusSheetOrderAsc` / `findMaxStatusSheetOrderByAircraft` (`@Query` for max order) / `findByUserOrderByAircraftIdAscStatusSheetOrderAsc` (whole fleet, for alerts and picker counts)
 - `DescriptionOptionRepository.findByUser`
 
 ## Gotchas

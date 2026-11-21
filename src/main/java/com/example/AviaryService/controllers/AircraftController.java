@@ -54,7 +54,10 @@ public class AircraftController {
         User user = userRepository.findByUsername(authentication.getName());
         try {
             Aircraft created = aircraftService.create(user,
-                body.get("tailNumber"), body.get("makeModel"), body.get("ownerName"), body.get("makeModelSN"));
+                body.get("tailNumber"), body.get("makeModel"),
+                // "ownerName": pre-rename key from an old open tab; remove after 2026-12-31 (spec 009).
+                body.containsKey("operatorName") ? body.get("operatorName") : body.get("ownerName"),
+                body.get("makeModelSN"));
             Map<String, Object> resp = new LinkedHashMap<>();
             resp.put("id", created.getId());
             resp.put("redirect", "/dashboard?aircraft=" + created.getId());

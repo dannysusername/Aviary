@@ -11,13 +11,13 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
-import com.example.AviaryService.util.TimelineImportRules.ImportFlag;
-import com.example.AviaryService.util.TimelineImportRules.InputItem;
-import com.example.AviaryService.util.TimelineImportRules.ItemResult;
-import com.example.AviaryService.util.TimelineImportRules.ProposedItem;
-import com.example.AviaryService.util.TimelineImportRules.SubmissionOutcome;
+import com.example.AviaryService.util.StatusSheetImportRules.ImportFlag;
+import com.example.AviaryService.util.StatusSheetImportRules.InputItem;
+import com.example.AviaryService.util.StatusSheetImportRules.ItemResult;
+import com.example.AviaryService.util.StatusSheetImportRules.ProposedItem;
+import com.example.AviaryService.util.StatusSheetImportRules.SubmissionOutcome;
 
-class TimelineImportRulesTest {
+class StatusSheetImportRulesTest {
 
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 20);
 
@@ -49,7 +49,7 @@ class TimelineImportRulesTest {
     }
 
     private static ItemResult eval(InputItem... items) {
-        return TimelineImportRules.evaluate(List.of(items), Set.of(), TODAY);
+        return StatusSheetImportRules.evaluate(List.of(items), Set.of(), TODAY);
     }
 
     private static ProposedItem only(ItemResult r) {
@@ -109,7 +109,7 @@ class TimelineImportRulesTest {
     @Test
     void onConditionCountsAsARealItem() {
         ItemResult r = eval(item("Hose", "onCondition", "true"));
-        assertEquals(SubmissionOutcome.PROPOSED, TimelineImportRules.classify(1, 1, 0, r));
+        assertEquals(SubmissionOutcome.PROPOSED, StatusSheetImportRules.classify(1, 1, 0, r));
     }
 
     @Test
@@ -239,9 +239,9 @@ class TimelineImportRulesTest {
 
     @Test
     void duplicateOfExistingIsFlagged() {
-        ItemResult r = TimelineImportRules.evaluate(
+        ItemResult r = StatusSheetImportRules.evaluate(
             List.of(item("annual   INSPECTION", "lastDoneDate", "2026-01-01")),
-            Set.of(TimelineImportRules.normalizeName("Annual Inspection")), TODAY);
+            Set.of(StatusSheetImportRules.normalizeName("Annual Inspection")), TODAY);
         assertTrue(only(r).flags().contains(ImportFlag.DUPLICATE_EXISTING));
     }
 
@@ -276,13 +276,13 @@ class TimelineImportRulesTest {
     @Test
     void longSourceRowIsTruncated() {
         ProposedItem p = only(eval(item("Oil", "lastDoneHours", "1", "source", "y".repeat(800))));
-        assertEquals(TimelineImportRules.MAX_SOURCE_ROW, p.sourceRow().length());
+        assertEquals(StatusSheetImportRules.MAX_SOURCE_ROW, p.sourceRow().length());
     }
     // ---- whole-submission verdict ----
 
     private static SubmissionOutcome classify(InputItem... items) {
         ItemResult r = eval(items);
-        return TimelineImportRules.classify(items.length, items.length, r.rejected().size(), r);
+        return StatusSheetImportRules.classify(items.length, items.length, r.rejected().size(), r);
     }
 
     private static InputItem junk() {
@@ -296,7 +296,7 @@ class TimelineImportRulesTest {
     @Test
     void nothingMappedIsRejected() {
         assertEquals(SubmissionOutcome.REJECTED, classify(junk(), junk()));
-        assertEquals(SubmissionOutcome.REJECTED, TimelineImportRules.classify(0, 0, 0, eval()));
+        assertEquals(SubmissionOutcome.REJECTED, StatusSheetImportRules.classify(0, 0, 0, eval()));
     }
 
     @Test
@@ -316,7 +316,7 @@ class TimelineImportRulesTest {
 
     @Test
     void over200IsTooLarge() {
-        assertEquals(SubmissionOutcome.TOO_LARGE, TimelineImportRules.classify(201, 201, 0, eval(good("A"))));
-        assertEquals(SubmissionOutcome.PROPOSED, TimelineImportRules.classify(200, 200, 0, eval(good("A"))));
+        assertEquals(SubmissionOutcome.TOO_LARGE, StatusSheetImportRules.classify(201, 201, 0, eval(good("A"))));
+        assertEquals(SubmissionOutcome.PROPOSED, StatusSheetImportRules.classify(200, 200, 0, eval(good("A"))));
     }
 }

@@ -15,7 +15,7 @@ import jakarta.persistence.Table;
 // the Connected assistants page so an owner can see what an assistant added.
 @Entity
 @Table(name = "timeline_import_records")
-public class TimelineImportRecord {
+public class StatusSheetImportRecord {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

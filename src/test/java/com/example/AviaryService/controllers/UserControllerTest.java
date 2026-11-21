@@ -3,12 +3,12 @@ package com.example.AviaryService.controllers;
 import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.DescriptionOption;
 import com.example.AviaryService.entity.FlightLog;
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.DescriptionOptionRepository;
 import com.example.AviaryService.repositories.FlightLogRepository;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,7 +46,7 @@ class UserControllerTest {
     private UserRepository userRepository;
 
     @Autowired
-    private ServiceTimelineRepository serviceTimelineRepository;
+    private StatusSheetItemRepository statusSheetItemRepository;
 
     @Autowired
     private DescriptionOptionRepository descriptionOptionRepository;
@@ -72,7 +72,7 @@ class UserControllerTest {
     void setUp() {
         // Clear existing data to avoid duplicates and foreign key violations
         descriptionOptionRepository.deleteAll();
-        serviceTimelineRepository.deleteAll();
+        statusSheetItemRepository.deleteAll();
         flightLogRepository.deleteAll();
         // users.last_viewed_aircraft_id points at aircraft; clear it so the
         // users (and their cascaded aircraft) can be deleted.
@@ -80,10 +80,11 @@ class UserControllerTest {
         jdbc.update("DELETE FROM flight_suggestions");
         jdbc.update("DELETE FROM subscriptions");
         jdbc.update("DELETE FROM import_proposals");
+        jdbc.update("DELETE FROM timeline_import_records");
         aircraftRepository.deleteAll();
         userRepository.deleteAll();
 
-        // Create 50 users with 2 timelines each
+        // Create 50 users with 2 Status Sheet items each
         for (int i = 1; i <= 50; i++) {
             User user = new User();
             user.setUsername("user" + i);
@@ -94,22 +95,22 @@ class UserControllerTest {
             userRepository.save(user);
 
             for (int j = 1; j <= 2; j++) {
-                ServiceTimeline timeline = new ServiceTimeline();
-                timeline.setUser(user);
-                timeline.setAircraft(aircraft);
-                timeline.setItem("Timeline " + j + " for " + user.getUsername());
-                timeline.setIsTitle(false);
-                timeline.setTimelineOrder(j);
-                timeline.setDescription("Test Description");
-                timeline.setTimeLeft("7 days");
-                serviceTimelineRepository.save(timeline);
+                StatusSheetItem statusSheetItem = new StatusSheetItem();
+                statusSheetItem.setUser(user);
+                statusSheetItem.setAircraft(aircraft);
+                statusSheetItem.setItem("Status Sheet item " + j + " for " + user.getUsername());
+                statusSheetItem.setIsTitle(false);
+                statusSheetItem.setStatusSheetOrder(j);
+                statusSheetItem.setDescription("Test Description");
+                statusSheetItem.setTimeLeft("7 days");
+                statusSheetItemRepository.save(statusSheetItem);
             }
         }
     }
 
     @Test
     @WithMockUser(username = "user1", roles = {"USER"})
-    void testAddTimelineAsTitle() throws Exception {
+    void testAddStatusSheetAsTitle() throws Exception {
         Map<String, String> data = new HashMap<>();
         data.put("item", "Test Item");
         data.put("isTitle", "true");
@@ -123,13 +124,13 @@ class UserControllerTest {
 
         // Verify data in PostgreSQL
         User user = userRepository.findByUsername("user1");
-        List<ServiceTimeline> timelines = serviceTimelineRepository.findByUserOrderByTimelineOrderAsc(user);
-        assertTrue(timelines.stream().anyMatch(t -> t.getItem().equals("Test Item") && Boolean.TRUE.equals(t.getIsTitle())));
+        List<StatusSheetItem> statusSheetItems = statusSheetItemRepository.findByUserOrderByStatusSheetOrderAsc(user);
+        assertTrue(statusSheetItems.stream().anyMatch(t -> t.getItem().equals("Test Item") && Boolean.TRUE.equals(t.getIsTitle())));
     }
 
     @Test
     @WithMockUser(username = "user2", roles = {"USER"})
-    void testAddTimelineWithDescription() throws Exception {
+    void testAddStatusSheetWithDescription() throws Exception {
         Map<String, String> data = new HashMap<>();
         data.put("item", "Item");
         data.put("isTitle", "false");
@@ -148,8 +149,8 @@ class UserControllerTest {
 
         // Verify data in PostgreSQL
         User user = userRepository.findByUsername("user2");
-        List<ServiceTimeline> timelines = serviceTimelineRepository.findByUserOrderByTimelineOrderAsc(user);
-        assertTrue(timelines.stream().anyMatch(t -> t.getItem().equals("Item") && t.getDescription().equals("Custom Desc")));
+        List<StatusSheetItem> statusSheetItems = statusSheetItemRepository.findByUserOrderByStatusSheetOrderAsc(user);
+        assertTrue(statusSheetItems.stream().anyMatch(t -> t.getItem().equals("Item") && t.getDescription().equals("Custom Desc")));
     }
 
     @Test
@@ -170,7 +171,7 @@ class UserControllerTest {
     void testAddFlightLogStampsFlightlogSource() throws Exception {
         mockMvc.perform(post("/addflightlog")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"fromAirport\":\"KAAA\",\"toAirport\":\"KBBB\",\"blockTimeOut\":10.0,\"blockTimeIn\":11.0,\"timeInServiceOut\":9.0,\"timeInServiceIn\":10.0}")
+                .content("{\"fromAirport\":\"KAAA\",\"toAirport\":\"KBBB\",\"hobbsTimeOut\":10.0,\"hobbsTimeIn\":11.0,\"timeInServiceOut\":9.0,\"timeInServiceIn\":10.0}")
                 .with(SecurityMockMvcRequestPostProcessors.csrf()))
                 .andExpect(status().isOk());
 
@@ -190,8 +191,8 @@ class UserControllerTest {
     void testAddFlightLogRejectsPartialPairAndPreservesHours() throws Exception {
         // Set up a user with manually-entered hours.
         Aircraft u = plane("user3");
-        u.setBlockTimeHours(100.0);
-        u.setBlockTimeManualBaseline(100.0);
+        u.setHobbsTimeHours(100.0);
+        u.setHobbsTimeManualBaseline(100.0);
         u.setTimeInServiceHours(100.0);
         u.setTimeInServiceManualBaseline(100.0);
         aircraftRepository.save(u);
@@ -205,7 +206,7 @@ class UserControllerTest {
 
         // Critical: the meters must NOT have been touched.
         Aircraft after = plane("user3");
-        assertEquals(100.0, after.getBlockTimeHours(), 0.0001, "BlockTime hours must not be wiped by a rejected partial entry");
+        assertEquals(100.0, after.getHobbsTimeHours(), 0.0001, "HobbsTime hours must not be wiped by a rejected partial entry");
         assertEquals(100.0, after.getTimeInServiceHours(), 0.0001, "TimeInService hours must not be wiped by a rejected partial entry");
         assertTrue(flightLogRepository.findByAircraft(after).isEmpty(), "No partial log should have been saved");
     }
@@ -215,21 +216,21 @@ class UserControllerTest {
     void testManualBaselineActsAsFloorAgainstLowerLogReadings() throws Exception {
         // User manually claims 200 hours on the airframe.
         Aircraft u = plane("user4");
-        u.setBlockTimeHours(200.0);
-        u.setBlockTimeManualBaseline(200.0);
+        u.setHobbsTimeHours(200.0);
+        u.setHobbsTimeManualBaseline(200.0);
         u.setTimeInServiceHours(200.0);
         u.setTimeInServiceManualBaseline(200.0);
         aircraftRepository.save(u);
 
-        // Add a complete log whose blockTimeIn=50 is well BELOW the manual floor.
+        // Add a complete log whose hobbsTimeIn=50 is well BELOW the manual floor.
         mockMvc.perform(post("/addflightlog")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"blockTimeOut\":49.5,\"blockTimeIn\":50.0,\"timeInServiceOut\":49.5,\"timeInServiceIn\":50.0}")
+                .content("{\"hobbsTimeOut\":49.5,\"hobbsTimeIn\":50.0,\"timeInServiceOut\":49.5,\"timeInServiceIn\":50.0}")
                 .with(SecurityMockMvcRequestPostProcessors.csrf()))
                 .andExpect(status().isOk());
 
         Aircraft after = plane("user4");
-        assertEquals(200.0, after.getBlockTimeHours(), 0.0001, "Manual baseline must not be overwritten by a lower log reading");
+        assertEquals(200.0, after.getHobbsTimeHours(), 0.0001, "Manual baseline must not be overwritten by a lower log reading");
         assertEquals(200.0, after.getTimeInServiceHours(), 0.0001, "Manual baseline must not be overwritten by a lower log reading");
     }
 
@@ -238,21 +239,21 @@ class UserControllerTest {
     void testDeleteFlightLogRevertsToBaseline() throws Exception {
         // Start at a manual baseline of 100.
         Aircraft u = plane("user5");
-        u.setBlockTimeHours(100.0);
-        u.setBlockTimeManualBaseline(100.0);
+        u.setHobbsTimeHours(100.0);
+        u.setHobbsTimeManualBaseline(100.0);
         u.setTimeInServiceHours(100.0);
         u.setTimeInServiceManualBaseline(100.0);
         aircraftRepository.save(u);
 
-        // Add a log that raises blockTime to 150 and timeInService to 145.
+        // Add a log that raises hobbsTime to 150 and timeInService to 145.
         mockMvc.perform(post("/addflightlog")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"blockTimeOut\":100.0,\"blockTimeIn\":150.0,\"timeInServiceOut\":100.0,\"timeInServiceIn\":145.0}")
+                .content("{\"hobbsTimeOut\":100.0,\"hobbsTimeIn\":150.0,\"timeInServiceOut\":100.0,\"timeInServiceIn\":145.0}")
                 .with(SecurityMockMvcRequestPostProcessors.csrf()))
                 .andExpect(status().isOk());
 
         Aircraft afterAdd = plane("user5");
-        assertEquals(150.0, afterAdd.getBlockTimeHours(), 0.0001, "BlockTime should be raised by the log");
+        assertEquals(150.0, afterAdd.getHobbsTimeHours(), 0.0001, "HobbsTime should be raised by the log");
         assertEquals(145.0, afterAdd.getTimeInServiceHours(), 0.0001, "TimeInService should be raised by the log");
 
         // Delete that log — meters must revert to the baseline, not crash to 0.
@@ -265,7 +266,50 @@ class UserControllerTest {
                 .andExpect(status().isOk());
 
         Aircraft afterDelete = plane("user5");
-        assertEquals(100.0, afterDelete.getBlockTimeHours(), 0.0001, "Delete must revert BlockTime to the manual baseline");
+        assertEquals(100.0, afterDelete.getHobbsTimeHours(), 0.0001, "Delete must revert HobbsTime to the manual baseline");
         assertEquals(100.0, afterDelete.getTimeInServiceHours(), 0.0001, "Delete must revert TimeInService to the manual baseline");
+    }
+
+    // ── Hobbs Time rename (spec 005): old names from a tab still running the
+    // pre-rename dashboard.js must keep saving, not be silently dropped.
+
+    @Test
+    @WithMockUser(username = "user10", roles = {"USER"})
+    void legacyBlockTimeJsonNamesStillSaveHobbsValues() throws Exception {
+        mockMvc.perform(post("/addflightlog")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"fromAirport\":\"KAAA\",\"toAirport\":\"KBBB\",\"blockTimeOut\":10.0,\"blockTimeIn\":11.5}")
+                .with(SecurityMockMvcRequestPostProcessors.csrf()))
+                .andExpect(status().isOk());
+
+        Aircraft after = plane("user10");
+        var logs = flightLogRepository.findByAircraft(after);
+        assertEquals(1, logs.size());
+        assertEquals(10.0, logs.get(0).getHobbsTimeOut(), 0.0001);
+        assertEquals(11.5, logs.get(0).getHobbsTimeIn(), 0.0001);
+        assertEquals(11.5, after.getHobbsTimeHours(), 0.0001);
+    }
+
+    @Test
+    @WithMockUser(username = "user11", roles = {"USER"})
+    void legacyUpdateHoursParamsStillWork() throws Exception {
+        mockMvc.perform(post("/updateHours").param("newBlockTime", "250.5")
+                .with(SecurityMockMvcRequestPostProcessors.csrf()))
+                .andExpect(status().isOk());
+        assertEquals(250.5, plane("user11").getHobbsTimeHours(), 0.0001);
+
+        mockMvc.perform(post("/updateHours").param("blockTimeToAdd", "1.5")
+                .with(SecurityMockMvcRequestPostProcessors.csrf()))
+                .andExpect(status().isOk());
+        assertEquals(252.0, plane("user11").getHobbsTimeHours(), 0.0001);
+    }
+
+    @Test
+    @WithMockUser(username = "user12", roles = {"USER"})
+    void newHobbsNameWinsOverLegacyName() throws Exception {
+        mockMvc.perform(post("/updateHours").param("newHobbsTime", "300.0").param("newBlockTime", "1.0")
+                .with(SecurityMockMvcRequestPostProcessors.csrf()))
+                .andExpect(status().isOk());
+        assertEquals(300.0, plane("user12").getHobbsTimeHours(), 0.0001);
     }
 }

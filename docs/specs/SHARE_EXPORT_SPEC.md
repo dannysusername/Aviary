@@ -88,14 +88,14 @@ intentionally bypass all of it.
 
 Scope applies to **all four actions, including Print**:
 
-- **This tab** (default) — only the active tab (Service Timeline *or* Log Book).
+- **This tab** (default) — only the active tab (Status Sheet *or* Log Book).
 - **Full dashboard** — both tabs' content in one document. Slightly more work on
   both render paths (must reveal/render both sections).
 
 ## PDF content = data only, no UI chrome
 
-The PDF contains only the record content: **Service Timeline, Aircraft Info,
-Hours (block time / time in service), and Log Book**. All interactive controls are excluded —
+The PDF contains only the record content: **Status Sheet, Aircraft Info,
+Hours (Hobbs time / time in service), and Log Book**. All interactive controls are excluded —
 the Share menu, grip handles, trash/delete icons, complete-maintenance button,
 chevrons, dropdowns, etc.
 
@@ -164,7 +164,7 @@ for their attachment/link instead of building their own renderer.
   with alert invites/resends) → 429 past the cap.
 - **Tokenized PDF links** (for SMS) must be unguessable + expiring so records
   can't be enumerated.
-- **Empty timeline** — disable Share or guard against emailing a blank PDF.
+- **Empty Status Sheet** — disable Share or guard against emailing a blank PDF.
 - **States** — "Generating…" loading state; reuse existing `showToast` for
   success/failure.
 - **Excel export** — currently commented out; omit from the menu until real.

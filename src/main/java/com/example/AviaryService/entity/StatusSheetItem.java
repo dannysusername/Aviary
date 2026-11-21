@@ -5,8 +5,8 @@ import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "service_timelines") // Assuming a table name; adjust if different
-public class ServiceTimeline {
+@Table(name = "service_timelines") // pre-rename table name; keeps existing data in place
+public class StatusSheetItem {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -35,8 +35,8 @@ public class ServiceTimeline {
     @Column
     private String timeLeft;
 
-    @Column
-    private Integer timelineOrder;
+    @Column(name = "timeline_order") // pre-rename column name; keeps existing data in place
+    private Integer statusSheetOrder;
 
     // Structured cycle drives the "Complete Maintenance" button.
     // Nullable: a row may have a calendar cycle, an hours cycle, both, or
@@ -50,6 +50,27 @@ public class ServiceTimeline {
 
     @Column
     private Double cycleHours;
+
+    // Spec 007: whether the Due Date date / hours were auto-filled from Last
+    // Done + cycle (TRUE), typed by the owner (FALSE), or unknown (null, rows
+    // from before the feature; see DueDateAutoFill).
+    @Column
+    private Boolean dueDateAuto;
+
+    @Column
+    private Boolean dueHoursAuto;
+
+    // Display-only (spec 007): hours with 1-3 decimals ("25" shows as "25.0").
+    // Stored text is not changed; legacy non-numeric text is shown as stored.
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public String getLastDoneHoursDisplay() { return com.example.AviaryService.util.DueDateAutoFill.displayHours(lastDoneHours); }
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public String getDueDateHoursDisplay() { return com.example.AviaryService.util.DueDateAutoFill.displayHours(dueDateHours); }
+
+    public Boolean getDueDateAuto() { return dueDateAuto; }
+    public void setDueDateAuto(Boolean v) { this.dueDateAuto = v; }
+    public Boolean getDueHoursAuto() { return dueHoursAuto; }
+    public void setDueHoursAuto(Boolean v) { this.dueHoursAuto = v; }
 
     // Maintenance-alerts state (docs/specs/ALERTS_SPEC.md). alertLevel is the level
     // this item was last alerted at -- null / "DUE_SOON" / "OVERDUE" -- so the
@@ -75,10 +96,10 @@ public class ServiceTimeline {
     private Aircraft aircraft;
 
     // Constructors
-    public ServiceTimeline() {}
+    public StatusSheetItem() {}
 
 
-    public ServiceTimeline(String item, boolean isTitle, String description, String cycleCalendarUnit, Integer cycleCalendarValue, Double cycleHours, String lastDoneDate, String lastDoneHours, String dueDateDate, String dueDateHours, String timeLeft, User user) {
+    public StatusSheetItem(String item, boolean isTitle, String description, String cycleCalendarUnit, Integer cycleCalendarValue, Double cycleHours, String lastDoneDate, String lastDoneHours, String dueDateDate, String dueDateHours, String timeLeft, User user) {
         this.item = item;
         this.isTitle = isTitle;
         this.description = description;
@@ -140,8 +161,8 @@ public class ServiceTimeline {
     public String getTimeLeft() { return timeLeft; }
     public void setTimeLeft(String timeLeft) { this.timeLeft = timeLeft; }
 
-    public Integer getTimelineOrder() { return timelineOrder; }
-    public void setTimelineOrder(Integer timelineOrder) { this.timelineOrder = timelineOrder; }
+    public Integer getStatusSheetOrder() { return statusSheetOrder; }
+    public void setStatusSheetOrder(Integer statusSheetOrder) { this.statusSheetOrder = statusSheetOrder; }
 
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }

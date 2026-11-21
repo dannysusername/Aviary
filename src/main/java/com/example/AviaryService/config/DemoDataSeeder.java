@@ -15,12 +15,12 @@ import org.springframework.stereotype.Component;
 import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.FlightLog;
 import com.example.AviaryService.entity.FlightSuggestion;
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.FlightLogRepository;
 import com.example.AviaryService.repositories.FlightSuggestionRepository;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.repositories.UserRepository;
 
 // Local-only demo account for eyeballing the dashboard: log in as
@@ -37,17 +37,17 @@ public class DemoDataSeeder implements CommandLineRunner {
     static final String PASSWORD = "Demo-pass-123";
 
     private final UserRepository userRepository;
-    private final ServiceTimelineRepository timelineRepository;
+    private final StatusSheetItemRepository statusSheetItemRepository;
     private final FlightLogRepository flightLogRepository;
     private final FlightSuggestionRepository suggestionRepository;
     private final PasswordEncoder passwordEncoder;
     private final AircraftRepository aircraftRepository;
 
-    public DemoDataSeeder(UserRepository userRepository, ServiceTimelineRepository timelineRepository,
+    public DemoDataSeeder(UserRepository userRepository, StatusSheetItemRepository statusSheetItemRepository,
             FlightLogRepository flightLogRepository, FlightSuggestionRepository suggestionRepository,
             PasswordEncoder passwordEncoder, AircraftRepository aircraftRepository) {
         this.userRepository = userRepository;
-        this.timelineRepository = timelineRepository;
+        this.statusSheetItemRepository = statusSheetItemRepository;
         this.flightLogRepository = flightLogRepository;
         this.suggestionRepository = suggestionRepository;
         this.passwordEncoder = passwordEncoder;
@@ -70,7 +70,7 @@ public class DemoDataSeeder implements CommandLineRunner {
         demo.setLastViewedAircraft(sr22);
         userRepository.save(demo);
 
-        List<ServiceTimeline> rows = new ArrayList<>();
+        List<StatusSheetItem> rows = new ArrayList<>();
         rows.add(title("Engine", demo));
         rows.add(item("Oil Change", "Replace", null, null, 50.0,
                 today.minusMonths(1), "1383.9", null, "1433.9", demo));                 // 15.2 hours left
@@ -91,10 +91,10 @@ public class DemoDataSeeder implements CommandLineRunner {
         rows.add(item("Pitot-Static Check", "Test", "MONTHS", 24, null,
                 today.minusMonths(20), null, today.plusMonths(4), null, demo));        // 4 mo
         for (int i = 0; i < rows.size(); i++) {
-            rows.get(i).setTimelineOrder(i);
+            rows.get(i).setStatusSheetOrder(i);
             rows.get(i).setAircraft(sr22);
         }
-        timelineRepository.saveAll(rows);
+        statusSheetItemRepository.saveAll(rows);
 
         // Log book: a chain of recent flights, oldest first, each picking up
         // where the last left off so the meters are consistent.
@@ -103,22 +103,22 @@ public class DemoDataSeeder implements CommandLineRunner {
             {"KTMB", "KAPF", "1.8", "1.6"}, {"KAPF", "KTMB", "1.7", "1.5"},
             {"KTMB", "KEYW", "2.1", "1.9"}, {"KEYW", "KTMB", "2.0", "1.8"},
         };
-        double block = 1532.4 - sum(legs, 2);
+        double hobbs = 1532.4 - sum(legs, 2);
         double service = 1418.7 - sum(legs, 3);
         Instant start = today.minusDays(20).atTime(14, 0).toInstant(ZoneOffset.UTC);
         for (String[] leg : legs) {
-            double blockLen = Double.parseDouble(leg[2]);
+            double hobbsLen = Double.parseDouble(leg[2]);
             double serviceLen = Double.parseDouble(leg[3]);
-            FlightLog log = new FlightLog(leg[0], leg[1], round(block + blockLen), round(block),
+            FlightLog log = new FlightLog(leg[0], leg[1], round(hobbs + hobbsLen), round(hobbs),
                 round(service + serviceLen), round(service), demo);
             log.setSource("manual");
             log.setAircraft(sr22);
-            log.setBlockTimeStart(start);
-            log.setBlockTimeEnd(start.plus(minutes(blockLen)));
+            log.setHobbsTimeStart(start);
+            log.setHobbsTimeEnd(start.plus(minutes(hobbsLen)));
             log.setTimeInServiceStart(start.plus(Duration.ofMinutes(6)));
             log.setTimeInServiceEnd(start.plus(Duration.ofMinutes(6)).plus(minutes(serviceLen)));
             flightLogRepository.save(log);
-            block += blockLen;
+            hobbs += hobbsLen;
             service += serviceLen;
             start = start.plus(Duration.ofDays(3));
         }
@@ -140,9 +140,9 @@ public class DemoDataSeeder implements CommandLineRunner {
         seedSecondAircraft(demo, pa28, today);
     }
 
-    // N731KR: a smaller timeline with one overdue item, and a few flights.
+    // N731KR: a smaller Status Sheet item with one overdue item, and a few flights.
     private void seedSecondAircraft(User demo, Aircraft pa28, LocalDate today) {
-        List<ServiceTimeline> rows = new ArrayList<>();
+        List<StatusSheetItem> rows = new ArrayList<>();
         rows.add(item("Annual Inspection", "Inspect", "MONTHS", 12, null,
                 today.minusMonths(11).minusDays(20), null, today.plusDays(10), null, demo));   // due soon
         rows.add(item("Oil Change", "Replace", null, null, 50.0,
@@ -154,41 +154,41 @@ public class DemoDataSeeder implements CommandLineRunner {
         rows.add(item("ELT Battery", "Replace", "MONTHS", 24, null,
                 today.minusMonths(6), null, today.plusMonths(18), null, demo));
         for (int i = 0; i < rows.size(); i++) {
-            rows.get(i).setTimelineOrder(i);
+            rows.get(i).setStatusSheetOrder(i);
             rows.get(i).setAircraft(pa28);
         }
-        timelineRepository.saveAll(rows);
+        statusSheetItemRepository.saveAll(rows);
 
         String[][] legs = { {"KFXE", "KBCT", "0.8", "0.6"}, {"KBCT", "KFXE", "0.9", "0.7"}, {"KFXE", "KVRB", "1.5", "1.3"} };
-        double block = 4210.6 - sum(legs, 2);
+        double hobbs = 4210.6 - sum(legs, 2);
         double service = 4105.2 - sum(legs, 3);
         Instant start = today.minusDays(12).atTime(13, 0).toInstant(ZoneOffset.UTC);
         for (String[] leg : legs) {
-            double blockLen = Double.parseDouble(leg[2]);
+            double hobbsLen = Double.parseDouble(leg[2]);
             double serviceLen = Double.parseDouble(leg[3]);
-            FlightLog log = new FlightLog(leg[0], leg[1], round(block + blockLen), round(block),
+            FlightLog log = new FlightLog(leg[0], leg[1], round(hobbs + hobbsLen), round(hobbs),
                 round(service + serviceLen), round(service), demo);
             log.setSource("manual");
             log.setAircraft(pa28);
-            log.setBlockTimeStart(start);
-            log.setBlockTimeEnd(start.plus(minutes(blockLen)));
+            log.setHobbsTimeStart(start);
+            log.setHobbsTimeEnd(start.plus(minutes(hobbsLen)));
             log.setTimeInServiceStart(start.plus(Duration.ofMinutes(5)));
             log.setTimeInServiceEnd(start.plus(Duration.ofMinutes(5)).plus(minutes(serviceLen)));
             flightLogRepository.save(log);
-            block += blockLen;
+            hobbs += hobbsLen;
             service += serviceLen;
             start = start.plus(Duration.ofDays(4));
         }
     }
 
     private Aircraft aircraft(User owner, String tail, String makeModel, String serial,
-            double blockTime, double timeInService) {
+            double hobbsTime, double timeInService) {
         Aircraft a = new Aircraft(owner);
         a.setTailNumber(tail);
         a.setMakeModel(makeModel);
-        a.setOwnerName("Demo Pilot");
+        a.setOperatorName("Demo Pilot");
         a.setMakeModelSN(serial);
-        a.setBlockTimeHours(blockTime);
+        a.setHobbsTimeHours(hobbsTime);
         a.setTimeInServiceHours(timeInService);
         return aircraftRepository.save(a);
     }
@@ -198,13 +198,13 @@ public class DemoDataSeeder implements CommandLineRunner {
         return s;
     }
 
-    private static ServiceTimeline title(String name, User user) {
-        return new ServiceTimeline(name, true, null, null, null, null, null, null, null, null, null, user);
+    private static StatusSheetItem title(String name, User user) {
+        return new StatusSheetItem(name, true, null, null, null, null, null, null, null, null, null, user);
     }
 
-    private static ServiceTimeline item(String name, String description, String calUnit, Integer calValue,
+    private static StatusSheetItem item(String name, String description, String calUnit, Integer calValue,
             Double cycleHours, LocalDate lastDone, String lastDoneHours, LocalDate due, String dueHours, User user) {
-        return new ServiceTimeline(name, false, description, calUnit, calValue, cycleHours,
+        return new StatusSheetItem(name, false, description, calUnit, calValue, cycleHours,
             calUnit == null ? null : lastDone.toString(), lastDoneHours,
             due == null ? null : due.toString(), dueHours, null, user);
     }

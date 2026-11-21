@@ -13,10 +13,10 @@ import org.springframework.stereotype.Service;
 
 import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.entity.AlertPreference;
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.AircraftRepository;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.util.DueDates;
 import com.example.AviaryService.util.Formatting;
 
@@ -33,12 +33,12 @@ public class AlertDigestService {
     private static final DateTimeFormatter STAMP =
         DateTimeFormatter.ofPattern("MMM d, yyyy h:mm a 'UTC'").withZone(ZoneOffset.UTC);
 
-    private final ServiceTimelineRepository serviceTimelineRepository;
+    private final StatusSheetItemRepository statusSheetItemRepository;
     private final AircraftRepository aircraftRepository;
 
-    public AlertDigestService(ServiceTimelineRepository serviceTimelineRepository,
+    public AlertDigestService(StatusSheetItemRepository statusSheetItemRepository,
             AircraftRepository aircraftRepository) {
-        this.serviceTimelineRepository = serviceTimelineRepository;
+        this.statusSheetItemRepository = statusSheetItemRepository;
         this.aircraftRepository = aircraftRepository;
     }
 
@@ -49,10 +49,10 @@ public class AlertDigestService {
         // Every row across the fleet, grouped by aircraft. Each hours-cycle
         // row is judged against ITS OWN aircraft's time in service, never
         // another plane's (Constitution II).
-        List<ServiceTimeline> rows = serviceTimelineRepository.findByUserOrderByAircraftIdAscTimelineOrderAsc(user);
+        List<StatusSheetItem> rows = statusSheetItemRepository.findByUserOrderByAircraftIdAscStatusSheetOrderAsc(user);
 
         List<Row> evaluated = new ArrayList<>();
-        for (ServiceTimeline t : rows) {
+        for (StatusSheetItem t : rows) {
             if (t.getIsTitle()) {
                 continue;
             }
@@ -88,8 +88,8 @@ public class AlertDigestService {
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         Instant now = Instant.now();
 
-        List<ServiceTimeline> rows = serviceTimelineRepository.findByUserOrderByAircraftIdAscTimelineOrderAsc(user);
-        for (ServiceTimeline t : rows) {
+        List<StatusSheetItem> rows = statusSheetItemRepository.findByUserOrderByAircraftIdAscStatusSheetOrderAsc(user);
+        for (StatusSheetItem t : rows) {
             if (t.getIsTitle()) {
                 continue;
             }
@@ -101,10 +101,10 @@ public class AlertDigestService {
                 t.setAlertLastFiredAt(now);
             }
         }
-        serviceTimelineRepository.saveAll(rows);
+        statusSheetItemRepository.saveAll(rows);
     }
 
-    private static Double timeInServiceOf(ServiceTimeline t) {
+    private static Double timeInServiceOf(StatusSheetItem t) {
         return t.getAircraft() == null ? null : t.getAircraft().getTimeInServiceHours();
     }
 
@@ -191,7 +191,7 @@ public class AlertDigestService {
     }
 
     private static void appendHours(StringBuilder sb, String label, Aircraft a) {
-        sb.append("\n").append(label).append(": Block Time ").append(hours(a.getBlockTimeHours()))
+        sb.append("\n").append(label).append(": Hobbs Time ").append(hours(a.getHobbsTimeHours()))
           .append(" · Time in Service ").append(hours(a.getTimeInServiceHours())).append('\n');
     }
 
@@ -203,7 +203,7 @@ public class AlertDigestService {
         };
     }
 
-    static String timeLeftText(ServiceTimeline t, Double tis, LocalDate today) {
+    static String timeLeftText(StatusSheetItem t, Double tis, LocalDate today) {
         //Overdue parts first, then what's left
         // "480.0 hrs overdue 106 days left"
         List<String> overdue = new ArrayList<>();
@@ -235,12 +235,12 @@ public class AlertDigestService {
 
     // Plain holder (fields accessed directly below, not record-style).
     private static final class Row {
-        final ServiceTimeline row;
+        final StatusSheetItem row;
         final AlertLevel current;
         final AlertLevel previous;
         final String timeLeft;
 
-        Row(ServiceTimeline row, AlertLevel current, AlertLevel previous, String timeLeft) {
+        Row(StatusSheetItem row, AlertLevel current, AlertLevel previous, String timeLeft) {
             this.row = row;
             this.current = current;
             this.previous = previous;

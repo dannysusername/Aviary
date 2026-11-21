@@ -79,10 +79,10 @@ class DueDatesTest {
 
     @Test
     void formatTimeLeft_combinesCalendarAndHours() {
-        assertEquals("12 days left\n181.3 hours left",
+        assertEquals("12 days left · 181.3 hrs left",
             DueDates.formatTimeLeft("2026-09-20", "1600.0", TODAY, 1418.7));
-        assertEquals("50 hours left", DueDates.formatTimeLeft(null, "1250", TODAY, 1200.0));
-        assertEquals("2.5 hours overdue", DueDates.formatTimeLeft("", "1197.5", TODAY, 1200.0));
+        assertEquals("50 hrs left", DueDates.formatTimeLeft(null, "1250", TODAY, 1200.0));
+        assertEquals("2.5 hrs overdue", DueDates.formatTimeLeft("", "1197.5", TODAY, 1200.0));
         assertEquals("N/A", DueDates.formatTimeLeft(null, null, TODAY, 1200.0));
     }
 }

@@ -1,6 +1,6 @@
 package com.example.AviaryService.entity.DTO;
 
-public class TimelineUpdateDTO {
+public class StatusSheetItemUpdateDTO {
     private String item;
     private String description;
     private String cycle;
@@ -16,7 +16,7 @@ public class TimelineUpdateDTO {
     private Double cycleHours;
 
     // Default constructor (required for Jackson deserialization)
-    public TimelineUpdateDTO() {}
+    public StatusSheetItemUpdateDTO() {}
 
     // Getters and Setters
     public String getItem() { return item; }
@@ -73,4 +73,15 @@ public class TimelineUpdateDTO {
 
     public Double getCycleHours() { return cycleHours; }
     public void setCycleHours(Double newCycHrsVal) { this.cycleHours = newCycHrsVal; }
+
+    // Spec 007: true when the owner edited that Due Date part in this save.
+    // Both null = an older dashboard.js that predates auto-fill; the server
+    // then saves the submitted Due Date as-is (old behavior).
+    private Boolean dueDateTouched;
+    private Boolean dueHoursTouched;
+
+    public Boolean getDueDateTouched() { return dueDateTouched; }
+    public void setDueDateTouched(Boolean v) { this.dueDateTouched = v; }
+    public Boolean getDueHoursTouched() { return dueHoursTouched; }
+    public void setDueHoursTouched(Boolean v) { this.dueHoursTouched = v; }
 }

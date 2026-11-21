@@ -1,8 +1,8 @@
 package com.example.AviaryService.browser;
 
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
@@ -39,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Screenshots of the grip and a before/after drag are dropped into the build
  * report at build/browsertest-screenshots/.
  */
-class ServiceTimelineMobileDragTest extends BrowserTestBase {
+class StatusSheetMobileDragTest extends BrowserTestBase {
 
     private static final int PHONE_W = 390;
     private static final int PHONE_H = 844;
@@ -48,35 +48,35 @@ class ServiceTimelineMobileDragTest extends BrowserTestBase {
     UserRepository users;
 
     @Autowired
-    ServiceTimelineRepository timelines;
+    StatusSheetItemRepository statusSheetItems;
 
     /** Two plain item rows (no title) so a drag swap is unambiguous. */
     private void seedTwoItems(User user) {
-        ServiceTimeline alpha = new ServiceTimeline();
+        StatusSheetItem alpha = new StatusSheetItem();
         alpha.setUser(user);
         alpha.setAircraft(aircraftOf(user));
         alpha.setItem("Alpha Item");
         alpha.setIsTitle(false);
-        alpha.setTimelineOrder(0);
+        alpha.setStatusSheetOrder(0);
         alpha.setDescription("Inspect");
         alpha.setCycleCalendarValue(12);
         alpha.setCycleCalendarUnit("MONTHS");
         setLastDone(alpha, "2025-06-01");
         setDueDate(alpha, "2026-06-01");
-        timelines.save(alpha);
+        statusSheetItems.save(alpha);
 
-        ServiceTimeline bravo = new ServiceTimeline();
+        StatusSheetItem bravo = new StatusSheetItem();
         bravo.setUser(user);
         bravo.setAircraft(aircraftOf(user));
         bravo.setItem("Bravo Item");
         bravo.setIsTitle(false);
-        bravo.setTimelineOrder(1);
+        bravo.setStatusSheetOrder(1);
         bravo.setDescription("Test");
         bravo.setCycleCalendarValue(6);
         bravo.setCycleCalendarUnit("MONTHS");
         setLastDone(bravo, "2025-01-01");
         setDueDate(bravo, "2025-07-01");
-        timelines.save(bravo);
+        statusSheetItems.save(bravo);
     }
 
     private void openDashboardOnPhone() {
@@ -269,18 +269,18 @@ class ServiceTimelineMobileDragTest extends BrowserTestBase {
     private void seedFourItems(User user) {
         String[] names = { "Alpha Item", "Bravo Item", "Charlie Item", "Delta Item" };
         for (int i = 0; i < names.length; i++) {
-            ServiceTimeline t = new ServiceTimeline();
+            StatusSheetItem t = new StatusSheetItem();
             t.setUser(user);
             t.setAircraft(aircraftOf(user));
             t.setItem(names[i]);
             t.setIsTitle(false);
-            t.setTimelineOrder(i);
+            t.setStatusSheetOrder(i);
             t.setDescription("Desc " + i);
             t.setCycleCalendarValue(12);
             t.setCycleCalendarUnit("MONTHS");
             setLastDone(t, "2025-06-01");
             setDueDate(t, "2026-06-01");
-            timelines.save(t);
+            statusSheetItems.save(t);
         }
     }
 

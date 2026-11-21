@@ -10,9 +10,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import com.example.AviaryService.entity.Aircraft;
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.LoadState;
 
@@ -23,7 +23,7 @@ import com.microsoft.playwright.options.LoadState;
  */
 class FleetPickerTest extends BrowserTestBase {
 
-    @Autowired ServiceTimelineRepository timelines;
+    @Autowired StatusSheetItemRepository statusSheetItems;
 
     private Aircraft a;
     private Aircraft b;
@@ -46,14 +46,14 @@ class FleetPickerTest extends BrowserTestBase {
     }
 
     private void row(User u, Aircraft on, String item, int order, String due) {
-        ServiceTimeline t = new ServiceTimeline();
+        StatusSheetItem t = new StatusSheetItem();
         t.setUser(u);
         t.setAircraft(on);
         t.setItem(item);
         t.setIsTitle(false);
-        t.setTimelineOrder(order);
+        t.setStatusSheetOrder(order);
         t.setDueDateDate(due);
-        timelines.save(t);
+        statusSheetItems.save(t);
     }
 
     private List<String> visibleItems(Page p) {
@@ -117,8 +117,8 @@ class FleetPickerTest extends BrowserTestBase {
             + " return r.status; }");
         assertEquals(200, ((Number) status).intValue());
 
-        assertTrue(timelines.findByAircraftOrderByTimelineOrderAsc(a).stream().anyMatch(t -> t.getItem().equals("Tab one row")));
-        assertTrue(timelines.findByAircraftOrderByTimelineOrderAsc(b).stream().noneMatch(t -> t.getItem().equals("Tab one row")));
+        assertTrue(statusSheetItems.findByAircraftOrderByStatusSheetOrderAsc(a).stream().anyMatch(t -> t.getItem().equals("Tab one row")));
+        assertTrue(statusSheetItems.findByAircraftOrderByStatusSheetOrderAsc(b).stream().noneMatch(t -> t.getItem().equals("Tab one row")));
     }
 
     // The plane button must never sit under Share / Import with AI / Logout,

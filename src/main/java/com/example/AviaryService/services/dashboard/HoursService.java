@@ -14,7 +14,7 @@ import com.example.AviaryService.repositories.FlightLogRepository;
 import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.util.Formatting;
 
-// Keeps one aircraft's hours right (block time and time in service). Handles
+// Keeps one aircraft's hours right (Hobbs time and time in service). Handles
 // manual hour edits, catches typed readings that look like typos compared to
 // existing logs, and recalculates the hours from the flight logs.
 @Service
@@ -29,26 +29,26 @@ public class HoursService {
     }
 
     @Transactional
-    public void updateHours(Double blockTimeToAdd,
-        Double timeInServiceToAdd, Double newBlockTime,
+    public void updateHours(Double hobbsTimeToAdd,
+        Double timeInServiceToAdd, Double newHobbsTime,
         Double newTimeInService, Aircraft aircraft) {
             
         // NaN/Infinity would poison every Time Left calculation, and a meter
         // reading can't be negative.
-        for (Double v : new Double[] { newBlockTime, newTimeInService }) {
+        for (Double v : new Double[] { newHobbsTime, newTimeInService }) {
             if (v != null && (!Double.isFinite(v) || v < 0)) {
                 throw new IllegalArgumentException("Hours must be a number of 0 or more.");
             }
         }
-        for (Double v : new Double[] { blockTimeToAdd, timeInServiceToAdd }) {
+        for (Double v : new Double[] { hobbsTimeToAdd, timeInServiceToAdd }) {
             if (v != null && !Double.isFinite(v)) {
                 throw new IllegalArgumentException("Hours must be a number.");
             }
         }
         // Checked up front so a rejected add never leaves the aircraft half-updated.
-        double currentBlock = aircraft.getBlockTimeHours() == null ? 0 : aircraft.getBlockTimeHours();
+        double currentHobbs = aircraft.getHobbsTimeHours() == null ? 0 : aircraft.getHobbsTimeHours();
         double currentService = aircraft.getTimeInServiceHours() == null ? 0 : aircraft.getTimeInServiceHours();
-        if ((newBlockTime == null && blockTimeToAdd != null && currentBlock + blockTimeToAdd < 0)
+        if ((newHobbsTime == null && hobbsTimeToAdd != null && currentHobbs + hobbsTimeToAdd < 0)
                 || (newTimeInService == null && timeInServiceToAdd != null && currentService + timeInServiceToAdd < 0)) {
             throw new IllegalArgumentException("That would make your hours negative.");
         }
@@ -57,23 +57,23 @@ public class HoursService {
 
         System.out.println("==========");
 
-        if (newBlockTime != null) { //If newBlockTime has a value
-            aircraft.setBlockTimeHours(newBlockTime);
+        if (newHobbsTime != null) { //If newHobbsTime has a value
+            aircraft.setHobbsTimeHours(newHobbsTime);
             // Manual edit also sets the floor — logs can raise this, never lower it.
-            aircraft.setBlockTimeManualBaseline(newBlockTime);
-            System.out.println("Setting BlockTime time to: " + newBlockTime);
+            aircraft.setHobbsTimeManualBaseline(newHobbsTime);
+            System.out.println("Setting HobbsTime time to: " + newHobbsTime);
             updated = true;
-        } else if (blockTimeToAdd != null) { //else if blockTimeToAdd has a value
-            double currentBlockTime = aircraft.getBlockTimeHours();
-            double computedBlockTime = Formatting.roundHours(currentBlockTime + blockTimeToAdd);
-            aircraft.setBlockTimeHours(computedBlockTime);
-            aircraft.setBlockTimeManualBaseline(computedBlockTime);
-            System.out.println("Adding " + blockTimeToAdd + " to current BlockTime: " + currentBlockTime);
+        } else if (hobbsTimeToAdd != null) { //else if hobbsTimeToAdd has a value
+            double currentHobbsTime = aircraft.getHobbsTimeHours();
+            double computedHobbsTime = Formatting.roundHours(currentHobbsTime + hobbsTimeToAdd);
+            aircraft.setHobbsTimeHours(computedHobbsTime);
+            aircraft.setHobbsTimeManualBaseline(computedHobbsTime);
+            System.out.println("Adding " + hobbsTimeToAdd + " to current HobbsTime: " + currentHobbsTime);
             updated = true;
         }
 
-        double finalBlockTime = aircraft.getBlockTimeHours();
-        System.out.println("Current blockTime: " + finalBlockTime);
+        double finalHobbsTime = aircraft.getHobbsTimeHours();
+        System.out.println("Current hobbsTime: " + finalHobbsTime);
 
         if (newTimeInService != null) { //If newTimeInService has a value
             aircraft.setTimeInServiceHours(newTimeInService);
@@ -97,9 +97,9 @@ public class HoursService {
         }
 
         java.time.Instant now = java.time.Instant.now();
-        if (newBlockTime != null || blockTimeToAdd != null) {
-            aircraft.setBlockTimeUpdatedAt(now);
-            aircraft.setBlockTimeUpdatedSource("manual");
+        if (newHobbsTime != null || hobbsTimeToAdd != null) {
+            aircraft.setHobbsTimeUpdatedAt(now);
+            aircraft.setHobbsTimeUpdatedSource("manual");
         }
         if (newTimeInService != null || timeInServiceToAdd != null) {
             aircraft.setTimeInServiceUpdatedAt(now);
@@ -122,7 +122,7 @@ public class HoursService {
     // this pair -- without those there's nothing to compare chronologically,
     // so it's waved through (same as before this feature existed).
     public AccuracyIssue checkAccuracy(List<FlightLog> existingLogs, Instant candidateStart, Instant candidateEnd,
-            Double enteredOut, Double enteredIn, boolean useBlockTime) {
+            Double enteredOut, Double enteredIn, boolean useHobbsTime) {
         if (candidateStart == null || candidateEnd == null || enteredOut == null || enteredIn == null) {
             return null;
         }
@@ -131,10 +131,10 @@ public class HoursService {
         Double ceiling = null; // lowest known reading at/after candidateEnd
 
         for (FlightLog log : existingLogs) {
-            Instant logStart = useBlockTime ? log.getBlockTimeStart() : log.getTimeInServiceStart();
-            Instant logEnd   = useBlockTime ? log.getBlockTimeEnd()   : log.getTimeInServiceEnd();
-            Double logOut    = useBlockTime ? log.getBlockTimeOut()   : log.getTimeInServiceOut();
-            Double logIn     = useBlockTime ? log.getBlockTimeIn()    : log.getTimeInServiceIn();
+            Instant logStart = useHobbsTime ? log.getHobbsTimeStart() : log.getTimeInServiceStart();
+            Instant logEnd   = useHobbsTime ? log.getHobbsTimeEnd()   : log.getTimeInServiceEnd();
+            Double logOut    = useHobbsTime ? log.getHobbsTimeOut()   : log.getTimeInServiceOut();
+            Double logIn     = useHobbsTime ? log.getHobbsTimeIn()    : log.getTimeInServiceIn();
             if (logStart == null || logEnd == null || logOut == null || logIn == null) continue;
 
             if (!logEnd.isAfter(candidateStart) && (floor == null || logIn > floor)) {
@@ -155,7 +155,7 @@ public class HoursService {
 
     /**
      * Walks one aircraft's flight logs in real chronological order (by
-     * blockTimeStart or timeInServiceStart, whichever pair useBlockTime
+     * hobbsTimeStart or timeInServiceStart, whichever pair useHobbsTime
      * selects) and recomputes Out/In for every non-manual row so the chain
      * stays accurate no matter what order flights were entered in.
      *
@@ -169,24 +169,24 @@ public class HoursService {
      * absolute numbers to wherever this flight actually falls in time.
      *
      * Returns the final running total, which becomes the aircraft's displayed
-     * blockTimeHours/timeInServiceHours. Saves every row it changes; does
+     * hobbsTimeHours/timeInServiceHours. Saves every row it changes; does
      * not save the aircraft -- the caller sets the displayed hours field itself.
      */
     @Transactional
-    public double recomputeChain(Aircraft aircraft, boolean useBlockTime) {
-        Double baselineBoxed = useBlockTime ? aircraft.getBlockTimeManualBaseline() : aircraft.getTimeInServiceManualBaseline();
+    public double recomputeChain(Aircraft aircraft, boolean useHobbsTime) {
+        Double baselineBoxed = useHobbsTime ? aircraft.getHobbsTimeManualBaseline() : aircraft.getTimeInServiceManualBaseline();
         if (baselineBoxed == null) {
-            baselineBoxed = useBlockTime ? aircraft.getBlockTimeHours() : aircraft.getTimeInServiceHours();
-            if (useBlockTime) aircraft.setBlockTimeManualBaseline(baselineBoxed);
+            baselineBoxed = useHobbsTime ? aircraft.getHobbsTimeHours() : aircraft.getTimeInServiceHours();
+            if (useHobbsTime) aircraft.setHobbsTimeManualBaseline(baselineBoxed);
             else aircraft.setTimeInServiceManualBaseline(baselineBoxed);
         }
 
         List<FlightLog> chain = flightLogRepository.findByAircraft(aircraft).stream()
-            .filter(log -> (useBlockTime ? log.getBlockTimeOut() : log.getTimeInServiceOut()) != null
-                        && (useBlockTime ? log.getBlockTimeIn()  : log.getTimeInServiceIn())  != null)
+            .filter(log -> (useHobbsTime ? log.getHobbsTimeOut() : log.getTimeInServiceOut()) != null
+                        && (useHobbsTime ? log.getHobbsTimeIn()  : log.getTimeInServiceIn())  != null)
             .sorted(Comparator
                 .<FlightLog, Instant>comparing(log -> {
-                    Instant start = useBlockTime ? log.getBlockTimeStart() : log.getTimeInServiceStart();
+                    Instant start = useHobbsTime ? log.getHobbsTimeStart() : log.getTimeInServiceStart();
                     return start == null ? Instant.MAX : start;
                 })
                 .thenComparing(FlightLog::getId))
@@ -195,22 +195,22 @@ public class HoursService {
         double running = Formatting.roundHours(baselineBoxed);
         List<FlightLog> toSave = new ArrayList<>();
         for (FlightLog log : chain) {
-            Instant start = useBlockTime ? log.getBlockTimeStart() : log.getTimeInServiceStart();
+            Instant start = useHobbsTime ? log.getHobbsTimeStart() : log.getTimeInServiceStart();
             boolean isAnchor = start == null || "manual".equals(log.getEffectiveSource());
 
             if (isAnchor) {
-                double in = useBlockTime ? log.getBlockTimeIn() : log.getTimeInServiceIn();
+                double in = useHobbsTime ? log.getHobbsTimeIn() : log.getTimeInServiceIn();
                 running = Formatting.roundHours(Math.max(running, in));
             } else {
-                double out = useBlockTime ? log.getBlockTimeOut() : log.getTimeInServiceOut();
-                double in  = useBlockTime ? log.getBlockTimeIn()  : log.getTimeInServiceIn();
+                double out = useHobbsTime ? log.getHobbsTimeOut() : log.getTimeInServiceOut();
+                double in  = useHobbsTime ? log.getHobbsTimeIn()  : log.getTimeInServiceIn();
                 // Round every step so error can't accumulate down the chain.
                 double duration = Formatting.roundHours(in - out);
                 double newOut = Formatting.roundHours(running);
                 double newIn  = Formatting.roundHours(running + duration);
-                if (useBlockTime) {
-                    log.setBlockTimeOut(newOut);
-                    log.setBlockTimeIn(newIn);
+                if (useHobbsTime) {
+                    log.setHobbsTimeOut(newOut);
+                    log.setHobbsTimeIn(newIn);
                 } else {
                     log.setTimeInServiceOut(newOut);
                     log.setTimeInServiceIn(newIn);

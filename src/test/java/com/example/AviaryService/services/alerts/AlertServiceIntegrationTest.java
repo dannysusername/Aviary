@@ -17,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.AviaryService.entity.AlertPreference;
 import com.example.AviaryService.entity.AlertRecipient;
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.AlertPreferenceRepository;
@@ -25,7 +25,7 @@ import com.example.AviaryService.support.TestFleet;
 import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.repositories.AlertRecipientRepository;
 import com.example.AviaryService.repositories.AlertSendLogRepository;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.services.alerts.AlertDigest;
 import com.example.AviaryService.services.alerts.AlertDigestService;
@@ -47,7 +47,7 @@ class AlertServiceIntegrationTest {
     @Autowired AlertPreferenceRepository preferenceRepository;
     @Autowired AlertRecipientRepository recipientRepository;
     @Autowired AlertSendLogRepository sendLogRepository;
-    @Autowired ServiceTimelineRepository serviceTimelineRepository;
+    @Autowired StatusSheetItemRepository statusSheetItemRepository;
     @Autowired UserRepository userRepository;
 
     @Autowired AircraftRepository aircraftRepository;
@@ -67,16 +67,16 @@ class AlertServiceIntegrationTest {
         plane = TestFleet.addAircraft(aircraftRepository, userRepository, user, "N12345", "Test Owner", 0, 1200.0);
     }
 
-    private ServiceTimeline item(String name, String dueDate, String dueHours) {
-        ServiceTimeline t = new ServiceTimeline();
+    private StatusSheetItem item(String name, String dueDate, String dueHours) {
+        StatusSheetItem t = new StatusSheetItem();
         t.setUser(user);
         t.setAircraft(plane);
         t.setItem(name);
         t.setIsTitle(false);
-        t.setTimelineOrder(1);
+        t.setStatusSheetOrder(1);
         t.setDueDateDate(dueDate);
         t.setDueDateHours(dueHours);
-        return serviceTimelineRepository.save(t);
+        return statusSheetItemRepository.save(t);
     }
 
     // -- recipients --
@@ -124,8 +124,8 @@ class AlertServiceIntegrationTest {
     }
 
     @Test
-    void addReceipient_blockedWithoutOwnerName() {
-        plane.setOwnerName(" ");
+    void addReceipient_blockedWithoutOperatorName() {
+        plane.setOperatorName(" ");
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, 
             () -> recipientService.add(user, AlertRecipient.Channel.EMAIL, "a@example.com", null));
             assertEquals("Add your name in Aircraft Info first.", e.getMessage());
@@ -142,19 +142,19 @@ class AlertServiceIntegrationTest {
     }
 
     @Test
-    void resend_blockedWithoutOwnerName() {
+    void resend_blockedWithoutOperatorName() {
         AlertRecipient r = recipientService.add(user, AlertRecipient.Channel.EMAIL, "b@example.com", null);
-        plane.setOwnerName(null);
+        plane.setOperatorName(null);
         assertThrows(IllegalArgumentException.class, () -> recipientService.resend(user, r.getId()));
     }
 
     @Test 
-    void digest_usesBlockTimeLabels_andTailFallback() {
+    void digest_usesHobbsTimeLabels_andTailFallback() {
         plane.setTailNumber(null);
         AlertDigest d = digestService.buildDigest(user, alertService.getOrCreatePrefs(user), false);
-        assertTrue(d.body().contains("Block Time"));
+        assertTrue(d.body().contains("Hobbs Time"));
         assertTrue(d.body().contains("Time in Service"));
-        assertFalse(d.body().contains("Hobbs"));
+        assertFalse(d.body().contains("Block Time"));
         assertTrue(d.body().contains("Maintenance status for your aircraft"));
     }
 

@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-// Turns the service timeline items an AI assistant pulled out of an owner's
+// Turns the Status Sheet items an AI assistant pulled out of an owner's
 // records into Aviary items -- or into rejected rows with a plain reason.
 // Pure (no Spring, no database) so every rule is unit-tested.
 //
@@ -24,7 +24,7 @@ import java.util.Set;
 // the owner to see in the proposal. Only rows with no name are rejected. Due
 // date / due hours come from last done + cycle with the same math as
 // Complete Maintenance.
-public final class TimelineImportRules {
+public final class StatusSheetImportRules {
 
     public static final int MAX_ITEMS = 200;
     public static final int MAX_SOURCE_ROW = 500;
@@ -35,7 +35,7 @@ public final class TimelineImportRules {
         FUTURE_DATE,         // last done is after today -- probably a typo
         UNSUPPORTED_CYCLE,   // e.g. "every 50 landings"; kept in the description, not tracked
         CYCLE_INFERRED,      // no cycle given; worked out from last done -> due
-        DUPLICATE_EXISTING,  // same name as an item already on the timeline; skipped unless the owner opts in
+        DUPLICATE_EXISTING,  // same name as an item already on the Status Sheet; skipped unless the owner opts in
         DUPLICATE_IN_INPUT,  // same name appears more than once in this import
         ON_CONDITION,        // marked on condition: inspected/replaced when its condition calls for it
         NO_SCHEDULE,         // no due date or interval at all; shows N/A until the owner adds one
@@ -87,7 +87,7 @@ public final class TimelineImportRules {
         "Only rows that are not maintenance items at all (or have no name you can find) go in rejectedBySource, with a reason.",
         "At most " + MAX_ITEMS + " items per proposal.");
 
-    private TimelineImportRules() {}
+    private StatusSheetImportRules() {}
 
     public enum SubmissionOutcome {
         PROPOSED,   // a normal proposal
@@ -99,7 +99,7 @@ public final class TimelineImportRules {
     // The verdict on a whole submission. submitted counts every row the
     // assistant sent (items + rows it couldn't read itself); rejected counts
     // every row that didn't make it into the proposal. Title rows alone don't
-    // count as usable -- a list of headings isn't a timeline.
+    // count as usable -- a list of headings isn't a Status Sheet item.
     public static SubmissionOutcome classify(int itemCount, int submitted, int rejected, ItemResult result) {
         if (itemCount > MAX_ITEMS) return SubmissionOutcome.TOO_LARGE;
         boolean anyRealItem = result.items().stream().anyMatch(i -> !i.isTitle());

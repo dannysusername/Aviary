@@ -5,20 +5,20 @@ import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertTha
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import com.example.AviaryService.entity.ServiceTimeline;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.entity.StatusSheetItem;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.microsoft.playwright.options.LoadState;
 
 /**
  * Ways into the Import with AI page from the dashboard: the labeled header
- * control (text on desktop, named icon on a phone). The empty-timeline
+ * control (text on desktop, named icon on a phone). The empty Status Sheet
  * "Have records in a spreadsheet?" prompt was removed; an empty aircraft
  * shows only "Add your first maintenance item".
  */
 class ImportWithAiEntryTest extends BrowserTestBase {
 
     @Autowired
-    ServiceTimelineRepository timelineRepository;
+    StatusSheetItemRepository statusSheetItemRepository;
 
     private void assertNoSidewaysScroll(int width) {
         Object overflow = page.evaluate("document.documentElement.scrollWidth > window.innerWidth");
@@ -51,10 +51,10 @@ class ImportWithAiEntryTest extends BrowserTestBase {
         assertNoSidewaysScroll(390);
     }
 
-    // ---- empty timeline ----
+    // ---- empty Status Sheet ----
 
     @Test
-    void emptyTimelineShowsFirstItemButtonAndNoImportPrompt() {
+    void emptyStatusSheetShowsFirstItemButtonAndNoImportPrompt() {
         page.setViewportSize(1280, 800);
         loginAs(seedUser("password123"), "password123");
 
@@ -68,23 +68,23 @@ class ImportWithAiEntryTest extends BrowserTestBase {
         loginAs(seedUser("password123"), "password123");
         page.emulateMedia(new com.microsoft.playwright.Page.EmulateMediaOptions()
             .setMedia(com.microsoft.playwright.options.Media.PRINT));
-        assertThat(page.locator("#empty-timeline")).isHidden();
+        assertThat(page.locator("#empty-statusSheetItem")).isHidden();
         assertThat(page.locator("#connections-link")).isHidden();
     }
 
     @Test
-    void timelineWithItemsHasNoPrompt() {
+    void statusSheetWithItemsHasNoPrompt() {
         page.setViewportSize(1280, 800);
         String username = seedUser("password123");
-        ServiceTimeline t = new ServiceTimeline();
+        StatusSheetItem t = new StatusSheetItem();
         t.setUser(userRepository.findByUsername(username));
         t.setAircraft(aircraftOf(userRepository.findByUsername(username)));
         t.setItem("Annual");
-        t.setTimelineOrder(0);
-        timelineRepository.save(t);
+        t.setStatusSheetOrder(0);
+        statusSheetItemRepository.save(t);
         loginAs(username, "password123");
 
-        assertThat(page.locator("#empty-timeline")).hasCount(0);
+        assertThat(page.locator("#empty-statusSheetItem")).hasCount(0);
     }
 
     @Test
@@ -92,12 +92,12 @@ class ImportWithAiEntryTest extends BrowserTestBase {
         page.setViewportSize(1280, 800);
         loginAs(seedUser("password123"), "password123");
         page.waitForLoadState(LoadState.NETWORKIDLE);
-        assertThat(page.locator("#empty-timeline")).isVisible();
+        assertThat(page.locator("#empty-statusSheetItem")).isVisible();
 
         page.locator(".add-row td[data-label='Item'] textarea").fill("Oil change");
         page.locator("td.add-cell form button.add-button").click();
 
         assertThat(page.locator(".sortable tr[data-id]")).hasCount(1);
-        assertThat(page.locator("#empty-timeline")).hasCount(0);
+        assertThat(page.locator("#empty-statusSheetItem")).hasCount(0);
     }
 }

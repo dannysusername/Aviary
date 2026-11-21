@@ -9,10 +9,10 @@ import org.springframework.context.annotation.Configuration;
 public class McpConfig {
 
     @Bean 
-    ToolCallbackProvider aviaryTools(FlightTools flightTools, TimelineImportTools timelineImportTools,
+    ToolCallbackProvider aviaryTools(FlightTools flightTools, StatusSheetImportTools statusSheetImportTools,
             AircraftTools aircraftTools) {
         return MethodToolCallbackProvider.builder()
-            .toolObjects(flightTools, timelineImportTools, aircraftTools).build();
+            .toolObjects(flightTools, statusSheetImportTools, aircraftTools).build();
     }
     
 }

@@ -4,7 +4,7 @@ public class Formatting {
 
     private Formatting() {}
 
-    // Real-world hour readings never exceed hundredths (block time reads to
+    // Real-world hour readings never exceed hundredths (Hobbs time reads to
     // 0.1, time in service to 0.01, AeroAPI is minute precision). Repeated double addition in
     // HoursService.recomputeChain otherwise leaves artifacts like
     // "2.0433333333333334". One home for the 2dp rule.

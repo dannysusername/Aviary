@@ -5,7 +5,7 @@ import java.time.temporal.ChronoUnit;
 
 import com.example.AviaryService.services.alerts.AlertLevel;
 
-// Turns a Service Timeline row's stored due-date / due-hours strings into a
+// Turns a Status Sheet row's stored due-date / due-hours strings into a
 // number of days / hours remaining, and classifies that against a user's alert
 // thresholds, and formats the Time Left text. Mirrors calculateTimeLeft in
 // dashboard.js (client-side). See docs/specs/ALERTS_SPEC.md.
@@ -84,7 +84,7 @@ public final class DueDates {
 
     // The Time Left text shown on the dashboard, print view and PDF, computed
     // fresh from the due date / due hours (never the stored timeLeft column,
-    // which goes stale). Calendar line first, hours line second, "N/A" if
+    // which goes stale). Calendar part first, hours part second, one line joined by " · " (spec 011), "N/A" if
     // neither. MUST stay in sync with calculateTimeLeft in dashboard.js.
     public static String formatTimeLeft(String dueDateDate, String dueDateHours,
                                         LocalDate today, Double currentTimeInService) {
@@ -96,8 +96,8 @@ public final class DueDates {
         Double hours = hoursUntil(dueDateHours, currentTimeInService);
         if (hours != null) {
             double rounded = Math.round(hours * 10.0) / 10.0;
-            if (sb.length() > 0) sb.append('\n');
-            sb.append(plainNumber(Math.abs(rounded))).append(rounded < 0 ? " hours overdue" : " hours left");
+            if (sb.length() > 0) sb.append(" · ");
+            sb.append(plainNumber(Math.abs(rounded))).append(rounded < 0 ? " hrs overdue" : " hrs left");
         }
         return sb.length() == 0 ? "N/A" : sb.toString();
     }

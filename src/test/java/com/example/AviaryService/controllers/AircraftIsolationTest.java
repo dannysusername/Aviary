@@ -26,11 +26,11 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.AviaryService.entity.Aircraft;
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.User;
 import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.FlightLogRepository;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.support.TestFleet;
 
@@ -47,7 +47,7 @@ class AircraftIsolationTest {
     @Autowired MockMvc mvc;
     @Autowired UserRepository userRepository;
     @Autowired AircraftRepository aircraftRepository;
-    @Autowired ServiceTimelineRepository timelineRepository;
+    @Autowired StatusSheetItemRepository statusSheetItemRepository;
     @Autowired FlightLogRepository flightLogRepository;
 
     private User owner;
@@ -71,16 +71,16 @@ class AircraftIsolationTest {
         return userRepository.save(u);
     }
 
-    private ServiceTimeline row(Aircraft on, String item, int order, String dueHours, Double cycleHours) {
-        ServiceTimeline t = new ServiceTimeline();
+    private StatusSheetItem row(Aircraft on, String item, int order, String dueHours, Double cycleHours) {
+        StatusSheetItem t = new StatusSheetItem();
         t.setUser(owner);
         t.setAircraft(on);
         t.setItem(item);
         t.setIsTitle(false);
-        t.setTimelineOrder(order);
+        t.setStatusSheetOrder(order);
         t.setDueDateHours(dueHours);
         t.setCycleHours(cycleHours);
-        return timelineRepository.save(t);
+        return statusSheetItemRepository.save(t);
     }
 
     // ---- separation between one owner's aircraft ----
@@ -91,8 +91,8 @@ class AircraftIsolationTest {
                 .header("X-Aircraft-Id", b.getId())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"item\":\"Oil\",\"ajax\":\"true\"}"))
             .andExpect(status().isOk());
-        assertEquals(1, timelineRepository.findByAircraftOrderByTimelineOrderAsc(b).size());
-        assertTrue(timelineRepository.findByAircraftOrderByTimelineOrderAsc(a).isEmpty());
+        assertEquals(1, statusSheetItemRepository.findByAircraftOrderByStatusSheetOrderAsc(b).size());
+        assertTrue(statusSheetItemRepository.findByAircraftOrderByStatusSheetOrderAsc(a).isEmpty());
     }
 
     @Test
@@ -100,20 +100,20 @@ class AircraftIsolationTest {
         mvc.perform(post("/addflightlog").with(user(owner.getUsername())).with(csrf())
                 .header("X-Aircraft-Id", b.getId())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"blockTimeOut\":500.0,\"blockTimeIn\":502.0,\"timeInServiceOut\":500.0,\"timeInServiceIn\":501.5}"))
+                .content("{\"hobbsTimeOut\":500.0,\"hobbsTimeIn\":502.0,\"timeInServiceOut\":500.0,\"timeInServiceIn\":501.5}"))
             .andExpect(status().isOk());
-        assertEquals(502.0, aircraftRepository.findById(b.getId()).orElseThrow().getBlockTimeHours(), 1e-9);
-        assertEquals(100.0, aircraftRepository.findById(a.getId()).orElseThrow().getBlockTimeHours(), 1e-9);
+        assertEquals(502.0, aircraftRepository.findById(b.getId()).orElseThrow().getHobbsTimeHours(), 1e-9);
+        assertEquals(100.0, aircraftRepository.findById(a.getId()).orElseThrow().getHobbsTimeHours(), 1e-9);
         assertTrue(flightLogRepository.findByAircraft(a).isEmpty());
     }
 
     @Test
     void completeMaintenanceUsesTheRowsOwnAircraftHours() throws Exception {
-        ServiceTimeline oil = row(a, "Oil", 0, "150", 50.0);
+        StatusSheetItem oil = row(a, "Oil", 0, "150", 50.0);
         mvc.perform(post("/completeMaintenance/" + oil.getId()).with(user(owner.getUsername())).with(csrf())
                 .header("X-Aircraft-Id", b.getId())) // header ignored: the row decides
             .andExpect(status().isOk());
-        ServiceTimeline after = timelineRepository.findById(oil.getId()).orElseThrow();
+        StatusSheetItem after = statusSheetItemRepository.findById(oil.getId()).orElseThrow();
         // A is at 100 hrs (B is at 500): done at 100, next due at 150.
         assertEquals(100.0, Double.parseDouble(after.getLastDoneHours()), 1e-9);
         assertEquals(150.0, Double.parseDouble(after.getDueDateHours()), 1e-9);
@@ -121,23 +121,23 @@ class AircraftIsolationTest {
 
     @Test
     void reorderMixingAircraftIsRejectedAndSavesNothing() throws Exception {
-        ServiceTimeline a1 = row(a, "A1", 0, null, null);
-        ServiceTimeline a2 = row(a, "A2", 1, null, null);
-        ServiceTimeline b1 = row(b, "B1", 0, null, null);
+        StatusSheetItem a1 = row(a, "A1", 0, null, null);
+        StatusSheetItem a2 = row(a, "A2", 1, null, null);
+        StatusSheetItem b1 = row(b, "B1", 0, null, null);
         mvc.perform(post("/updateOrder").with(user(owner.getUsername())).with(csrf())
                 .header("X-Aircraft-Id", a.getId())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("[" + a2.getId() + "," + b1.getId() + "," + a1.getId() + "]"))
             .andExpect(status().isBadRequest());
-        assertEquals(0, timelineRepository.findById(a1.getId()).orElseThrow().getTimelineOrder());
-        assertEquals(1, timelineRepository.findById(a2.getId()).orElseThrow().getTimelineOrder());
+        assertEquals(0, statusSheetItemRepository.findById(a1.getId()).orElseThrow().getStatusSheetOrder());
+        assertEquals(1, statusSheetItemRepository.findById(a2.getId()).orElseThrow().getStatusSheetOrder());
 
         mvc.perform(post("/updateOrder").with(user(owner.getUsername())).with(csrf())
                 .header("X-Aircraft-Id", a.getId())
                 .contentType(MediaType.APPLICATION_JSON).content("[" + a2.getId() + "," + a1.getId() + "]"))
             .andExpect(status().isOk());
-        assertEquals(1, timelineRepository.findById(a1.getId()).orElseThrow().getTimelineOrder());
-        assertEquals(0, timelineRepository.findById(b1.getId()).orElseThrow().getTimelineOrder());
+        assertEquals(1, statusSheetItemRepository.findById(a1.getId()).orElseThrow().getStatusSheetOrder());
+        assertEquals(0, statusSheetItemRepository.findById(b1.getId()).orElseThrow().getStatusSheetOrder());
     }
 
     @Test
@@ -155,9 +155,9 @@ class AircraftIsolationTest {
             post("/dashboard").contentType(json).content("{\"item\":\"x\",\"ajax\":\"true\"}"),
             post("/updateOrder").contentType(json).content("[]"),
             post("/updateUserInfo").contentType(json).content("{\"makeModel\":\"hacked\"}"),
-            post("/updateHours").param("newBlockTime", "1"),
+            post("/updateHours").param("newHobbsTime", "1"),
             get("/flightlogs"),
-            post("/addflightlog").contentType(json).content("{\"blockTimeOut\":1.0,\"blockTimeIn\":2.0}"),
+            post("/addflightlog").contentType(json).content("{\"hobbsTimeOut\":1.0,\"hobbsTimeIn\":2.0}"),
             multipart("/logbook/upload-csv").file(new MockMultipartFile("csvfile", "a.csv", "text/csv", new byte[0])),
             get("/pdf"),
             post("/pdf/email").param("recipient", "a@example.com"),
@@ -198,8 +198,8 @@ class AircraftIsolationTest {
     private void assertUntouched() {
         Aircraft after = aircraftRepository.findById(a.getId()).orElseThrow();
         assertEquals("", after.getMakeModel());
-        assertEquals(100.0, after.getBlockTimeHours(), 1e-9);
-        assertTrue(timelineRepository.findByAircraftOrderByTimelineOrderAsc(a).isEmpty());
+        assertEquals(100.0, after.getHobbsTimeHours(), 1e-9);
+        assertTrue(statusSheetItemRepository.findByAircraftOrderByStatusSheetOrderAsc(a).isEmpty());
         assertTrue(flightLogRepository.findByAircraft(a).isEmpty());
     }
 }

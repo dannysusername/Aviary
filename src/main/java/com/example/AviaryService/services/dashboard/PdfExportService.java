@@ -18,10 +18,10 @@ import org.thymeleaf.ITemplateEngine;
 import org.thymeleaf.context.Context;
 
 import com.example.AviaryService.entity.FlightLog;
-import com.example.AviaryService.entity.ServiceTimeline;
+import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.repositories.FlightLogRepository;
-import com.example.AviaryService.repositories.ServiceTimelineRepository;
+import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.util.DueDates;
 import com.example.AviaryService.util.Formatting;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
@@ -35,14 +35,14 @@ import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 public class PdfExportService {
 
     private final ITemplateEngine templateEngine;
-    private final ServiceTimelineRepository serviceTimelineRepository;
+    private final StatusSheetItemRepository statusSheetItemRepository;
     private final FlightLogRepository flightLogRepository;
 
     public PdfExportService(ITemplateEngine templateEngine,
-            ServiceTimelineRepository serviceTimelineRepository,
+            StatusSheetItemRepository statusSheetItemRepository,
             FlightLogRepository flightLogRepository) {
         this.templateEngine = templateEngine;
-        this.serviceTimelineRepository = serviceTimelineRepository;
+        this.statusSheetItemRepository = statusSheetItemRepository;
         this.flightLogRepository = flightLogRepository;
     }
 
@@ -56,13 +56,13 @@ public class PdfExportService {
         Context context = new Context();
         context.setVariable("makeModel", aircraft.getMakeModel());
         context.setVariable("tailNumber", aircraft.getTailNumber());
-        context.setVariable("ownerName", aircraft.getOwnerName());
+        context.setVariable("operatorName", aircraft.getOperatorName());
         context.setVariable("makeModelSN", aircraft.getMakeModelSN());
-        context.setVariable("blockTimeHours", formatHoursOrBlank(aircraft.getBlockTimeHours()));
+        context.setVariable("hobbsTimeHours", formatHoursOrBlank(aircraft.getHobbsTimeHours()));
         context.setVariable("timeInServiceHours", formatHoursOrBlank(aircraft.getTimeInServiceHours()));
         context.setVariable("generatedAt", DateTimeFormatter.ofPattern("MMM d, yyyy h:mm a")
             .withZone(ZoneOffset.UTC).format(Instant.now()) + " UTC");
-        context.setVariable("timelineRows", buildTimelineRows(aircraft, today));
+        context.setVariable("statusSheetRows", buildStatusSheetRows(aircraft, today));
         context.setVariable("logRows", buildLogRows(aircraft));
 
         String html = templateEngine.process("pdf-export", context);
@@ -104,20 +104,20 @@ public class PdfExportService {
         }
     }
 
-    private List<Map<String, Object>> buildTimelineRows(Aircraft aircraft, LocalDate today) {
-        return serviceTimelineRepository.findByAircraftOrderByTimelineOrderAsc(aircraft).stream()
-            .map(t -> timelineRowData(t, today, aircraft.getTimeInServiceHours()))
+    private List<Map<String, Object>> buildStatusSheetRows(Aircraft aircraft, LocalDate today) {
+        return statusSheetItemRepository.findByAircraftOrderByStatusSheetOrderAsc(aircraft).stream()
+            .map(t -> statusSheetRowData(t, today, aircraft.getTimeInServiceHours()))
             .collect(Collectors.toList());
     }
 
-    private Map<String, Object> timelineRowData(ServiceTimeline t, LocalDate today, Double currentTimeInService) {
+    private Map<String, Object> statusSheetRowData(StatusSheetItem t, LocalDate today, Double currentTimeInService) {
         Map<String, Object> row = new HashMap<>();
         row.put("isTitle", t.getIsTitle());
         row.put("item", t.getItem());
         row.put("description", t.getDescription());
         row.put("cycle", Formatting.formatCycle(t.getCycleCalendarValue(), t.getCycleCalendarUnit(), t.getCycleHours()));
-        row.put("lastDone", joinNonBlank(t.getLastDoneDate(), withHrs(t.getLastDoneHours())));
-        row.put("dueDate", joinNonBlank(t.getDueDateDate(), withHrs(t.getDueDateHours())));
+        row.put("lastDone", joinNonBlank(t.getLastDoneDate(), withHrs(t.getLastDoneHoursDisplay())));
+        row.put("dueDate", joinNonBlank(t.getDueDateDate(), withHrs(t.getDueDateHoursDisplay())));
         // Computed now, not the stored timeLeft column -- that's only as fresh
         // as the last edit to the row.
         String timeLeft = DueDates.formatTimeLeft(t.getDueDateDate(), t.getDueDateHours(), today, currentTimeInService);
@@ -130,7 +130,7 @@ public class PdfExportService {
         List<FlightLog> logs = flightLogRepository.findByAircraft(aircraft).stream()
             .sorted(Comparator
                 .<FlightLog, Instant>comparing(log -> {
-                    Instant start = log.getBlockTimeStart() != null ? log.getBlockTimeStart() : log.getTimeInServiceStart();
+                    Instant start = log.getHobbsTimeStart() != null ? log.getHobbsTimeStart() : log.getTimeInServiceStart();
                     return start == null ? Instant.MAX : start;
                 })
                 .thenComparing(FlightLog::getId))
@@ -139,12 +139,12 @@ public class PdfExportService {
         List<Map<String, Object>> rows = new ArrayList<>();
         for (FlightLog log : logs) {
             Map<String, Object> row = new HashMap<>();
-            Instant start = log.getBlockTimeStart() != null ? log.getBlockTimeStart() : log.getTimeInServiceStart();
+            Instant start = log.getHobbsTimeStart() != null ? log.getHobbsTimeStart() : log.getTimeInServiceStart();
             row.put("date", start == null ? "" : FLIGHT_DATE.format(start));
             row.put("fromAirport", log.getFromAirport());
             row.put("toAirport", log.getToAirport());
-            row.put("blockTimeOut", formatHoursOrBlank(log.getBlockTimeOut()));
-            row.put("blockTimeIn", formatHoursOrBlank(log.getBlockTimeIn()));
+            row.put("hobbsTimeOut", formatHoursOrBlank(log.getHobbsTimeOut()));
+            row.put("hobbsTimeIn", formatHoursOrBlank(log.getHobbsTimeIn()));
             row.put("timeInServiceOut", formatHoursOrBlank(log.getTimeInServiceOut()));
             row.put("timeInServiceIn", formatHoursOrBlank(log.getTimeInServiceIn()));
             rows.add(row);

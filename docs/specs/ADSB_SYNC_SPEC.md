@@ -12,7 +12,7 @@ License forbids mixing it with another real-time flight data provider.
 
 | Field | What it is | Source |
 |---|---|---|
-| **Block Time** | engine-on to engine-off | manual entry only |
+| **Hobbs Time** | engine-on to engine-off | manual entry only |
 | **Time in Service** | wheels-off to wheels-on (the real maintenance clock) | manual entry, CSV upload, or AeroAPI |
 
 AeroAPI's `actual_off`/`actual_on` map directly to Time in Service. It's just a
@@ -40,7 +40,7 @@ suggestion until the user presses Add — nothing writes itself.
    for that as a possible future feature.
 4. New flights are saved as `FlightSuggestion` rows, `pending`.
 5. They show up as a banner on the Log Book tab. **Add** creates a real
-   `FlightLog` row (airports + departure/arrival time; Block Time is left
+   `FlightLog` row (airports + departure/arrival time; Hobbs Time is left
    blank and Time in Service is filled in from the flight's airborne
    duration) and flips the suggestion to
    `accepted`. **Dismiss** flips it to `dismissed`. Both are permanent — an
