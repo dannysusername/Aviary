@@ -124,8 +124,8 @@ class AlertServiceIntegrationTest {
     }
 
     @Test
-    void addReceipient_blockedWithoutOwnerName() {
-        plane.setOwnerName(" ");
+    void addReceipient_blockedWithoutOperatorName() {
+        plane.setOperatorName(" ");
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, 
             () -> recipientService.add(user, AlertRecipient.Channel.EMAIL, "a@example.com", null));
             assertEquals("Add your name in Aircraft Info first.", e.getMessage());
@@ -142,9 +142,9 @@ class AlertServiceIntegrationTest {
     }
 
     @Test
-    void resend_blockedWithoutOwnerName() {
+    void resend_blockedWithoutOperatorName() {
         AlertRecipient r = recipientService.add(user, AlertRecipient.Channel.EMAIL, "b@example.com", null);
-        plane.setOwnerName(null);
+        plane.setOperatorName(null);
         assertThrows(IllegalArgumentException.class, () -> recipientService.resend(user, r.getId()));
     }
 

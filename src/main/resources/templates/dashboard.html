@@ -102,8 +102,8 @@
                                 <summary>More details (optional)</summary>
                                 <label for="new-make-model">Make/Model</label>
                                 <input id="new-make-model" name="newMakeModel" type="text" maxlength="255" placeholder="e.g. Piper PA-28">
-                                <label for="new-owner-name">Owner</label>
-                                <input id="new-owner-name" name="newOwnerName" type="text" maxlength="255" autocomplete="name">
+                                <label for="new-operator-name">Operator</label>
+                                <input id="new-operator-name" name="newOperatorName" type="text" maxlength="255" autocomplete="name">
                                 <label for="new-serial">Make/model S/N</label>
                                 <input id="new-serial" name="newMakeModelSN" type="text" maxlength="255" autocomplete="off">
                             </details>
@@ -347,8 +347,8 @@
                         <td><input type="text" name="tailNumber" autocomplete="tail-number-tag" class="user-info-input no-print" th:value="${tailNumber}" placeholder="e.g. N12345"><span class="print-only" th:text="${tailNumber}"></span></td>
                     </tr>
                     <tr>
-                        <td class = "owner-tag">Owner:</td>
-                        <td><input type="text" name="ownerName" autocomplete="ownerName" class="user-info-input no-print" th:value="${ownerName}" placeholder="e.g. Jane Doe"><span class="print-only" th:text="${ownerName}"></span></td>
+                        <td class = "operator-tag">Operator:</td>
+                        <td><input type="text" name="operatorName" autocomplete="operatorName" class="user-info-input no-print" th:value="${operatorName}" placeholder="e.g. Jane Doe"><span class="print-only" th:text="${operatorName}"></span></td>
                     </tr>
                     <tr>
                         <td class = "make-model-sn-tag">Make/model S/N:</td>

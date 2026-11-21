@@ -52,14 +52,14 @@ public class AircraftService {
     // required here (the info card can add the rest later). Becomes the
     // aircraft the dashboard opens on.
     @Transactional
-    public Aircraft create(User user, String tailNumber, String makeModel, String ownerName, String makeModelSN) {
+    public Aircraft create(User user, String tailNumber, String makeModel, String operatorName, String makeModelSN) {
         try {
             Validation.requireValidTailNumber(tailNumber, true);
         } catch (IllegalArgumentException e) {
             throw new AircraftValidationException("tailNumber", e.getMessage());
         }
         checkLength("makeModel", "Make/model", makeModel);
-        checkLength("ownerName", "Owner name", ownerName);
+        checkLength("operatorName", "Operator name", operatorName);
         checkLength("makeModelSN", "Serial number", makeModelSN);
 
         if (aircraftRepository.countByUser(user) >= Aircraft.MAX_PER_USER) {
@@ -73,7 +73,7 @@ public class AircraftService {
         Aircraft aircraft = new Aircraft(user);
         aircraft.setTailNumber(tailNumber);
         aircraft.setMakeModel(trimToEmpty(makeModel));
-        aircraft.setOwnerName(trimToEmpty(ownerName));
+        aircraft.setOperatorName(trimToEmpty(operatorName));
         aircraft.setMakeModelSN(trimToEmpty(makeModelSN));
         aircraft = aircraftRepository.save(aircraft);
 

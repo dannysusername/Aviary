@@ -133,7 +133,7 @@ public class NotificationService {
 
     private String emailFooter(List<Aircraft> fleet, AlertRecipient r) {
         StringBuilder sb = new StringBuilder("\n\n----\n");
-        sb.append("You're receiving this because ").append(AlertText.owner(fleet))
+        sb.append("You're receiving this because ").append(AlertText.operator(fleet))
             .append(" added you to maintenance\nalerts for ").append(AlertText.tail(fleet))
             .append(". The full dashboard is attached as a PDF.\n");
         if (!baseUrl.isBlank()) {

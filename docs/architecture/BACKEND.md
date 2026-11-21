@@ -37,7 +37,7 @@
 | POST | `/completeMaintenance/{id}` | `{doneDate, doneHours, expectedDueDate, expectedDueHours}` | saved row JSON | spec 008: Last Done = done date / hours, Due = + cycle (only parts with a cycle and a value). **409** "This row changed. Open it again to review." if the stored Due Date differs from `expected*` (double-click, other tab). Empty body = older page: old today-based behavior. |
 | DELETE | `/delete/{id}` | — | 200 / 403 / 404 | deletes a Status Sheet row. Ownership checked (403 if not owner) |
 | POST | `/updateOrder` | `List<Long>` ids | void | reorders Status Sheet items; user-scoped, matches ids with `.equals` |
-| POST | `/updateUserInfo` | JSON aircraft fields | status JSON | updates makeModel/tailNumber/ownerName/makeModelSN for auth user |
+| POST | `/updateUserInfo` | JSON aircraft fields | status JSON | updates makeModel/tailNumber/operatorName/makeModelSN for auth user |
 | POST | `/updateHours` | `hobbsTimeToAdd`/`timeInServiceToAdd`/`newHobbsTime`/`newTimeInService` | hours JSON | set-or-add Hobbs time / time in service. 400 for NaN/Infinity, a negative set value, or an add that would go below 0 (checked before anything changes) |
 | GET | `/flightlogs` | — | `List<FlightLog>` JSON | auth user's logs |
 | POST | `/addflightlog` | `FlightLog` JSON | log + new totals JSON | recomputes hours via `calculateMergedHours` |

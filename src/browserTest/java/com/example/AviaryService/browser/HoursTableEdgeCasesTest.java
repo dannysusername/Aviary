@@ -59,7 +59,7 @@ class HoursTableEdgeCasesTest extends BrowserTestBase {
         // Aircraft info inputs are empty for a fresh user.
         assertThat(page.locator("input[name='makeModel']")).hasValue("");
         assertThat(page.locator("input[name='tailNumber']")).hasValue("");
-        assertThat(page.locator("input[name='ownerName']")).hasValue("");
+        assertThat(page.locator("input[name='operatorName']")).hasValue("");
         assertThat(page.locator("input[name='makeModelSN']")).hasValue("");
 
         assertNoConsoleErrors(errors);
@@ -113,7 +113,7 @@ class HoursTableEdgeCasesTest extends BrowserTestBase {
         Aircraft u = aircraftOf(username);
         u.setMakeModel("Cessna 172");
         u.setTailNumber("N12345");
-        u.setOwnerName("Daniel I.");
+        u.setOperatorName("Daniel I.");
         u.setMakeModelSN("17280342");
         aircraftRepository.save(u);
 
@@ -123,7 +123,7 @@ class HoursTableEdgeCasesTest extends BrowserTestBase {
 
         assertThat(page.locator("input[name='makeModel']")).hasValue("Cessna 172");
         assertThat(page.locator("input[name='tailNumber']")).hasValue("N12345");
-        assertThat(page.locator("input[name='ownerName']")).hasValue("Daniel I.");
+        assertThat(page.locator("input[name='operatorName']")).hasValue("Daniel I.");
         assertThat(page.locator("input[name='makeModelSN']")).hasValue("17280342");
 
         assertNoConsoleErrors(errors);

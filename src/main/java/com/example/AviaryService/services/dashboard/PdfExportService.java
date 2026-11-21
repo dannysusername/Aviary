@@ -56,7 +56,7 @@ public class PdfExportService {
         Context context = new Context();
         context.setVariable("makeModel", aircraft.getMakeModel());
         context.setVariable("tailNumber", aircraft.getTailNumber());
-        context.setVariable("ownerName", aircraft.getOwnerName());
+        context.setVariable("operatorName", aircraft.getOperatorName());
         context.setVariable("makeModelSN", aircraft.getMakeModelSN());
         context.setVariable("hobbsTimeHours", formatHoursOrBlank(aircraft.getHobbsTimeHours()));
         context.setVariable("timeInServiceHours", formatHoursOrBlank(aircraft.getTimeInServiceHours()));

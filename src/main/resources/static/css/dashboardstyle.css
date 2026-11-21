@@ -712,7 +712,9 @@ td.add-cell {
 .title-row .title-cell { cursor: pointer; }  /* click a title to show just that section */
 /* Hover highlight only with a real mouse -- on touch it stuck after a tap. */
 @media (hover: hover) {
-  .title-row .title-cell:hover { background: var(--primary-dark); }
+  /* Whole bar darkens together: grip, title, empty cell and trash can (spec 009).
+     Not while the row is being dragged, so no dark color sticks after a drop. */
+  .title-row:not(.sortable-chosen):not(.sortable-ghost):hover td { background: var(--primary-dark); }
 }
 /* No grid hairlines inside the solid green title bar */
 .title-row td { border-color: transparent; }

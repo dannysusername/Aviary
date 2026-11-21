@@ -3215,7 +3215,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const r = await axios.post('/aircraft', {
                 tailNumber: tailInput.value,
                 makeModel: document.getElementById('new-make-model').value,
-                ownerName: document.getElementById('new-owner-name').value,
+                operatorName: document.getElementById('new-operator-name').value,
                 makeModelSN: document.getElementById('new-serial').value,
             }, { headers: csrfHeaderOnly() });
             window.location.href = r.data.redirect;

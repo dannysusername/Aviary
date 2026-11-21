@@ -186,7 +186,7 @@ public class DemoDataSeeder implements CommandLineRunner {
         Aircraft a = new Aircraft(owner);
         a.setTailNumber(tail);
         a.setMakeModel(makeModel);
-        a.setOwnerName("Demo Pilot");
+        a.setOperatorName("Demo Pilot");
         a.setMakeModelSN(serial);
         a.setHobbsTimeHours(hobbsTime);
         a.setTimeInServiceHours(timeInService);

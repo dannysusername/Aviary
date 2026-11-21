@@ -172,7 +172,7 @@ public class AlertController {
         if (itemCount == 0) missing.add("Add at least one maintenance item");
         List<Aircraft> fleet = aircraftRepository.findByUserOrderByIdAsc(user);
         if (fleet.stream().allMatch(a -> isBlank(a.getTailNumber()))) missing.add("Set your tail number");
-        if (fleet.stream().allMatch(a -> isBlank(a.getOwnerName()))) missing.add("Set your owner name");
+        if (fleet.stream().allMatch(a -> isBlank(a.getOperatorName()))) missing.add("Set your operator name");
         m.put("readiness", Map.of("missing", missing, "ready", missing.isEmpty()));
         return m;
     }

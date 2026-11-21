@@ -137,7 +137,7 @@ class AircraftBackfillTest {
         assertEquals("N482DM", a.getTailNumber());
         assertEquals("N482DM", a.getTailNumberKey());
         assertEquals("Cirrus SR22", a.getMakeModel());
-        assertEquals("Pat Owner", a.getOwnerName());
+        assertEquals("Pat Owner", a.getOperatorName());
         assertEquals("3517", a.getMakeModelSN());
         assertEquals(1532.4, a.getHobbsTimeHours(), 1e-9);
         assertEquals(1418.7, a.getTimeInServiceHours(), 1e-9);

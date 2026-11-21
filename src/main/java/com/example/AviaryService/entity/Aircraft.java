@@ -39,8 +39,8 @@ public class Aircraft {
     @Column
     private String makeModel;
 
-    @Column
-    private String ownerName;
+    @Column(name = "owner_name") // pre-rename column; keeps every saved name in place (spec 009)
+    private String operatorName;
 
     @Column
     private String makeModelSN;
@@ -83,7 +83,7 @@ public class Aircraft {
         this.timeInServiceHours = 0.0;
         this.tailNumber = "";
         this.makeModel = "";
-        this.ownerName = "";
+        this.operatorName = "";
         this.makeModelSN = "";
     }
 
@@ -116,8 +116,8 @@ public class Aircraft {
     public String getMakeModel() { return makeModel; }
     public void setMakeModel(String makeModel) { this.makeModel = makeModel; }
 
-    public String getOwnerName() { return ownerName; }
-    public void setOwnerName(String ownerName) { this.ownerName = ownerName; }
+    public String getOperatorName() { return operatorName; }
+    public void setOperatorName(String operatorName) { this.operatorName = operatorName; }
 
     public String getMakeModelSN() { return makeModelSN; }
     public void setMakeModelSN(String makeModelSN) { this.makeModelSN = makeModelSN; }

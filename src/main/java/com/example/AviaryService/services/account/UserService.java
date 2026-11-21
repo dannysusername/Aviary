@@ -68,9 +68,15 @@ public class UserService {
         if (user == null) {
             throw new IllegalArgumentException("User not found");
         }
+        // Pre-rename key ("ownerName") from a tab still running the old page.
+        // The new key wins. Remove after 2026-12-31 (spec 009).
+        if (!data.containsKey("operatorName") && data.containsKey("ownerName")) {
+            data = new java.util.HashMap<>(data);
+            data.put("operatorName", data.get("ownerName"));
+        }
 
         Validation.maxLength("Make/model", data.get("makeModel"));
-        Validation.maxLength("Owner name", data.get("ownerName"));
+        Validation.maxLength("Operator name", data.get("operatorName"));
         Validation.maxLength("Serial number", data.get("makeModelSN"));
         // Stored encrypted (AeroApiKeyConverter), which roughly doubles the
         // length, so the plain key has a tighter limit than the column.
@@ -93,7 +99,7 @@ public class UserService {
             aircraft.setTailNumber(tailNumber);
         }
         if (data.containsKey("makeModel")) aircraft.setMakeModel(data.get("makeModel"));
-        if (data.containsKey("ownerName")) aircraft.setOwnerName(data.get("ownerName"));
+        if (data.containsKey("operatorName")) aircraft.setOperatorName(data.get("operatorName"));
         if (data.containsKey("makeModelSN")) aircraft.setMakeModelSN(data.get("makeModelSN"));
         if (data.containsKey("aeroApiKey")) user.setAeroApiKey(data.get("aeroApiKey"));
 

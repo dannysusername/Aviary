@@ -187,7 +187,7 @@ public class UserController {
 
         model.addAttribute("makeModel", aircraft.getMakeModel());
         model.addAttribute("tailNumber", aircraft.getTailNumber());
-        model.addAttribute("ownerName", aircraft.getOwnerName());
+        model.addAttribute("operatorName", aircraft.getOperatorName());
         model.addAttribute("makeModelSN", aircraft.getMakeModelSN());
         model.addAttribute("flightlogs", flightLogService.listFor(aircraft));
         model.addAttribute("hobbsTimeUpdatedAt", aircraft.getHobbsTimeUpdatedAt() != null ? aircraft.getHobbsTimeUpdatedAt().toString() : null);

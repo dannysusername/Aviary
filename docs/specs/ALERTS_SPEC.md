@@ -43,7 +43,7 @@ settings, and a readiness line. Backed by `PUT /alerts/preferences`.
   `GET /alerts/preferences` → `readiness.missing`:
   - "Add at least one maintenance item"
   - "Set your tail number"
-  - "Set your owner name"
+  - "Set your operator name"
   - "Enter aircraft hours"
   Advisory only; the server does not block turning alerts on.
 - **Every time** `enabled` flips false→true, the server snapshots each item's
@@ -63,7 +63,7 @@ settings, and a readiness line. Backed by `PUT /alerts/preferences`.
 | `confirmToken` | random URL-safe token, unique |
 | `createdAt`, `confirmedAt`, `reminderSentAt` | timestamps |
 
-Flow: **add → PENDING** → confirm email sent ("[owner name] added you to receive
+Flow: **add → PENDING** → confirm email sent ("[operator name] added you to receive
 maintenance alerts for [tail]", with Confirm and Decline links) → recipient
 confirms (`ACCEPTED`) or declines (`DECLINED`). Only `ACCEPTED` recipients get
 digests.
@@ -71,7 +71,7 @@ digests.
 Rules on add (`AlertRecipientService.add`), checked in this order:
 
 1. Address is valid (not blank, ≤ 254 chars, email or E.164 format); label ≤ 100.
-2. Owner has an **owner name** and **tail number** (`requireProfile`). Also
+2. Owner has an **operator name** and **tail number** (`requireProfile`). Also
    checked on Resend. If either is cleared later, emails fall back to
    "The aircraft owner" / "your aircraft" (`AlertText`).
 3. Same channel + address already on the list:
@@ -114,7 +114,7 @@ nothing is saved.
   106 days left` → aircraft hours (Hobbs Time / Time in Service).
 - **Attachment:** dashboard PDF (`PdfExportService.generateDashboardPdf`), built
   once per digest.
-- **Footer:** "You're receiving this because [owner name] added you to maintenance
+- **Footer:** "You're receiving this because [operator name] added you to maintenance
   alerts for [tail]. The full dashboard is attached as a PDF." + unsubscribe link
   (`/alerts/unsubscribe?token=…`) + postal address if configured (CAN-SPAM).
   **No dashboard link:** recipients have no login.
