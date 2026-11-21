@@ -49,8 +49,10 @@ public class StatusSheetImportTools {
     @Tool(name = "get_import_format", description = """
         How Aviary Status Sheet items must look, with the rules and an example. Call this first, then \
         convert the owner's maintenance records (any format) into these items before proposing. Each aircraft \
-        has its own statusSheetItem: if list_aircraft shows more than one, ask the owner which aircraft the records \
-        are for and pass it as `aircraft`.""")
+        has its own Status Sheet. Look for the tail number in the owner's records (often in the title or header). \
+        If it isn't in list_aircraft, add it with add_aircraft, then propose with `aircraft` and `recordsTailNumber` \
+        set to it. If the records name no plane and list_aircraft shows more than one, ask the owner which aircraft \
+        the records are for. Records for several planes: one add (if needed) and one proposal per plane.""")
     public ImportFormat getImportFormat() {
         currentUser.requireScope(CimdRegisteredClientRepository.SCOPE_READ);
         Map<String, String> fields = new LinkedHashMap<>();
@@ -93,21 +95,36 @@ public class StatusSheetImportTools {
         only needs a name. Changes nothing: returns a proposal with the items as Aviary would store them, flags \
         and notes for the owner to check, and rows that can't be imported with reasons. Show the owner the \
         proposal before confirming. Calling this again for the same aircraft replaces the previous proposal \
-        (use it to revise).""")
+        (use it to revise). Pass `recordsTailNumber` when the records name a plane: records are never imported \
+        into a different plane, and a plane that isn't on the account must be added with add_aircraft first.""")
     public ImportResult proposeStatusSheetImport(
             @ToolParam(description = "Items converted from the owner's records; see get_import_format") List<InputItem> items,
             @ToolParam(description = "Rows that are not maintenance items at all, each with a reason. Never put a real item here just because it has no dates.", required = false)
             List<RejectedRow> rejectedBySource,
-            @ToolParam(description = AIRCRAFT_PARAM, required = false) String aircraft) {
+            @ToolParam(description = AIRCRAFT_PARAM, required = false) String aircraft,
+            @ToolParam(description = "The tail number the owner's records are for, if the records or the owner name one. "
+                + "Aviary refuses to import them into a different plane.", required = false)
+            String recordsTailNumber) {
         currentUser.requireScope(CimdRegisteredClientRepository.SCOPE_IMPORT);
         User user = currentUser.require();
         Aircraft target;
         try {
-            target = aircraftResolver.resolve(user, aircraft);
+            target = aircraftResolver.resolve(user, aircraft, recordsTailNumber);
+        } catch (McpAircraftResolver.AddAircraftFirstException e) {
+            return ImportResult.addAircraftFirst(e.getMessage());
+        } catch (McpAircraftResolver.AircraftMismatchException e) {
+            return ImportResult.mismatch(e.getMessage());
         } catch (McpAircraftResolver.AircraftChoiceException e) {
             return ImportResult.choose(e.getMessage());
         }
         return importService.propose(user, target, items, rejectedBySource, currentUser.clientId());
+    }
+
+    // Not a tool: the pre-012 call shape, kept for callers that don't pass
+    // the records' tail number.
+    public ImportResult proposeStatusSheetImport(List<InputItem> items, List<RejectedRow> rejectedBySource,
+                                                 String aircraft) {
+        return proposeStatusSheetImport(items, rejectedBySource, aircraft, null);
     }
 
     @Tool(name = "continue_poor_fit", description = """
@@ -132,7 +149,7 @@ public class StatusSheetImportTools {
     }
 
     static final String AIRCRAFT_PARAM =
-        "Tail number or aircraftId from list_aircraft. Required when the owner has more than one aircraft.";
+        "Tail number or aircraftId from list_aircraft or add_aircraft. Required when the owner has more than one aircraft.";
 
     private static String join(String date, String hours) {
         String d = date == null ? "" : date;

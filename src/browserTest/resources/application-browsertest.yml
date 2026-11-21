@@ -5,6 +5,9 @@ spring:
     username: sa
     password:
   jpa:
+    # Same as Heroku (application-heroku.properties), so browser tests catch
+    # lazy-loading bugs that only show in production (spec 012 R1).
+    open-in-view: false
     hibernate:
       ddl-auto: create-drop
     properties:

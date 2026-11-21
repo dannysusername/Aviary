@@ -112,6 +112,25 @@ class AircraftServiceTest {
         assertEquals(90.0, aircraftRepository.findById(first.getId()).orElseThrow().getTimeInServiceHours());
     }
 
+    // Spec 012 FR-012: the assistant's add doesn't move the dashboard.
+    @Test
+    void createWithoutSelectLeavesTheViewedAircraftAlone() {
+        owner.setLastViewedAircraft(first);
+        userRepository.save(owner);
+        Aircraft a = aircraftService.create(owner, "N731KR", null, null, null, false);
+        assertEquals(first.getId(), userRepository.findById(owner.getId()).orElseThrow().getLastViewedAircraft().getId());
+        assertEquals(2, aircraftRepository.countByUser(owner));
+        assertEquals("N731KR", a.getTailNumber());
+    }
+
+    @Test
+    void limitIsItsOwnException() {
+        for (int i = 2; i <= Aircraft.MAX_PER_USER; i++) {
+            aircraftService.create(owner, "N" + i + "XX", null, null, null);
+        }
+        assertThrows(AircraftLimitException.class, () -> aircraftService.create(owner, "N999ZZ", null, null, null, false));
+    }
+
     // ---- choosing (US3) ----
 
     @Test

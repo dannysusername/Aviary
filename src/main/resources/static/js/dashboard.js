@@ -3495,16 +3495,27 @@ document.addEventListener('DOMContentLoaded', function () {
         close();
         confirmInput.value = '';
         removeError.textContent = '';
-        okBtn.disabled = true;
+        okBtn.disabled = false;
         dialog.hidden = false;
         requestAnimationFrame(() => dialog.classList.add('show'));
         confirmInput.focus();
     });
-    confirmInput.addEventListener('input', () => { okBtn.disabled = norm(confirmInput.value) !== norm(word); });
+    // Remove stays clickable: a click with the wrong text says what to type
+    // instead of silently doing nothing (spec 012 US1). The server checks too.
+    confirmInput.addEventListener('input', () => { removeError.textContent = ''; });
+    confirmInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); okBtn.click(); }
+    });
     document.getElementById('remove-aircraft-cancel').addEventListener('click', closeDialog);
     dialog.addEventListener('click', e => { if (e.target === dialog) closeDialog(); });
     dialog.addEventListener('keydown', e => { if (e.key === 'Escape') closeDialog(); });
     okBtn.addEventListener('click', async () => {
+        if (okBtn.disabled) return;
+        if (norm(confirmInput.value) !== norm(word)) {
+            removeError.textContent = 'Type ' + word + ' to confirm';
+            confirmInput.focus();
+            return;
+        }
         okBtn.disabled = true;
         try {
             const r = await axios.delete('/aircraft/' + encodeURIComponent(currentAircraftId()), {

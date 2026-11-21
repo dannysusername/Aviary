@@ -53,6 +53,14 @@ public class AircraftService {
     // aircraft the dashboard opens on.
     @Transactional
     public Aircraft create(User user, String tailNumber, String makeModel, String operatorName, String makeModelSN) {
+        return create(user, tailNumber, makeModel, operatorName, makeModelSN, true);
+    }
+
+    // select=false (the assistant's add_aircraft) leaves the aircraft the
+    // dashboard opens on alone, so adding several planes doesn't move it.
+    @Transactional
+    public Aircraft create(User user, String tailNumber, String makeModel, String operatorName, String makeModelSN,
+                           boolean select) {
         try {
             Validation.requireValidTailNumber(tailNumber, true);
         } catch (IllegalArgumentException e) {
@@ -63,8 +71,7 @@ public class AircraftService {
         checkLength("makeModelSN", "Serial number", makeModelSN);
 
         if (aircraftRepository.countByUser(user) >= Aircraft.MAX_PER_USER) {
-            throw new AircraftValidationException("tailNumber",
-                "You can track up to " + Aircraft.MAX_PER_USER + " aircraft.");
+            throw new AircraftLimitException("You can track up to " + Aircraft.MAX_PER_USER + " aircraft.");
         }
         if (aircraftRepository.existsByUserAndTailNumberKey(user, Validation.tailNumberKey(tailNumber))) {
             throw new AircraftValidationException("tailNumber", "You already have an aircraft with this tail number.");
@@ -77,8 +84,10 @@ public class AircraftService {
         aircraft.setMakeModelSN(trimToEmpty(makeModelSN));
         aircraft = aircraftRepository.save(aircraft);
 
-        user.setLastViewedAircraft(aircraft);
-        userRepository.save(user);
+        if (select) {
+            user.setLastViewedAircraft(aircraft);
+            userRepository.save(user);
+        }
         return aircraft;
     }
 
@@ -114,7 +123,11 @@ public class AircraftService {
     // typed its tail number (or DELETE when it has none). The last aircraft
     // can't be removed. Import history is kept, detached from the aircraft.
     @Transactional
-    public Aircraft remove(User user, Long aircraftId, String confirm) {
+    public Aircraft remove(User caller, Long aircraftId, String confirm) {
+        // Reload inside this transaction: on Heroku (open-in-view=false) the
+        // caller's User is detached, and its lazy aircraft list below would
+        // throw LazyInitializationException (a 500 in production only).
+        User user = userRepository.findById(caller.getId()).orElseThrow();
         Aircraft aircraft = aircraftRepository.findByIdAndUser(aircraftId, user)
             .orElseThrow(AircraftNotFoundException::new);
         if (aircraftRepository.countByUser(user) <= 1) {

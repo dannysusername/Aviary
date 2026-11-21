@@ -101,7 +101,7 @@ cached resources and the browser can ignore them.
 by using the WWW-Authenticate and similar headers. Or by setting a specific session by using HTTP cookies. 
 3.relaxing the origin constraint - to prevent snooping and other privacy invasions web browsers enforce strict seperation between
 websites. Only pages from the same origin can access all information from a web page. This can be limiting to some web apps / servers so relaxing the origin constraints relaxes this by allowing other domains to talk to your
-server. In this project I don't have multiple domains talking to my server so CORS is not required. 
+server. In this project most pages are same-origin, so they don't need CORS. The one exception is /api/public/**: my portfolio site (danielibarra.com) reads /api/public/stats from another origin, so SecurityConfig allows that origin with CORS (GET only).
 4.proxy and tunneling
 5.sessions
 

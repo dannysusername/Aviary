@@ -27,6 +27,20 @@ public class McpAircraftResolver {
         }
     }
 
+    // The records name a plane this account doesn't have (spec 012 US2).
+    public static class AddAircraftFirstException extends AircraftChoiceException {
+        public AddAircraftFirstException(String message) {
+            super(message);
+        }
+    }
+
+    // The named aircraft and the records' tail number are different planes.
+    public static class AircraftMismatchException extends AircraftChoiceException {
+        public AircraftMismatchException(String message) {
+            super(message);
+        }
+    }
+
     private final AircraftRepository aircraftRepository;
 
     public McpAircraftResolver(AircraftRepository aircraftRepository) {
@@ -54,6 +68,27 @@ public class McpAircraftResolver {
         }
         throw new AircraftChoiceException("Aircraft \"" + wanted + "\" not found. Your aircraft: "
             + describe(fleet) + ".");
+    }
+
+    // As resolve(user, aircraft), plus the tail number the owner's records
+    // are for. When given, records only ever go to that plane: missing ->
+    // AddAircraftFirstException (even on a one-aircraft account, which would
+    // otherwise take anything), a different named aircraft ->
+    // AircraftMismatchException. Only this owner's aircraft are searched.
+    public Aircraft resolve(User user, String aircraft, String recordsTailNumber) {
+        String recordsKey = Validation.tailNumberKey(recordsTailNumber);
+        if (recordsKey == null) return resolve(user, aircraft);
+        String recordsTail = recordsTailNumber.trim();
+        Aircraft forRecords = aircraftRepository.findByUserAndTailNumberKey(user, recordsKey)
+            .orElseThrow(() -> new AddAircraftFirstException("These records are for " + recordsTail
+                + ", which isn't on this account. Add it with add_aircraft, then import into it."));
+        if (aircraft == null || aircraft.isBlank()) return forRecords;
+        Aircraft named = resolve(user, aircraft);
+        if (!named.getId().equals(forRecords.getId())) {
+            throw new AircraftMismatchException("You asked to import into " + named.getDisplayName()
+                + ", but these records are for " + forRecords.getDisplayName() + ".");
+        }
+        return named;
     }
 
     // "N482DM (Cessna 172S), N731KR (Piper PA-28)"
