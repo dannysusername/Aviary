@@ -766,14 +766,71 @@ public class UserController {
         return body;
     }
 
+    // GET: what the "When was this done?" box shows (spec 008). Without params:
+    // what it starts with. With doneDate / doneHours: the next Due Date for them.
+    @GetMapping("/statusSheet/{id}/completePreview")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> completePreview(
+            @PathVariable Long id,
+            @RequestParam(required = false) String doneDate,
+            @RequestParam(required = false) String doneHours,
+            Authentication authentication) {
+        try {
+            User user = userRepository.findByUsername(authentication.getName());
+            StatusSheetService.CompletePreview p = statusSheetService.completePreview(user, id, doneDate, doneHours);
+            Map<String, Object> out = new HashMap<>();
+            out.put("hasCalendar", p.hasCalendar());
+            out.put("hasHours", p.hasHours());
+            out.put("doneDate", p.doneDate());
+            out.put("doneHours", p.doneHours());
+            out.put("nextDueDate", p.nextDueDate());
+            out.put("nextDueHours", p.nextDueHours());
+            out.put("expectedDueDate", p.expectedDueDate());
+            out.put("expectedDueHours", p.expectedDueHours());
+            out.put("canSave", p.canSave());
+            out.put("reason", p.reason());
+            return ResponseEntity.ok(out);
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorBody("You do not own this row"));
+        } catch (java.util.NoSuchElementException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorBody("Row not found"));
+        }
+    }
+
     // POST: complete maintenance on a row. See StatusSheetService.completeMaintenance.
     @PostMapping("/completeMaintenance/{id}")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> completeMaintenance(
-            @PathVariable Long id, Authentication authentication) {
+            @PathVariable Long id,
+            @RequestBody(required = false) Map<String, String> body,
+            Authentication authentication) {
         User user = userRepository.findByUsername(authentication.getName());
         if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorBody("User not authenticated"));
+        }
+        // Spec 008: the "When was this done?" box sends the chosen values and
+        // the Due Date it was opened with. An empty body is an older cached
+        // dashboard.js: keep its today-based behavior until it reloads.
+        if (body != null && !body.isEmpty()) {
+            try {
+                StatusSheetItem saved = statusSheetService.completeMaintenance(user, id,
+                    body.get("doneDate"), body.get("doneHours"),
+                    body.get("expectedDueDate"), body.get("expectedDueHours"));
+                Map<String, Object> resp = savedRow(saved);
+                resp.put("lastDone", java.util.stream.Stream.of(saved.getLastDoneDate(), DueDateAutoFill.displayHours(saved.getLastDoneHours()))
+                    .filter(s -> s != null && !s.isEmpty()).collect(java.util.stream.Collectors.joining(" ")));
+                resp.put("dueDate", java.util.stream.Stream.of(saved.getDueDateDate(), DueDateAutoFill.displayHours(saved.getDueDateHours()))
+                    .filter(s -> s != null && !s.isEmpty()).collect(java.util.stream.Collectors.joining(" ")));
+                return ResponseEntity.ok(resp);
+            } catch (StatusSheetService.RowChangedException e) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(errorBody(e.getMessage()));
+            } catch (java.util.NoSuchElementException e) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorBody("Row not found"));
+            } catch (SecurityException e) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorBody("You do not own this row"));
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest().body(errorBody(e.getMessage()));
+            }
         }
         StatusSheetService.CompletedMaintenance done;
         try {

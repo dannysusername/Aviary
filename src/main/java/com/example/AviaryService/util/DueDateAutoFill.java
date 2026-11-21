@@ -127,6 +127,44 @@ public final class DueDateAutoFill {
         return formatHours(last.add(BigDecimal.valueOf(cycle.hours())));
     }
 
+    // ── Mark complete (spec 008): what the "When was this done?" box starts with ──
+
+    // Due Date, else Last Done + cycle, else today. null if the row has no
+    // calendar cycle (the date part is not offered).
+    public static String prefillDoneDate(String lastDoneDate, String dueDate, Cycle cycle, LocalDate today) {
+        if (cycle == null || !cycle.hasCalendar()) {
+            return null;
+        }
+        LocalDate due = validDate(dueDate);
+        if (due != null) {
+            return due.toString();
+        }
+        String fromLast = expectedDueDate(lastDoneDate, cycle);
+        return fromLast != null ? fromLast : today.toString();
+    }
+
+    // Due Date hours, else Last Done hours + cycle, else null (empty box).
+    // Never guessed from current Time in Service (owner's rule).
+    public static String prefillDoneHours(String lastDoneHours, String dueHours, Cycle cycle) {
+        if (cycle == null || !cycle.hasHours()) {
+            return null;
+        }
+        BigDecimal due = parseHours(dueHours);
+        if (due != null) {
+            return formatHours(due);
+        }
+        return expectedDueHours(lastDoneHours, cycle);
+    }
+
+    // A done date the owner entered: complete ISO date, year 1900-2200.
+    public static LocalDate validDoneDate(String raw) {
+        LocalDate d = validDate(raw);
+        if (d == null || !raw.trim().matches("\\d{4}-\\d{2}-\\d{2}")) {
+            throw new IllegalArgumentException("Enter the date it was done");
+        }
+        return d;
+    }
+
     // ── Deciding what to save ──────────────────────────────────────────
 
     // storedX = values on the row before this save; newX = values after.

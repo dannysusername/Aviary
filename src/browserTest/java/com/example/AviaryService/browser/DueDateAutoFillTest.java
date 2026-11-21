@@ -149,4 +149,74 @@ class DueDateAutoFillTest extends BrowserTestBase {
         page.keyboard().press("Escape");
         if (!errors.isEmpty()) throw new AssertionError("Console errors: " + errors);
     }
+
+    // ── Spec 008: Mark complete asks "When was this done?" ────────────
+
+    private StatusSheetItem seedDue(String username, Integer calValue, String calUnit, Double cycleHours,
+                                    String lastDoneDate, String lastDoneHours, String dueDate, String dueHours) {
+        StatusSheetItem t = seed(username, calValue, calUnit, cycleHours, lastDoneDate, lastDoneHours);
+        t.setDueDateDate(dueDate);
+        t.setDueDateHours(dueHours);
+        return statusSheetItems.save(t);
+    }
+
+    private void openMarkComplete(Locator row) {
+        row.locator(".complete-btn").click();
+        page.locator(".choice-box button[data-choice='complete']").click();
+        assertThat(page.locator(".done-box")).isVisible();
+    }
+
+    @Test
+    void markCompleteRollsFromTheDueDateWithTruthfulToast() {
+        String username = seedUser("password");
+        StatusSheetItem item = seedDue(username, 1, "MONTHS", 100.0, "2026-11-01", "1200.0", "2026-12-01", "1300.0");
+        List<String> errors = open(username);
+        Locator row = page.locator("tr.auto-save-row[data-id='" + item.getId() + "']");
+
+        openMarkComplete(row);
+        Locator box = page.locator(".done-box");
+        assertThat(box.locator("input[name='doneDate']")).hasValue("2026-12-01");
+        assertThat(box.locator("input[name='doneHours']")).hasValue("1300.0");
+        assertThat(box.locator(".done-next")).hasText("Next due: 01/01/2027 · 1400.0 hrs");
+
+        // Editing the date updates "Next due" live.
+        box.locator("input[name='doneDate']").fill("2026-11-20");
+        assertThat(box.locator(".done-next")).hasText("Next due: 12/20/2026 · 1400.0 hrs");
+        box.locator("input[name='doneDate']").fill("2026-12-01");
+        assertThat(box.locator(".done-next")).hasText("Next due: 01/01/2027 · 1400.0 hrs");
+
+        // Double-click Save: rolls once.
+        box.locator(".confirm-btn.ok").dblclick();
+        assertThat(page.locator(".toast").last()).containsText("Rolled forward. Last Done 12/01/2026 · 1300.0 hrs, Due 01/01/2027 · 1400.0 hrs.");
+        assertThat(row.locator("td:nth-child(5) input[type='date']")).hasValue("2026-12-01");
+        assertThat(row.locator("td:nth-child(6) input[type='date']")).hasValue("2027-01-01");
+        assertThat(row.locator("td:nth-child(6) input.extra-input[type='text']")).hasValue("1400.0");
+        assertThat(page.locator(".done-box")).hasCount(0);
+
+        // Second time: the box previews the next cycle.
+        openMarkComplete(row);
+        assertThat(page.locator(".done-box input[name='doneDate']")).hasValue("2027-01-01");
+        assertThat(page.locator(".done-box .done-next")).hasText("Next due: 02/01/2027 · 1500.0 hrs");
+        page.keyboard().press("Escape");
+        if (!errors.isEmpty()) throw new AssertionError("Console errors: " + errors);
+    }
+
+    @Test
+    void emptyBoxesGrayOutSaveAndRowWithNothingStartsWithToday() {
+        String username = seedUser("password");
+        StatusSheetItem item = seedDue(username, 1, "MONTHS", 100.0, null, null, null, null);
+        List<String> errors = open(username);
+        Locator row = page.locator("tr.auto-save-row[data-id='" + item.getId() + "']");
+
+        openMarkComplete(row);
+        Locator box = page.locator(".done-box");
+        assertThat(box.locator("input[name='doneDate']")).hasValue(java.time.LocalDate.now().toString());
+        assertThat(box.locator("input[name='doneHours']")).hasValue("");
+
+        box.locator("input[name='doneDate']").fill("");
+        assertThat(box.locator(".done-next")).hasText("Enter when it was done.");
+        assertThat(box.locator(".confirm-btn.ok")).isDisabled();
+        page.keyboard().press("Escape");
+        if (!errors.isEmpty()) throw new AssertionError("Console errors: " + errors);
+    }
 }

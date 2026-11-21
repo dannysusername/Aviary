@@ -663,35 +663,139 @@ async function completeMaintenance(button) {
                         preview.dueDateHours ? `${preview.dueDateHours} hrs` : null].filter(Boolean).join(' · ');
     const choice = await showChoice('Mark this maintenance complete, or reset the Due Date?', [
         { key: 'complete', label: 'Mark complete', primary: true,
-          hint: 'Last Done becomes today / current hours, and Due Date rolls forward by the cycle.' },
+          hint: 'Asks when it was done, then rolls the Due Date forward from there.' },
         { key: 'reset', label: resetValue ? `Reset to cycle (${resetValue})` : 'Reset to cycle',
           disabled: !preview.canReset,
           hint: preview.canReset ? 'Keeps Last Done. Due Date goes back to Last Done + cycle.' : preview.reason }
     ]);
     if (choice === 'reset') { await resetDueToCycle(row, id); return; }
     if (choice !== 'complete') return;
+    await openDoneBox(row, id);
+}
+
+// Spec 008: "When was this done?" box. Starts with the row's Due Date (the
+// server decides the prefill), shows the next Due Date as the owner edits,
+// and saves Last Done = that date / hours, Due = + cycle. The Due Date the box
+// was opened with is sent back so a double-click or a second tab can never
+// roll the row twice (the server answers 409).
+async function openDoneBox(row, id) {
+    let start;
     try {
-        const csrfToken  = document.querySelector('meta[name="_csrf"]').getAttribute('content');
-        const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
-        const response = await axios.post(`/completeMaintenance/${id}`, {}, {
-            headers: { [csrfHeader]: csrfToken, 'Content-Type': 'application/json' }
-        });
-        const { lastDone, dueDate, timeLeft } = response.data;
-        repaintDateHoursCell(row, 'lastDone', lastDone);
-        repaintDateHoursCell(row, 'dueDate',  dueDate);
-        const parseSplit = (s) => { const [d, ...h] = (s || '').split(' '); return { date: d || '', hours: h.join(' ') }; };
-        const ld = parseSplit(lastDone), dd = parseSplit(dueDate);
-        row.setAttribute('data-lastDoneDate',  ld.date);
-        row.setAttribute('data-lastDoneHours', ld.hours);
-        row.setAttribute('data-dueDateDate',   dd.date);
-        row.setAttribute('data-dueDateHours',  dd.hours);
-        const tl = row.querySelector('td:nth-child(7) .time-left');
-        if (tl) setTimeLeftText(tl, timeLeft || 'N/A');
-        showToast('Maintenance completed. Due Date rolled forward.', 'success');
-    } catch (error) {
-        const msg = error?.response?.data?.message || 'Failed to update maintenance.';
-        showToast(msg, 'error');
+        start = (await axios.get(`/statusSheet/${id}/completePreview`)).data;
+    } catch (e) {
+        showToast(e?.response?.data?.message || 'Could not open Mark complete. Try again.', 'error');
+        return;
     }
+    if (!start.hasCalendar && !start.hasHours) {
+        showToast(start.reason || 'Set a cycle first.', 'error');
+        return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML =
+        '<div class="confirm-box done-box" role="dialog" aria-modal="true" aria-labelledby="done-box-title">' +
+        '  <div class="confirm-message" id="done-box-title">When was this done?</div>' +
+        '  <div class="done-fields">' +
+        '    <label class="done-field" data-part="date">Date <input type="date" name="doneDate"></label>' +
+        '    <label class="done-field" data-part="hours">Hours <input type="text" inputmode="decimal" name="doneHours" placeholder="Leave empty to skip hours"></label>' +
+        '  </div>' +
+        '  <div class="done-next" aria-live="polite"></div>' +
+        '  <div class="confirm-actions">' +
+        '    <button type="button" class="confirm-btn cancel">Cancel</button>' +
+        '    <button type="button" class="confirm-btn ok">Save</button>' +
+        '  </div>' +
+        '</div>';
+    const dateField = overlay.querySelector('[data-part="date"]');
+    const hoursField = overlay.querySelector('[data-part="hours"]');
+    const dateInput = dateField.querySelector('input');
+    const hoursInput = hoursField.querySelector('input');
+    const next = overlay.querySelector('.done-next');
+    const save = overlay.querySelector('.confirm-btn.ok');
+    if (start.hasCalendar) dateInput.value = start.doneDate || ''; else dateField.remove();
+    if (start.hasHours) hoursInput.value = start.doneHours || ''; else hoursField.remove();
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('show'));
+    (start.hasCalendar ? dateInput : hoursInput).focus();
+
+    const showResult = (p) => {
+        const parts = [p.nextDueDate ? formatPlainDate(p.nextDueDate) : null,
+                       p.nextDueHours ? `${p.nextDueHours} hrs` : null].filter(Boolean);
+        next.textContent = p.canSave ? `Next due: ${parts.join(' · ')}` : (p.reason || '');
+        next.classList.toggle('done-next-error', !p.canSave);
+        save.disabled = !p.canSave;
+    };
+    showResult(start);
+
+    let timer = null, seq = 0;
+    const refresh = () => {
+        clearTimeout(timer);
+        save.disabled = true;
+        timer = setTimeout(async () => {
+            const mine = ++seq;
+            const params = new URLSearchParams({
+                doneDate: start.hasCalendar ? dateInput.value : '',
+                doneHours: start.hasHours ? hoursInput.value : ''
+            });
+            try {
+                const p = (await axios.get(`/statusSheet/${id}/completePreview?${params}`)).data;
+                if (mine === seq) showResult(p);
+            } catch (e) {
+                if (mine === seq) { next.textContent = 'Could not check that date. Try again.'; save.disabled = true; }
+            }
+        }, 250);
+    };
+    dateInput.addEventListener('input', refresh);
+    hoursInput.addEventListener('input', refresh);
+    hoursInput.addEventListener('blur', () => {
+        const f = formatSheetHours(hoursInput.value);
+        if (f !== null && f !== hoursInput.value) { hoursInput.value = f; refresh(); }
+    });
+
+    let closed = false;
+    const close = () => {
+        if (closed) return;
+        closed = true;
+        clearTimeout(timer);
+        overlay.classList.remove('show');
+        setTimeout(() => overlay.remove(), 150);
+        document.removeEventListener('keydown', onKey);
+    };
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    document.addEventListener('keydown', onKey);
+    overlay.querySelector('.confirm-btn.cancel').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+    save.addEventListener('click', async () => {
+        if (save.disabled) return;
+        save.disabled = true;                 // one save per box, even on a double-click
+        try {
+            const csrfToken  = document.querySelector('meta[name="_csrf"]').getAttribute('content');
+            const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
+            const response = await axios.post(`/completeMaintenance/${id}`, {
+                doneDate: start.hasCalendar ? dateInput.value : '',
+                doneHours: start.hasHours ? hoursInput.value : '',
+                expectedDueDate: start.expectedDueDate || '',
+                expectedDueHours: start.expectedDueHours || ''
+            }, { headers: { [csrfHeader]: csrfToken, 'Content-Type': 'application/json' } });
+            const saved = response.data;
+            repaintDateHoursCell(row, 'lastDone', [saved.lastDoneDate, saved.lastDoneHours].filter(Boolean).join(' '));
+            repaintDateHoursCell(row, 'dueDate', [saved.dueDateDate, saved.dueDateHours].filter(Boolean).join(' '));
+            applySavedRow(row, saved);
+            close();
+            const last = [saved.lastDoneDate ? formatPlainDate(saved.lastDoneDate) : null,
+                          saved.lastDoneHours ? `${saved.lastDoneHours} hrs` : null].filter(Boolean).join(' · ');
+            const due = [saved.dueDateDate ? formatPlainDate(saved.dueDateDate) : null,
+                         saved.dueDateHours ? `${saved.dueDateHours} hrs` : null].filter(Boolean).join(' · ');
+            showToast(`Rolled forward. Last Done ${last}, Due ${due}.`, 'success');
+        } catch (error) {
+            const msg = error?.response?.data?.message || 'Could not save. Nothing was changed.';
+            next.textContent = msg;
+            next.classList.add('done-next-error');
+            showToast(msg, 'error');
+            if (error?.response?.status !== 409) save.disabled = false;   // 409: reopen to review
+        }
+    });
 }
 
 // Rebuilds the dual-input cell (date input and/or hours input) from a

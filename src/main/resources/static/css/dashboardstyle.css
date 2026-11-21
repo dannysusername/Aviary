@@ -2813,3 +2813,17 @@ textarea::placeholder { display: none; }
 .confirm-btn.choice-secondary:hover:not(:disabled) { background: var(--primary-light); }
 .choice-item .confirm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .choice-hint { margin-top: 4px; font-size: 12px; line-height: 1.35; color: var(--text-muted); }
+/* Spec 008: "When was this done?" box. */
+.done-box { max-width: 380px; text-align: left; }
+.done-box .confirm-message { text-align: center; }
+.done-fields { display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; }
+.done-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; color: var(--text); }
+.done-field input {
+  font: inherit; font-size: 16px; font-weight: normal; padding: 8px 10px; min-height: 44px;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text);
+}
+.done-next { min-height: 20px; margin-bottom: 16px; font-size: 14px; color: var(--text); }
+.done-next.done-next-error { color: #B3261E; }
+:root[data-theme="dark"] .done-next.done-next-error { color: #F2B8B5; }
+.done-box .confirm-actions { justify-content: flex-end; }
+.done-box .confirm-btn.ok:disabled { opacity: 0.5; cursor: not-allowed; }

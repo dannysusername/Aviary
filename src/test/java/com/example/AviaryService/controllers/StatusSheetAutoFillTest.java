@@ -238,4 +238,155 @@ class StatusSheetAutoFillTest {
             .andExpect(status().isForbidden());
         assertEquals("2021-03-15", items.findById(mine.getId()).orElseThrow().getDueDateDate());
     }
+
+    // ── Spec 008: Mark complete rolls from the Due Date ───────────────
+
+    private org.springframework.test.web.servlet.ResultActions preview(StatusSheetItem i, String params) throws Exception {
+        return mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+            .get("/statusSheet/" + i.getId() + "/completePreview" + (params == null ? "" : "?" + params))
+            .with(user(owner.getUsername())));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions complete(StatusSheetItem i, String doneDate, String doneHours,
+                                                                        String expDate, String expHours) throws Exception {
+        String json = "{\"doneDate\":" + q(doneDate) + ",\"doneHours\":" + q(doneHours)
+            + ",\"expectedDueDate\":" + q(expDate) + ",\"expectedDueHours\":" + q(expHours) + "}";
+        return mvc.perform(post("/completeMaintenance/" + i.getId()).with(user(owner.getUsername())).with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content(json));
+    }
+
+    private StatusSheetItem rowWith(Integer cal, String unit, Double hrs, String lastDate, String lastHours,
+                                    String dueDate, String dueHours) {
+        StatusSheetItem i = row(cal, unit, hrs, dueDate, dueHours);
+        i.setLastDoneDate(lastDate);
+        i.setLastDoneHours(lastHours);
+        return items.save(i);
+    }
+
+    @Test
+    void boxStartsWithTheDueDateAndShowsTheNextOne() throws Exception {
+        StatusSheetItem i = rowWith(1, "MONTHS", 100.0, "2026-11-01", "1200.0", "2026-12-01", "1300");
+        preview(i, null)
+            .andExpect(jsonPath("$.hasCalendar").value(true))
+            .andExpect(jsonPath("$.hasHours").value(true))
+            .andExpect(jsonPath("$.doneDate").value("2026-12-01"))
+            .andExpect(jsonPath("$.doneHours").value("1300.0"))
+            .andExpect(jsonPath("$.nextDueDate").value("2027-01-01"))
+            .andExpect(jsonPath("$.nextDueHours").value("1400.0"))
+            .andExpect(jsonPath("$.expectedDueDate").value("2026-12-01"))
+            .andExpect(jsonPath("$.canSave").value(true));
+        preview(i, "doneDate=2026-11-20&doneHours=1290.5")
+            .andExpect(jsonPath("$.nextDueDate").value("2026-12-20"))
+            .andExpect(jsonPath("$.nextDueHours").value("1390.5"));
+    }
+
+    @Test
+    void markCompleteRollsFromTheDueDate() throws Exception {
+        StatusSheetItem i = rowWith(1, "MONTHS", 100.0, "2026-11-01", "1200.0", "2026-12-01", "1300.0");
+        complete(i, "2026-12-01", "1300.0", "2026-12-01", "1300.0")
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.lastDoneDate").value("2026-12-01"))
+            .andExpect(jsonPath("$.lastDoneHours").value("1300.0"))
+            .andExpect(jsonPath("$.dueDateDate").value("2027-01-01"))
+            .andExpect(jsonPath("$.dueDateHours").value("1400.0"));
+        StatusSheetItem saved = items.findById(i.getId()).orElseThrow();
+        assertTrue(saved.getDueDateAuto());
+        assertTrue(saved.getDueHoursAuto());
+    }
+
+    @Test
+    void secondRollWithTheSameBoxIsRefusedAndChangesNothing() throws Exception {
+        // The old bug: a repeat click "succeeded" with a toast but changed
+        // nothing. Now a repeat from the same box is refused with 409.
+        StatusSheetItem i = rowWith(1, "MONTHS", null, "2026-11-01", null, "2026-12-01", null);
+        complete(i, "2026-12-01", null, "2026-12-01", null).andExpect(status().isOk());
+        complete(i, "2026-12-01", null, "2026-12-01", null)
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.message").value("This row changed. Open it again to review."));
+        assertEquals("2027-01-01", items.findById(i.getId()).orElseThrow().getDueDateDate());
+
+        // A fresh box previews the next cycle, and that roll works.
+        preview(i, null).andExpect(jsonPath("$.doneDate").value("2027-01-01"));
+        complete(i, "2027-01-01", null, "2027-01-01", null)
+            .andExpect(jsonPath("$.dueDateDate").value("2027-02-01"));
+    }
+
+    @Test
+    void editedDoneDateIsUsed() throws Exception {
+        StatusSheetItem i = rowWith(1, "MONTHS", null, "2026-11-01", null, "2026-12-01", null);
+        complete(i, "2026-11-20", null, "2026-12-01", null)
+            .andExpect(jsonPath("$.lastDoneDate").value("2026-11-20"))
+            .andExpect(jsonPath("$.dueDateDate").value("2026-12-20"));
+    }
+
+    @Test
+    void emptyHoursBoxDoesNotRollHours() throws Exception {
+        StatusSheetItem i = rowWith(1, "MONTHS", 100.0, "2026-11-01", "1200.0", "2026-12-01", "1300.0");
+        complete(i, "2026-12-01", "", "2026-12-01", "1300.0")
+            .andExpect(jsonPath("$.dueDateDate").value("2027-01-01"))
+            .andExpect(jsonPath("$.lastDoneHours").value("1200.0"))
+            .andExpect(jsonPath("$.dueDateHours").value("1300.0"));
+    }
+
+    @Test
+    void hoursOnlyAndDateOnlyCyclesOnlyMoveTheirPart() throws Exception {
+        StatusSheetItem hrs = rowWith(null, null, 50.0, "2026-01-01", "900.0", null, "950.0");
+        preview(hrs, null).andExpect(jsonPath("$.hasCalendar").value(false)).andExpect(jsonPath("$.doneDate").doesNotExist());
+        complete(hrs, null, "950.0", null, "950.0")
+            .andExpect(jsonPath("$.lastDoneDate").value("2026-01-01"))
+            .andExpect(jsonPath("$.dueDateHours").value("1000.0"));
+
+        StatusSheetItem cal = rowWith(12, "MONTHS", null, null, "5.0", "2026-12-01", "8.0");
+        complete(cal, "2026-12-01", null, "2026-12-01", "8.0")
+            .andExpect(jsonPath("$.dueDateDate").value("2027-12-01"))
+            .andExpect(jsonPath("$.dueDateHours").value("8.0"));
+    }
+
+    @Test
+    void rowWithNothingYetStartsWithTodayAndEmptyHours() throws Exception {
+        StatusSheetItem i = rowWith(1, "MONTHS", 100.0, null, null, null, null);
+        preview(i, null)
+            .andExpect(jsonPath("$.doneDate").value(LocalDate.now().toString()))
+            .andExpect(jsonPath("$.doneHours").doesNotExist());
+    }
+
+    @Test
+    void badOrMissingValuesAreRefusedWithAMessage() throws Exception {
+        StatusSheetItem i = rowWith(1, "MONTHS", 100.0, "2026-11-01", "1200.0", "2026-12-01", "1300.0");
+        complete(i, "", "", "2026-12-01", "1300.0")
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("Enter when it was done."));
+        complete(i, "0002-12-01", "", "2026-12-01", "1300.0")
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("Enter the date it was done"));
+        complete(i, "", "abc", "2026-12-01", "1300.0")
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("Hours must be a number, e.g. 25.0"));
+        preview(i, "doneDate=&doneHours=")
+            .andExpect(jsonPath("$.canSave").value(false)).andExpect(jsonPath("$.reason").value("Enter when it was done."));
+        assertEquals("2026-12-01", items.findById(i.getId()).orElseThrow().getDueDateDate());
+    }
+
+    @Test
+    void olderPageWithAnEmptyBodyStillWorks() throws Exception {
+        StatusSheetItem i = rowWith(1, "MONTHS", null, "2020-01-01", null, "2020-02-01", null);
+        mvc.perform(post("/completeMaintenance/" + i.getId()).with(user(owner.getUsername())).with(csrf()))
+            .andExpect(status().isOk());
+        assertEquals(LocalDate.now().toString(), items.findById(i.getId()).orElseThrow().getLastDoneDate());
+    }
+
+    @Test
+    void anotherAccountCannotPreviewOrCompleteMyRow() throws Exception {
+        StatusSheetItem mine = rowWith(1, "MONTHS", null, "2026-11-01", null, "2026-12-01", null);
+        User other = new User();
+        other.setUsername("intruder2-" + UUID.randomUUID());
+        other.setPassword("x");
+        other = users.save(other);
+        TestFleet.addAircraft(aircraft, users, other);
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .get("/statusSheet/" + mine.getId() + "/completePreview").with(user(other.getUsername())))
+            .andExpect(status().isForbidden());
+        mvc.perform(post("/completeMaintenance/" + mine.getId()).with(user(other.getUsername())).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"doneDate\":\"2026-12-01\",\"expectedDueDate\":\"2026-12-01\"}"))
+            .andExpect(status().isForbidden());
+        assertEquals("2026-12-01", items.findById(mine.getId()).orElseThrow().getDueDateDate());
+    }
 }

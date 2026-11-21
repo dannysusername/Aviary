@@ -246,4 +246,42 @@ class DueDateAutoFillTest {
             "1250", HUNDRED_HOURS, null, false);
         assertEquals("1350.0", legacy.value());
     }
+
+    // ── Spec 008: what the "When was this done?" box starts with ──────
+
+    private static final java.time.LocalDate TODAY = java.time.LocalDate.of(2026, 11, 20);
+
+    @Test
+    void doneDateStartsWithTheDueDate() {
+        assertEquals("2026-12-01", DueDateAutoFill.prefillDoneDate("2026-11-01", "2026-12-01", ONE_MONTH, TODAY));
+    }
+
+    @Test
+    void doneDateFallsBackToLastDonePlusCycleThenToday() {
+        assertEquals("2026-11-30", DueDateAutoFill.prefillDoneDate("2026-10-30", null, ONE_MONTH, TODAY));
+        assertEquals("2026-11-20", DueDateAutoFill.prefillDoneDate(null, null, ONE_MONTH, TODAY));
+    }
+
+    @Test
+    void doneDateIsNotOfferedWithoutACalendarCycle() {
+        assertNull(DueDateAutoFill.prefillDoneDate("2026-10-30", "2026-11-30", HUNDRED_HOURS, TODAY));
+    }
+
+    @Test
+    void doneHoursStartWithDueHoursThenLastDonePlusCycleElseEmpty() {
+        assertEquals("1300.0", DueDateAutoFill.prefillDoneHours("1200", "1300", HUNDRED_HOURS));
+        assertEquals("1300.5", DueDateAutoFill.prefillDoneHours("1200.5", null, HUNDRED_HOURS));
+        assertNull(DueDateAutoFill.prefillDoneHours(null, null, HUNDRED_HOURS), "never guessed from Time in Service");
+        assertNull(DueDateAutoFill.prefillDoneHours("1200", "1300", ONE_MONTH), "no hours cycle, no hours box");
+    }
+
+    @Test
+    void doneDateMustBeACompleteSensibleDate() {
+        assertEquals(java.time.LocalDate.of(2026, 12, 1), DueDateAutoFill.validDoneDate("2026-12-01"));
+        for (String bad : new String[] {null, "", "0002-12-01", "2026-13-01", "12/01/2026", "2026-12-01 5"}) {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> DueDateAutoFill.validDoneDate(bad));
+            assertEquals("Enter the date it was done", e.getMessage());
+        }
+    }
 }

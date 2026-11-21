@@ -245,6 +245,108 @@ public class StatusSheetService {
             timeLeftStr);
     }
 
+    // ── Mark complete, spec 008: "When was this done?" ─────────────────
+
+    // Thrown when the row's Due Date changed after the box opened (a
+    // double-click, another tab). Mapped to 409; nothing is saved.
+    public static class RowChangedException extends RuntimeException {
+        public RowChangedException() {
+            super("This row changed. Open it again to review.");
+        }
+    }
+
+    // What the box shows: which parts it offers, what they start with (or the
+    // owner's edited values), the next Due Date for them, and the row's current
+    // Due Date (echoed back on save for the at-most-once check).
+    public record CompletePreview(boolean hasCalendar, boolean hasHours,
+                                  String doneDate, String doneHours,
+                                  String nextDueDate, String nextDueHours,
+                                  String expectedDueDate, String expectedDueHours,
+                                  boolean canSave, String reason) {}
+
+    // doneDate / doneHours null = "what does the box start with". Blank = the
+    // owner emptied that box.
+    public CompletePreview completePreview(User user, Long id, String doneDate, String doneHours) {
+        StatusSheetItem i = getOwned(user, id);
+        DueDateAutoFill.Cycle cycle = cycleOf(i);
+        boolean hasCalendar = cycle.hasCalendar();
+        boolean hasHours = cycle.hasHours();
+        if (!hasCalendar && !hasHours) {
+            return new CompletePreview(false, false, null, null, null, null,
+                i.getDueDateDate(), i.getDueDateHours(), false,
+                "Set a calendar cycle or an hours cycle before marking maintenance complete.");
+        }
+        String date = doneDate != null ? doneDate
+            : DueDateAutoFill.prefillDoneDate(i.getLastDoneDate(), i.getDueDateDate(), cycle, LocalDate.now());
+        String hours = doneHours != null ? doneHours
+            : DueDateAutoFill.prefillDoneHours(i.getLastDoneHours(), i.getDueDateHours(), cycle);
+
+        String nextDate = null, nextHours = null, reason = null;
+        boolean dateGiven = hasCalendar && date != null && !date.isBlank();
+        boolean hoursGiven = hasHours && hours != null && !hours.isBlank();
+        try {
+            if (dateGiven) {
+                LocalDate d = DueDateAutoFill.validDoneDate(date);
+                nextDate = DueDates.nextDueDate(d, cycle.calendarValue(), cycle.calendarUnit()).toString();
+            }
+            if (hoursGiven) {
+                String h = DueDateAutoFill.normalizeHours(hours);
+                nextHours = DueDateAutoFill.expectedDueHours(h, cycle);
+                hours = h;
+            }
+            if (!dateGiven && !hoursGiven) {
+                reason = "Enter when it was done.";
+            }
+        } catch (IllegalArgumentException e) {
+            reason = e.getMessage();
+        }
+        return new CompletePreview(hasCalendar, hasHours,
+            hasCalendar ? date : null, hasHours ? hours : null,
+            reason == null ? nextDate : null, reason == null ? nextHours : null,
+            i.getDueDateDate(), i.getDueDateHours(), reason == null, reason);
+    }
+
+    // Saves Mark complete: Last Done = the done date / hours, Due Date = that +
+    // cycle, for each part that has a cycle and a value. Refuses (409) if the
+    // row's Due Date is no longer what the box was opened with.
+    @Transactional
+    public StatusSheetItem completeMaintenance(User user, Long id, String doneDate, String doneHours,
+                                               String expectedDueDate, String expectedDueHours) {
+        StatusSheetItem i = getOwned(user, id);
+        if (!sameOrBothBlankDate(i.getDueDateDate(), expectedDueDate)
+                || !sameOrBothBlankHours(i.getDueDateHours(), expectedDueHours)) {
+            throw new RowChangedException();
+        }
+        CompletePreview p = completePreview(user, id,
+            doneDate == null ? "" : doneDate, doneHours == null ? "" : doneHours);
+        if (!p.canSave()) {
+            throw new IllegalArgumentException(p.reason());
+        }
+        if (p.nextDueDate() != null) {
+            i.setLastDoneDate(p.doneDate().trim());
+            i.setDueDateDate(p.nextDueDate());
+            i.setDueDateAuto(true);
+        }
+        if (p.nextDueHours() != null) {
+            i.setLastDoneHours(p.doneHours());
+            i.setDueDateHours(p.nextDueHours());
+            i.setDueHoursAuto(true);
+        }
+        i.setTimeLeft(DueDates.formatTimeLeft(i.getDueDateDate(), i.getDueDateHours(), LocalDate.now(),
+            currentTimeInService(i)));
+        return statusSheetItemRepository.save(i);
+    }
+
+    private static boolean sameOrBothBlankDate(String a, String b) {
+        boolean blankA = a == null || a.isBlank(), blankB = b == null || b.isBlank();
+        return (blankA && blankB) || DueDateAutoFill.sameDate(a, b) || (!blankA && !blankB && a.trim().equals(b.trim()));
+    }
+
+    private static boolean sameOrBothBlankHours(String a, String b) {
+        boolean blankA = a == null || a.isBlank(), blankB = b == null || b.isBlank();
+        return (blankA && blankB) || DueDateAutoFill.sameHours(a, b) || (!blankA && !blankB && a.trim().equals(b.trim()));
+    }
+
     // What "Reset to cycle" would set (spec 007): Due Date = stored Last Done +
     // cycle, for each part that can be computed. canReset is false when there
     // is nothing to count from or the Due Date already matches.
