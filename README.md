@@ -131,8 +131,10 @@ push to main
 | Tool | What it does |
 |---|---|
 | `get_import_format` | Item fields, rules, and an example |
-| `list_status_sheet` | The owner's current items |
-| `propose_status_sheet_import` | Validates items into a proposal (24 h); changes nothing |
+| `list_aircraft` | The owner's aircraft (each has its own Status Sheet) |
+| `add_aircraft` | Adds an empty aircraft; same rules as the dashboard (tail number unique per account, up to 25). Doesn't change which aircraft the dashboard opens on |
+| `list_status_sheet` | One aircraft's current items |
+| `propose_status_sheet_import` | Validates items into a proposal for one aircraft (24 h); changes nothing. With `recordsTailNumber`, refuses records for a plane that isn't on the account or isn't the target |
 | `continue_poor_fit` | Continues a proposal where most rows didn't fit, after the owner agrees |
 | `confirm_status_sheet_import` | Adds exactly the proposal's items, all or nothing |
 | `list_flights` | The owner's logged flights |

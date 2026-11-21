@@ -74,6 +74,16 @@ public class StatusSheetImportService {
         public static ImportResult choose(String message) {
             return status("CHOOSE_AIRCRAFT", message);
         }
+
+        // Spec 012: the records name a plane that isn't on the account yet.
+        public static ImportResult addAircraftFirst(String message) {
+            return status("ADD_AIRCRAFT_FIRST", message);
+        }
+
+        // Spec 012: the named aircraft isn't the plane the records are for.
+        public static ImportResult mismatch(String message) {
+            return status("AIRCRAFT_MISMATCH", message);
+        }
     }
 
     private final ImportProposalRepository proposalRepository;

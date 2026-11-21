@@ -16,5 +16,6 @@ public interface AircraftRepository extends JpaRepository<Aircraft, Long> {
     Optional<Aircraft> findFirstByUserOrderByIdAsc(User user);
     long countByUser(User user);
     boolean existsByUserAndTailNumberKey(User user, String tailNumberKey);
+    Optional<Aircraft> findByUserAndTailNumberKey(User user, String tailNumberKey);
     boolean existsByUserAndTailNumberKeyAndIdNot(User user, String tailNumberKey, Long id);
 }

@@ -168,12 +168,38 @@ class FleetPickerTest extends BrowserTestBase {
         assertThat(page.locator("#remove-aircraft-btn")).hasText("Remove N2BB…");
         page.locator("#remove-aircraft-btn").click();
         assertThat(page.locator("#remove-aircraft-dialog")).isVisible();
-        assertThat(page.locator("#remove-aircraft-ok")).isDisabled();
+        assertThat(page.locator("#remove-aircraft-ok")).isEnabled();
         page.locator("#remove-aircraft-confirm").fill("n2 bb");
         assertThat(page.locator("#remove-aircraft-ok")).isEnabled();
         page.locator("#remove-aircraft-ok").click();
         page.waitForURL(baseUrl() + "/dashboard?aircraft=" + a.getId());
         assertTrue(aircraftRepository.findById(b.getId()).isEmpty());
         assertEquals(List.of("Alpha Annual", "Alpha Oil"), visibleItems(page));
+    }
+
+    // Spec 012 US1: a click on Remove is never silent. Wrong text says what
+    // to type and sends nothing.
+    @Test
+    void removeAircraftWrongTextSaysWhatToType() {
+        seedFleet();
+        loginAs(username, "password");
+        page.navigate(baseUrl() + "/dashboard?aircraft=" + b.getId());
+        List<String> deletes = new java.util.ArrayList<>();
+        page.onRequest(r -> { if ("DELETE".equals(r.method()) && r.url().contains("/aircraft/")) deletes.add(r.url()); });
+        page.locator("#aircraft-picker-btn").click();
+        page.locator("#remove-aircraft-btn").click();
+        assertThat(page.locator("label[for='remove-aircraft-confirm']")).hasText("Type the tail number, N2BB, to confirm");
+        assertThat(page.locator("#remove-aircraft-ok")).isEnabled();
+
+        page.locator("#remove-aircraft-ok").click();
+        assertThat(page.locator("#remove-aircraft-error")).hasText("Type N2BB to confirm");
+
+        page.locator("#remove-aircraft-confirm").fill("N1AA");
+        assertThat(page.locator("#remove-aircraft-error")).hasText("");
+        page.locator("#remove-aircraft-confirm").press("Enter");
+        assertThat(page.locator("#remove-aircraft-error")).hasText("Type N2BB to confirm");
+
+        assertTrue(deletes.isEmpty());
+        assertTrue(aircraftRepository.findById(b.getId()).isPresent());
     }
 }
