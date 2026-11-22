@@ -63,8 +63,13 @@
             white-space: pre-line;
             font-weight: bold;
         }
-        td.time-left.overdue {
-            color: #E64E6D;
+        /* Spec 013: same states and colors as the dashboard's Time Left pills,
+           plus a word so they still read in black and white. */
+        td.time-left.over {
+            color: #B3203F;
+        }
+        td.time-left.soon {
+            color: #8A5A00;
         }
         tr.title-row td {
             background-color: #2C9B6F;
@@ -123,7 +128,7 @@
                 <td th:unless="${row.isTitle}" th:text="${row.cycle}"></td>
                 <td th:unless="${row.isTitle}" th:text="${row.lastDone}"></td>
                 <td th:unless="${row.isTitle}" th:text="${row.dueDate}"></td>
-                <td th:unless="${row.isTitle}" th:class="${row.overdue} ? 'time-left overdue' : 'time-left'" th:text="${row.timeLeft}"></td>
+                <td th:unless="${row.isTitle}" th:class="'time-left ' + ${row.status}"><span th:if="${row.statusLabel}" th:text="${row.statusLabel + ' '}"></span><span th:text="${row.timeLeft}"></span></td>
             </tr>
         </tbody>
     </table>

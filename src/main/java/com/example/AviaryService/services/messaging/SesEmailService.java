@@ -60,11 +60,11 @@ public class SesEmailService implements EmailSender {
 
     @Override
     public void send(String toEmail, String subject, String body) {
-        dispatch(toEmail, subject, body, List.of());
+        dispatch(toEmail, subject, body, null, List.of());
     }
 
     @Override
-    public void sendPdf(String toEmail, String subject, String body, byte[] pdfBytes, String filename) {
+    public void sendPdf(String toEmail, String subject, String body, String htmlBody, byte[] pdfBytes, String filename) {
         Attachment pdf = Attachment.builder()
             .rawContent(SdkBytes.fromByteArray(pdfBytes))
             .fileName(filename)
@@ -73,16 +73,21 @@ public class SesEmailService implements EmailSender {
             // A PDF is binary; base64 is the only encoding that survives email intact.
             .contentTransferEncoding("BASE64")
             .build();
-        dispatch(toEmail, subject, body, List.of(pdf));
+        dispatch(toEmail, subject, body, htmlBody, List.of(pdf));
     }
 
-    private void dispatch(String toEmail, String subject, String body, List<Attachment> attachments) {
+    private void dispatch(String toEmail, String subject, String body, String htmlBody, List<Attachment> attachments) {
         if (!configured) {
             throw new IllegalStateException("SES is not configured; cannot send email.");
         }
+        // SES sends text + HTML as multipart/alternative; mail apps pick one.
+        Body.Builder content = Body.builder().text(Content.builder().data(body).charset("UTF-8").build());
+        if (htmlBody != null) {
+            content.html(Content.builder().data(htmlBody).charset("UTF-8").build());
+        }
         Message.Builder message = Message.builder()
-            .subject(Content.builder().data(subject).build())
-            .body(Body.builder().text(Content.builder().data(body).build()).build());
+            .subject(Content.builder().data(subject).charset("UTF-8").build())
+            .body(content.build());
         if (!attachments.isEmpty()) {
             message.attachments(attachments);
         }

@@ -43,8 +43,12 @@ public class AlertRecipientService {
     private final OutboundEmailLimiter emailLimiter;
     private final AircraftRepository aircraftRepository;
 
+    private final java.time.Clock clock;
+
     public AlertRecipientService(AlertRecipientRepository recipientRepository,
-            NotificationService notificationService, OutboundEmailLimiter emailLimiter, AircraftRepository aircraftRepository) {
+            NotificationService notificationService, OutboundEmailLimiter emailLimiter, AircraftRepository aircraftRepository,
+            java.time.Clock clock) {
+        this.clock = clock;
         this.recipientRepository = recipientRepository;
         this.notificationService = notificationService;
         this.emailLimiter = emailLimiter;
@@ -70,7 +74,7 @@ public class AlertRecipientService {
                 // Re-inviting someone who previously declined/expired: fresh token, back to PENDING.
                 r.setStatusEnum(Status.PENDING);
                 r.setConfirmToken(newToken());
-                r.setCreatedAt(Instant.now());
+                r.setCreatedAt(Instant.now(clock));
                 r.setConfirmedAt(null);
                 r.setReminderSentAt(null);
                 recipientRepository.save(r);
@@ -102,7 +106,7 @@ public class AlertRecipientService {
         AlertRecipient r = ownedOrThrow(user, id);
         r.setStatusEnum(Status.PENDING);
         r.setConfirmToken(newToken());
-        r.setCreatedAt(Instant.now());
+        r.setCreatedAt(Instant.now(clock));
         r.setConfirmedAt(null);
         r.setReminderSentAt(null);
         recipientRepository.save(r);
@@ -123,7 +127,7 @@ public class AlertRecipientService {
             return false;
         }
         r.setStatusEnum(Status.ACCEPTED);
-        r.setConfirmedAt(Instant.now());
+        r.setConfirmedAt(Instant.now(clock));
         recipientRepository.save(r);
         return true;
     }

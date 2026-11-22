@@ -246,7 +246,7 @@ public class UserController {
         } catch (java.time.format.DateTimeParseException ignored) {
             // bad value -> server date
         }
-        byte[] pdf = pdfExportService.generateDashboardPdf(aircraft, asOf);
+        byte[] pdf = pdfExportService.generateDashboardPdf(aircraft, asOf, leadTimesFor(user));
 
         org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
         headers.setContentType(org.springframework.http.MediaType.APPLICATION_PDF);
@@ -278,7 +278,7 @@ public class UserController {
         }
         emailLimiter.acquire(user);
 
-        byte[] pdf = pdfExportService.generateDashboardPdf(aircraft);
+        byte[] pdf = pdfExportService.generateDashboardPdf(aircraft, java.time.LocalDate.now(), leadTimesFor(user));
         String filename = "Aviary_Dashboard_" + java.time.LocalDate.now() + ".pdf";
         try {
             emailSender.sendPdf(
@@ -934,4 +934,11 @@ public class UserController {
     // after this fix ships.
 
     
+
+    // The owner's alert lead times: which items are DUE SOON in the PDF, the
+    // same values the dashboard's amber pills use (spec 013).
+    private com.example.AviaryService.services.alerts.LeadTimes leadTimesFor(User user) {
+        return com.example.AviaryService.services.alerts.LeadTimes.of(
+            alertPreferenceRepository.findByUser(user).orElse(null));
+    }
 }

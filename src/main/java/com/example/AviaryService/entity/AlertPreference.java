@@ -43,11 +43,36 @@ public class AlertPreference {
     @Column(nullable = false)
     private int leadTimeHours = 10;
 
-    // While an item stays overdue, re-nudge every this-many days.
+    // Overdue frequency (spec 014; was "re-nudge overdue every N days", same
+    // column): 0 = Off, -1 = Once, 1-90 = every N days. New owners: 3.
     @Column(nullable = false)
-    private int overdueRenudgeDays = 7;
+    private int overdueRenudgeDays = 3;
 
-    // The date the sweep last evaluated this user -- guards against a double
+    // Due soon frequency: 0 = Off, -1 = Once, 1-90 = every N days.
+    @Column(nullable = false, columnDefinition = "integer default 7")
+    private int dueSoonEveryDays = 7;
+
+    // Status report frequency: 0 = Off, 1-90 = every N days (no Once).
+    @Column(nullable = false, columnDefinition = "integer default 0")
+    private int statusEveryDays = 0;
+
+    // Owner's IANA time zone, e.g. America/New_York. Null until the browser
+    // reports one; zone() falls back to America/New_York.
+    @Column
+    private String timeZone;
+
+    // When the last email listing due-soon / overdue items, and the last
+    // status report, went out. Each frequency counts from its own.
+    @Column
+    private Instant lastDueSoonSentAt;
+
+    @Column
+    private Instant lastOverdueSentAt;
+
+    @Column
+    private Instant lastStatusSentAt;
+
+    // The owner's local date (in zone()) the sweep last evaluated this user -- guards against a double
     // run in the same day if the process restarts on the check hour.
     @Column
     private LocalDate lastCheckedOn;
@@ -134,5 +159,73 @@ public class AlertPreference {
 
     public void setBaselineSentAt(Instant baselineSentAt) {
         this.baselineSentAt = baselineSentAt;
+    }
+
+    public int getOverdueEveryDays() {
+        return overdueRenudgeDays;
+    }
+
+    public void setOverdueEveryDays(int v) {
+        this.overdueRenudgeDays = v;
+    }
+
+    public int getDueSoonEveryDays() {
+        return dueSoonEveryDays;
+    }
+
+    public void setDueSoonEveryDays(int dueSoonEveryDays) {
+        this.dueSoonEveryDays = dueSoonEveryDays;
+    }
+
+    public int getStatusEveryDays() {
+        return statusEveryDays;
+    }
+
+    public void setStatusEveryDays(int statusEveryDays) {
+        this.statusEveryDays = statusEveryDays;
+    }
+
+    public String getTimeZone() {
+        return timeZone;
+    }
+
+    public void setTimeZone(String timeZone) {
+        this.timeZone = timeZone;
+    }
+
+    public static final java.time.ZoneId DEFAULT_ZONE = java.time.ZoneId.of("America/New_York");
+
+    // The owner's zone, or America/New_York when unknown or invalid.
+    public java.time.ZoneId zone() {
+        if (timeZone == null || timeZone.isBlank()) return DEFAULT_ZONE;
+        try {
+            return java.time.ZoneId.of(timeZone);
+        } catch (java.time.DateTimeException e) {
+            return DEFAULT_ZONE;
+        }
+    }
+
+    public Instant getLastDueSoonSentAt() {
+        return lastDueSoonSentAt;
+    }
+
+    public void setLastDueSoonSentAt(Instant lastDueSoonSentAt) {
+        this.lastDueSoonSentAt = lastDueSoonSentAt;
+    }
+
+    public Instant getLastOverdueSentAt() {
+        return lastOverdueSentAt;
+    }
+
+    public void setLastOverdueSentAt(Instant lastOverdueSentAt) {
+        this.lastOverdueSentAt = lastOverdueSentAt;
+    }
+
+    public Instant getLastStatusSentAt() {
+        return lastStatusSentAt;
+    }
+
+    public void setLastStatusSentAt(Instant lastStatusSentAt) {
+        this.lastStatusSentAt = lastStatusSentAt;
     }
 }

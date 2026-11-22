@@ -13,6 +13,12 @@ public interface EmailSender {
     // Plain-text email, no attachment (confirmation links, reminders).
     void send(String toEmail, String subject, String body);
 
-    // Plain-text email with a single PDF attachment (dashboard export, digests).
-    void sendPdf(String toEmail, String subject, String body, byte[] pdfBytes, String filename);
+    // Plain-text email with a single PDF attachment (dashboard export).
+    default void sendPdf(String toEmail, String subject, String body, byte[] pdfBytes, String filename) {
+        sendPdf(toEmail, subject, body, null, pdfBytes, filename);
+    }
+
+    // Text + HTML versions of the same email with a single PDF attachment
+    // (alert digests, spec 013). htmlBody may be null: then text only.
+    void sendPdf(String toEmail, String subject, String textBody, String htmlBody, byte[] pdfBytes, String filename);
 }
