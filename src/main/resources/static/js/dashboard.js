@@ -3161,8 +3161,54 @@ document.addEventListener('DOMContentLoaded', () => {
     const checkHour    = $('alerts-check-hour');
     const leadDays     = $('alerts-lead-days');
     const leadHours    = $('alerts-lead-hours');
-    const renudgeDays  = $('alerts-renudge-days');
     const saveSchedule = $('alerts-save-schedule');
+    const zoneLabel    = $('alerts-time-zone');
+
+    // Spec 014: Due soon / Overdue / Status report, each Off, Once, or every N days.
+    const KINDS = ['due-soon', 'overdue', 'status'];
+    const PRESETS = ['1', '2', '3', '7', '14', '30'];
+    const everySel  = (k) => $(`alerts-${k}-every`);
+    const everyDays = (k) => $(`alerts-${k}-every-days`);
+
+    function setEvery(kind, value) {
+        const sel = everySel(kind), days = everyDays(kind);
+        const v = String(value);
+        if (v === 'off' || v === 'once' || PRESETS.includes(v)) {
+            sel.value = v;
+        } else {
+            sel.value = 'custom';
+            days.value = v;
+        }
+        refreshEvery(kind);
+    }
+
+    function getEvery(kind) {
+        const v = everySel(kind).value;
+        if (v === 'custom') return Number(everyDays(kind).value) || 1;
+        return (v === 'off' || v === 'once') ? v : Number(v);
+    }
+
+    function everyHint(kind, v) {
+        const what = kind === 'due-soon' ? 'due soon' : 'overdue';
+        if (kind === 'status') {
+            return v === 'off' ? 'No scheduled status email.'
+                : `Email the full status every ${v === 1 ? 'day' : v + ' days'}, even when nothing is due.`;
+        }
+        if (v === 'off') return `Never email just because something is ${what}.`;
+        if (v === 'once') return `Email me once when something becomes ${what}.`;
+        return `Email me every ${v === 1 ? 'day' : v + ' days'} while anything is ${what}.`;
+    }
+
+    function refreshEvery(kind) {
+        const custom = everySel(kind).value === 'custom';
+        everyDays(kind).closest('.alerts-every-custom').hidden = !custom;
+        $(`alerts-${kind}-hint`).textContent = everyHint(kind, getEvery(kind));
+    }
+
+    KINDS.forEach(k => {
+        everySel(k).addEventListener('change', () => refreshEvery(k));
+        everyDays(k).addEventListener('input', () => refreshEvery(k));
+    });
     const sendNowBtn   = $('alerts-send-now');
     const sendNowMsg   = $('alerts-send-now-result');
     const chanSel      = $('alert-recipient-channel');
@@ -3191,12 +3237,30 @@ document.addEventListener('DOMContentLoaded', () => {
             checkHour.value    = p.checkHour;
             leadDays.value     = p.leadTimeDays;
             leadHours.value    = p.leadTimeHours;
-            renudgeDays.value  = p.overdueRenudgeDays;
+            setEvery('due-soon', p.dueSoonEvery);
+            setEvery('overdue', p.overdueEvery);
+            setEvery('status', p.statusEvery);
+            zoneLabel.textContent = p.timeZone;
+            syncTimeZone(p.timeZone);
             const missing = (p.readiness && p.readiness.missing) || [];
             readiness.textContent = missing.length
                 ? 'Before turning on: ' + missing.join('; ')
                 : 'Ready to turn on.';
         } catch (e) { /* leave defaults */ }
+    }
+
+    // "7:00" means the owner's 7:00: tell the server the browser's zone when
+    // it differs from the saved one (spec 014).
+    async function syncTimeZone(saved) {
+        let zone;
+        try { zone = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return; }
+        if (!zone || zone === saved) return;
+        try {
+            const r = await fetch('/alerts/time-zone', {
+                method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ timeZone: zone }),
+            });
+            if (r.ok) zoneLabel.textContent = (await r.json()).timeZone;
+        } catch (e) { /* keep the saved zone */ }
     }
 
     function statusBadge(s) {
@@ -3234,7 +3298,9 @@ document.addEventListener('DOMContentLoaded', () => {
             checkHour: Number(checkHour.value),
             leadTimeDays: Number(leadDays.value),
             leadTimeHours: Number(leadHours.value),
-            overdueRenudgeDays: Number(renudgeDays.value),
+            dueSoonEvery: getEvery('due-soon'),
+            overdueEvery: getEvery('overdue'),
+            statusEvery: getEvery('status'),
             ...extra,
         };
         const r = await fetch('/alerts/preferences', {

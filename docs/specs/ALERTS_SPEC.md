@@ -16,8 +16,9 @@ for this tail". This is a different concern with its own entities.
   A user is evaluated only when alerts are on, the current hour matches their
   `checkHour`, and they haven't been checked today (`lastCheckedOn`). So: at most
   one check per user per day.
-- `checkHour` is in the **server's time zone** (`ZoneId.systemDefault()`). On
-  Heroku that is UTC.
+- `checkHour` is in the **owner's time zone** (`AlertPreference.timeZone`, sent by
+  the dashboard from the browser; `America/New_York` until known). `lastCheckedOn`
+  is the owner's local date (spec 014).
 - On a check, every non-title item on the Status Sheet gets a **level**:
   `OK` → `DUE_SOON` → `OVERDUE`.
   - `OVERDUE`  — `daysLeft < 0` or `hoursLeft < 0`
@@ -26,10 +27,21 @@ for this tail". This is a different concern with its own entities.
   - An item has two limits (calendar and flight hours); the worse one wins.
 - Each item stores the level it **last alerted at** (`StatusSheetItem.alertLevel`)
   and when (`alertLastFiredAt`).
-- A digest is sent only if **either**:
-  1. some item moved to a worse level than it last alerted at, **or**
-  2. some item is still `OVERDUE` and `alertLastFiredAt` is ≥ `overdueRenudgeDays`
-     ago (re-nudge; default 7, user-configurable).
+- **Three kinds of alert email, each with its own frequency** (spec 014), set in
+  Settings → Alert schedule. Each is Off, Once (not the status report), or every
+  N days (1–90). Defaults: **Due soon every 7 days, Overdue every 3 days, Status
+  report Off.** `AlertSchedule.decide` (pure, unit-tested) says to send when:
+  1. an item became `DUE_SOON` since the last email (Due soon not Off), or
+  2. an item became `OVERDUE` since the last email (Overdue not Off), or
+  3. something is due soon and N days passed since the last email that listed
+     due-soon items (`lastDueSoonSentAt`), or
+  4. something is overdue and N days passed since `lastOverdueSentAt`, or
+  5. the status report is on and N days passed since `lastStatusSentAt`.
+  Several reasons on one day → one email. "N days" compares the owner's local
+  dates. A status report with nothing due has the subject
+  `N12345 — weekly status: all on track`.
+- The old "re-nudge overdue every N days" (`overdueRenudgeDays`) is now the
+  Overdue frequency; existing values carry over.
 - When an item improves (maintenance done, due date pushed out), its
   `alertLevel` is quietly reset down. No "good news" email.
 - No per-edit sending.
@@ -94,7 +106,9 @@ message under the form and as a toast.
 **Digests** (daily check, baseline, and "Send alert now" share one budget, per
 recipient, tracked in `AlertSendLog`):
 
-- **Email:** max 1 per recipient per 24h
+- **Email:** max 1 per recipient per **calendar day in the owner's time zone**
+  (was a rolling 24 h, which dropped the next day's email whenever the hourly
+  check ran a few seconds earlier; spec 014 R4)
 - **SMS:** max 1 per recipient per 72h
 
 On cooldown the send is skipped for that recipient (logged, not an error). The
@@ -108,14 +122,22 @@ nothing is saved.
 ## Digest content
 
 - **Subject:** `N12345 — 1 overdue, 2 due soon` (or `N12345 — maintenance status`).
-- **Body (plain text):** "Maintenance status for [tail] ([make/model])" + timestamp
-  → baseline note or "What changed" → full status, worst first. Each line puts
-  the overdue part first, e.g. `OVERDUE  Annual Inspection — 480.0 hrs overdue ·
-  106 days left` → aircraft hours (Hobbs Time / Time in Service).
-- **Attachment:** dashboard PDF (`PdfExportService.generateDashboardPdf`), built
-  once per digest.
+- **Body (spec 013):** sent as **text + HTML** (same content; `AlertEmailRenderer`,
+  template `templates/email/alert-digest.html`, inline styles only). Heading
+  `[tail] ([make/model]) — [counts]` + "as of" time → baseline line (first email
+  only) → **only items that are overdue or due soon** (owner's lead times), grouped
+  `OVERDUE` then `DUE SOON`, most urgent first (days/leadDays vs hours/leadHours,
+  the smaller wins), `[new]` / "New" on items that got worse since the last email →
+  "The other N items are on track." (or "All N items are on track.") → hours
+  (Hobbs Time / Time in Service). Items that are fine are not listed; they're in the PDF.
+  Fleet: one section per aircraft with something due, then "N2BB and N3CC: all items
+  on track."
+- **Attachment:** Status Sheet PDF for the fleet (`PdfExportService.generateFleetPdf`),
+  built once per digest. Time Left is labeled `OVERDUE` (red `#B3203F`) or
+  `DUE SOON` (amber `#8A5A00`) using the owner's lead times, the same rule as the
+  dashboard pills. The PDF downloaded or shared from the dashboard uses the same rule.
 - **Footer:** "You're receiving this because [operator name] added you to maintenance
-  alerts for [tail]. The full dashboard is attached as a PDF." + unsubscribe link
+  alerts for [tail]." + unsubscribe link (per recipient)
   (`/alerts/unsubscribe?token=…`) + postal address if configured (CAN-SPAM).
   **No dashboard link:** recipients have no login.
 - **SMS:** one short line. No attachment.
@@ -123,14 +145,19 @@ nothing is saved.
 ## Thresholds
 
 Per-user defaults in `AlertPreference`: `leadTimeDays` (30), `leadTimeHours`
-(10). Per-item overrides are a later addition.
+(10). They decide what "due soon" means; how often each email goes out is the
+three frequencies above. Per-item overrides are a later addition.
 
 ## Entities
 
 - **`AlertPreference`** — `@OneToOne` User. `alertsEnabled` (false),
   `checkHour` (7, clamped 0–23), `leadTimeDays` (30), `leadTimeHours` (10),
-  `overdueRenudgeDays` (7, min 1), `lastCheckedOn` (LocalDate, null),
-  `baselineSentAt` (Instant, null).
+  `overdueRenudgeDays` = Overdue frequency (3 for new rows; 0 Off, -1 Once,
+  1–90), `dueSoonEveryDays` (7), `statusEveryDays` (0 = Off), `timeZone` (IANA,
+  null → America/New_York), `lastDueSoonSentAt` / `lastOverdueSentAt` /
+  `lastStatusSentAt` (Instant, null), `lastCheckedOn` (owner-local LocalDate,
+  null), `baselineSentAt` (Instant, null). Migration note:
+  `docs/migrations/2026-11-21_alert_schedules.sql`.
 - **`AlertRecipient`** — as table above.
 - **`StatusSheetItem`** has `alertLevel` (String, nullable) and
   `alertLastFiredAt` (Instant, nullable).
@@ -151,8 +178,9 @@ Login required (owner), under `/alerts` (`AlertController`, JSON):
 
 | method | path | body / params | purpose |
 |---|---|---|---|
-| GET  | `/alerts/preferences` | — | current prefs + readiness |
-| PUT  | `/alerts/preferences` | JSON `enabled,checkHour,leadTimeDays,leadTimeHours,overdueRenudgeDays` | update; false→true sends baseline |
+| GET  | `/alerts/preferences` | — | current prefs (+ `dueSoonEvery`, `overdueEvery`, `statusEvery` as `"off"`/`"once"`/N, `timeZone`) + readiness |
+| PUT  | `/alerts/preferences` | JSON `enabled,checkHour,leadTimeDays,leadTimeHours,dueSoonEvery,overdueEvery,statusEvery` (old `overdueRenudgeDays` still accepted) | update; false→true sends baseline; bad frequency → 400 |
+| POST | `/alerts/time-zone` | JSON `timeZone` (IANA id) | sets the owner's zone; invalid → 400 |
 | GET  | `/alerts/recipients` | — | list with statuses |
 | POST | `/alerts/recipients` | form `channel,destination,label` | add → PENDING, sends confirmation |
 | DELETE | `/alerts/recipients/{id}` | — | remove |

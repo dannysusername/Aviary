@@ -21,7 +21,7 @@ import com.example.AviaryService.services.messaging.EmailSender;
 import com.example.AviaryService.services.messaging.SmsSender;
 
 // Sends an alert to each of a user's confirmed recipients, one message each.
-// Limit per recipient: one email per 24 hours, one text per 72 hours.
+// Limit per recipient: one email per calendar day (owner's zone), one text per 72 hours.
 // "Send alert now" and the daily check share that limit. A recipient on
 // cooldown, or a sender that isn't set up, is skipped and logged instead of
 // causing an error. See docs/specs/ALERTS_SPEC.md ("Rate limit").
@@ -30,7 +30,6 @@ public class NotificationService {
 
     private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
 
-    private static final Duration EMAIL_COOLDOWN = Duration.ofHours(24);
     private static final Duration SMS_COOLDOWN = Duration.ofHours(72);
 
     private final EmailSender emailSender;
@@ -39,6 +38,8 @@ public class NotificationService {
     private final AlertSendLogRepository sendLogRepository;
     private final PdfExportService pdfExportService;
     private final AircraftRepository aircraftRepository;
+    private final AlertEmailRenderer renderer;
+    private final java.time.Clock clock;
 
     private final String baseUrl;
     private final String postalAddress;
@@ -46,6 +47,7 @@ public class NotificationService {
     public NotificationService(EmailSender emailSender, SmsSender smsSender,
             AlertRecipientRepository recipientRepository, AlertSendLogRepository sendLogRepository,
             PdfExportService pdfExportService, AircraftRepository aircraftRepository,
+            AlertEmailRenderer renderer, java.time.Clock clock,
             @Value("${aviary.alerts.base-url:}") String baseUrl,
             @Value("${aviary.alerts.postal-address:}") String postalAddress) {
         this.emailSender = emailSender;
@@ -54,6 +56,8 @@ public class NotificationService {
         this.sendLogRepository = sendLogRepository;
         this.pdfExportService = pdfExportService;
         this.aircraftRepository = aircraftRepository;
+        this.renderer = renderer;
+        this.clock = clock;
         this.baseUrl = baseUrl == null ? "" : baseUrl.replaceAll("/+$", "");
         this.postalAddress = postalAddress == null ? "" : postalAddress;
     }
@@ -73,7 +77,7 @@ public class NotificationService {
         int sent = 0;
 
         for (AlertRecipient r : accepted) {
-            if (onCooldown(r)) {
+            if (onCooldown(r, digest.zone())) {
                 log.info("Recipient {} on cooldown -- skipping this digest.", r.getId());
                 continue;
             }
@@ -84,11 +88,12 @@ public class NotificationService {
                         continue;
                     }
                     if (pdf == null) {
-                        pdf = pdfExportService.generateFleetPdf(fleet, java.time.LocalDate.now());
+                        pdf = pdfExportService.generateFleetPdf(fleet, java.time.LocalDate.now(clock.withZone(digest.zone())), digest.leadTimes());
                     }
+                    EmailFooter footer = footerFor(fleet, r);
                     emailSender.sendPdf(r.getDestination(), digest.subject(),
-                        digest.body() + emailFooter(fleet, r),
-                        pdf, "Aviary_Maintenance_" + java.time.LocalDate.now() + ".pdf");
+                        renderer.text(digest, footer), renderer.html(digest, footer),
+                        pdf, "Aviary_Maintenance_" + java.time.LocalDate.now(clock.withZone(digest.zone())) + ".pdf");
                 } else {
                     smsSender.send(r.getDestination(), smsBody(fleet, digest));
                 }
@@ -122,28 +127,26 @@ public class NotificationService {
 
     // -- internals --
 
-    private boolean onCooldown(AlertRecipient r) {
-        Duration cd = r.getChannelEnum() == AlertRecipient.Channel.SMS ? SMS_COOLDOWN : EMAIL_COOLDOWN;
-        return sendLogRepository.existsByRecipientIdAndSentAtAfter(r.getId(), Instant.now().minus(cd));
+    // Email: at most one per calendar day in the owner's zone (spec 014 R4).
+    // A rolling 24 hours dropped tomorrow's email whenever the hourly check
+    // ran a few seconds earlier than today's. Text: one per 72 hours.
+    private boolean onCooldown(AlertRecipient r, java.time.ZoneId zone) {
+        Instant since = r.getChannelEnum() == AlertRecipient.Channel.SMS
+            ? Instant.now(clock).minus(SMS_COOLDOWN)
+            : java.time.LocalDate.now(clock.withZone(zone)).atStartOfDay(zone).toInstant().minusNanos(1);
+        return sendLogRepository.existsByRecipientIdAndSentAtAfter(r.getId(), since);
     }
 
     private void recordSend(AlertRecipient r) {
-        sendLogRepository.save(new AlertSendLog(r.getId(), r.getChannelEnum()));
+        AlertSendLog entry = new AlertSendLog(r.getId(), r.getChannelEnum());
+        entry.setSentAt(Instant.now(clock));
+        sendLogRepository.save(entry);
     }
 
-    private String emailFooter(List<Aircraft> fleet, AlertRecipient r) {
-        StringBuilder sb = new StringBuilder("\n\n----\n");
-        sb.append("You're receiving this because ").append(AlertText.operator(fleet))
-            .append(" added you to maintenance\nalerts for ").append(AlertText.tail(fleet))
-            .append(". The full dashboard is attached as a PDF.\n");
-        if (!baseUrl.isBlank()) {
-            sb.append("Stop these emails: ").append(baseUrl)
-              .append("/alerts/unsubscribe?token=").append(r.getConfirmToken()).append('\n');
-        }
-        if (!postalAddress.isBlank()) {
-            sb.append(postalAddress).append('\n');
-        }
-        return sb.toString();
+    // Per recipient: their own stop link (spec 013 research R2).
+    private EmailFooter footerFor(List<Aircraft> fleet, AlertRecipient r) {
+        String stop = baseUrl.isBlank() ? null : baseUrl + "/alerts/unsubscribe?token=" + r.getConfirmToken();
+        return new EmailFooter(AlertText.operator(fleet), AlertText.tail(fleet), stop, postalAddress);
     }
 
     private String smsBody(List<Aircraft> fleet, AlertDigest digest) {

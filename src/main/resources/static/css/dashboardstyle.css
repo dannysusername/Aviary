@@ -2878,3 +2878,12 @@ textarea::placeholder { display: none; }
 @media (min-width: 1200px) {
   .time-left .tl-pills { flex-wrap: nowrap; }
 }
+
+/* Alert schedule (spec 014): one line per alert email. */
+.alerts-schedule-line { margin-bottom: 6px; }
+.alerts-frequency { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 6px 0; }
+.alerts-frequency > label { min-width: 7.5rem; font-weight: 600; }
+.alerts-frequency .alerts-every-hint { flex-basis: 100%; margin-left: 7.5rem; }
+@media (max-width: 600px) {
+  .alerts-frequency .alerts-every-hint { margin-left: 0; }
+}

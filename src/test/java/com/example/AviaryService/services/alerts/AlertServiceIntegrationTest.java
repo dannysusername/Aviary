@@ -155,7 +155,7 @@ class AlertServiceIntegrationTest {
         assertTrue(d.body().contains("Hobbs Time"));
         assertTrue(d.body().contains("Time in Service"));
         assertFalse(d.body().contains("Block Time"));
-        assertTrue(d.body().contains("Maintenance status for your aircraft"));
+        assertTrue(d.body().startsWith("Your aircraft"), d.body());
     }
 
 
@@ -174,7 +174,7 @@ class AlertServiceIntegrationTest {
         assertEquals(1, d.overdueCount());
         assertEquals(1, d.dueSoonCount());
         assertTrue(d.subject().contains("N12345"));
-        assertTrue(d.body().contains("Annual"));
+        assertTrue(d.body().contains("  • Annual —"), d.body());
     }
 
     @Test
@@ -199,7 +199,7 @@ class AlertServiceIntegrationTest {
         AlertPreference prefs = alertService.getOrCreatePrefs(user);
         AlertDigest d = digestService.buildDigest(user, prefs, true);
         assertTrue(d.shouldSend());
-        assertTrue(d.body().contains("Alerts are now ON"));
+        assertTrue(d.body().contains("Alerts are on."), d.body());
     }
 
     // -- enable transition + sweep --

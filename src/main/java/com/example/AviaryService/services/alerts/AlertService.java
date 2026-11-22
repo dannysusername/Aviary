@@ -1,12 +1,13 @@
 package com.example.AviaryService.services.alerts;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,18 +40,20 @@ public class AlertService {
     private final AlertDigestService digestService;
     private final NotificationService notificationService;
     private final AircraftRepository aircraftRepository;
+    private final Clock clock;
 
     public AlertService(AlertPreferenceRepository preferenceRepository,
             AlertRecipientRepository recipientRepository,
             AlertSendLogRepository sendLogRepository,
             AlertDigestService digestService,
-            NotificationService notificationService, AircraftRepository aircraftRepository) {
+            NotificationService notificationService, AircraftRepository aircraftRepository, Clock clock) {
         this.preferenceRepository = preferenceRepository;
         this.recipientRepository = recipientRepository;
         this.sendLogRepository = sendLogRepository;
         this.digestService = digestService;
         this.notificationService = notificationService;
         this.aircraftRepository = aircraftRepository;
+        this.clock = clock;
     }
 
     @Transactional
@@ -64,14 +67,26 @@ public class AlertService {
     // isn't flooded on the next sweep.
     @Transactional
     public AlertPreference updatePrefs(User user, boolean enabled, int checkHour,
-            int leadTimeDays, int leadTimeHours, int overdueRenudgeDays) {
+            int leadTimeDays, int leadTimeHours, int overdueEvery) {
+        AlertPreference current = getOrCreatePrefs(user);
+        return updatePrefs(user, enabled, checkHour, leadTimeDays, leadTimeHours, overdueEvery,
+            current.getDueSoonEveryDays(), current.getStatusEveryDays());
+    }
+
+    // Frequencies use AlertSchedule.Frequency's encoding (0 Off, -1 Once,
+    // 1-90 days); the controller has already parsed and validated them.
+    @Transactional
+    public AlertPreference updatePrefs(User user, boolean enabled, int checkHour,
+            int leadTimeDays, int leadTimeHours, int overdueEvery, int dueSoonEvery, int statusEvery) {
         AlertPreference prefs = getOrCreatePrefs(user);
         boolean wasEnabled = prefs.isAlertsEnabled();
 
         prefs.setCheckHour(clamp(checkHour, 0, 23));
         prefs.setLeadTimeDays(Math.max(0, leadTimeDays));
         prefs.setLeadTimeHours(Math.max(0, leadTimeHours));
-        prefs.setOverdueRenudgeDays(Math.max(1, overdueRenudgeDays));
+        prefs.setOverdueEveryDays(frequency(overdueEvery, true));
+        prefs.setDueSoonEveryDays(frequency(dueSoonEvery, true));
+        prefs.setStatusEveryDays(frequency(statusEvery, false));
         prefs.setAlertsEnabled(enabled);
         preferenceRepository.save(prefs);
 
@@ -81,12 +96,23 @@ public class AlertService {
         return prefs;
     }
 
+    // The owner's time zone, from their browser. Invalid ids are refused.
+    @Transactional
+    public AlertPreference updateTimeZone(User user, String zoneId) {
+        ZoneId zone = ZoneId.of(zoneId.trim()); // DateTimeException if invalid
+        AlertPreference prefs = getOrCreatePrefs(user);
+        prefs.setTimeZone(zone.getId());
+        return preferenceRepository.save(prefs);
+    }
+
     private void sendBaseline(User user, AlertPreference prefs) {
         AlertDigest digest = digestService.buildDigest(user, prefs, true);
         int sent = notificationService.sendDigest(user, digest);
         digestService.markFired(user, prefs);
-        prefs.setBaselineSentAt(Instant.now());
-        prefs.setLastCheckedOn(LocalDate.now(ZoneOffset.UTC));
+        // The baseline is a full status, so every timer starts from it.
+        recordSent(prefs, digest, true);
+        prefs.setBaselineSentAt(Instant.now(clock));
+        prefs.setLastCheckedOn(LocalDate.now(clock.withZone(prefs.zone())));
         preferenceRepository.save(prefs);
         log.info("Baseline alert digest for {} sent to {} recipient(s).", user.getUsername(), sent);
     }
@@ -99,11 +125,15 @@ public class AlertService {
         AlertDigest digest = digestService.buildDigest(user, prefs, false);
         int sent = notificationService.sendDigest(user, digest);
         digestService.markFired(user, prefs);
+        recordSent(prefs, digest, false);
+        preferenceRepository.save(prefs);
         return sent;
     }
 
     // One user's daily evaluation. No-op unless alerts are on, it's their chosen
-    // hour, and today's sweep hasn't already run.
+    // hour, and today's sweep hasn't already run. `today` and `currentHour`
+    // are in the owner's zone (AlertScheduler). Whether to email is
+    // AlertSchedule's call (spec 014).
     @Transactional
     public boolean runSweepForUser(User user, AlertPreference prefs, LocalDate today, int currentHour) {
         if (!prefs.isAlertsEnabled()) {
@@ -117,22 +147,60 @@ public class AlertService {
         }
 
         AlertDigest digest = digestService.buildDigest(user, prefs, false);
+        ZoneId zone = prefs.zone();
+        if (prefs.getLastOverdueSentAt() == null && digest.overdueCount() > 0) {
+            // First run after spec 014: continue the old per-item re-nudge clock.
+            prefs.setLastOverdueSentAt(digestService.latestOverdueAlertAt(user));
+        }
+        Set<AlertSchedule.Reason> reasons = AlertSchedule.decide(new AlertSchedule.Input(
+            prefs.getDueSoonEveryDays(), prefs.getOverdueEveryDays(), prefs.getStatusEveryDays(),
+            digest.dueSoonCount() > 0, digest.overdueCount() > 0, digest.newDueSoon(), digest.newOverdue(),
+            today, localDate(prefs.getLastDueSoonSentAt(), zone), localDate(prefs.getLastOverdueSentAt(), zone),
+            localDate(prefs.getLastStatusSentAt(), zone)));
+
         boolean sentSomething = false;
-        if (digest.shouldSend()) {
+        if (!reasons.isEmpty()) {
+            if (reasons.equals(Set.of(AlertSchedule.Reason.STATUS_REPORT))) {
+                digestService.markAsStatusReport(digest, aircraftRepository.findByUserOrderByIdAsc(user),
+                    prefs.getStatusEveryDays());
+            }
             int sent = notificationService.sendDigest(user, digest);
             digestService.markFired(user, prefs);
+            recordSent(prefs, digest, reasons.contains(AlertSchedule.Reason.STATUS_REPORT));
             sentSomething = sent > 0;
-            log.info("Daily alert sweep for {}: digest sent to {} recipient(s).", user.getUsername(), sent);
+            log.info("Daily alert sweep for {} ({}): digest sent to {} recipient(s).", user.getUsername(), reasons, sent);
         }
         prefs.setLastCheckedOn(today);
         preferenceRepository.save(prefs);
         return sentSomething;
     }
 
+    // After an email goes out: each kind of reminder counts from the last
+    // email that listed its items (research R7).
+    private void recordSent(AlertPreference prefs, AlertDigest digest, boolean statusReport) {
+        Instant now = Instant.now(clock);
+        if (digest.dueSoonCount() > 0) prefs.setLastDueSoonSentAt(now);
+        if (digest.overdueCount() > 0) prefs.setLastOverdueSentAt(now);
+        if (statusReport) prefs.setLastStatusSentAt(now);
+    }
+
+    private static LocalDate localDate(Instant at, ZoneId zone) {
+        return at == null ? null : at.atZone(zone).toLocalDate();
+    }
+
+    private static int frequency(int v, boolean allowOnce) {
+        if (v == AlertSchedule.Frequency.OFF) return v;
+        if (v == AlertSchedule.Frequency.ONCE) {
+            if (!allowOnce) throw new IllegalArgumentException("The status report can be Off or every N days.");
+            return v;
+        }
+        return clamp(v, 1, AlertSchedule.Frequency.MAX_DAYS);
+    }
+
     // Called once per scheduler tick, after the per-user sweeps.
     @Transactional
     public void housekeepPendingRecipients() {
-        Instant now = Instant.now();
+        Instant now = Instant.now(clock);
         List<AlertRecipient> pending = recipientRepository.findByStatus(Status.PENDING.name());
         for (AlertRecipient r : pending) {
             long ageDays = Duration.between(r.getCreatedAt(), now).toDays();
@@ -150,7 +218,7 @@ public class AlertService {
 
     @Transactional
     public void pruneSendLog() {
-        sendLogRepository.deleteBySentAtBefore(Instant.now().minus(Duration.ofDays(SEND_LOG_RETENTION_DAYS)));
+        sendLogRepository.deleteBySentAtBefore(Instant.now(clock).minus(Duration.ofDays(SEND_LOG_RETENTION_DAYS)));
     }
 
     private void sendReminder(AlertRecipient r) {
@@ -172,9 +240,9 @@ public class AlertService {
         }
     }
 
-    // Used by the scheduler to know "what hour is it" consistently.
-    public int currentLocalHour() {
-        return ZonedDateTime.now(ZoneId.systemDefault()).getHour();
+    // "Now" in the owner's zone; the scheduler compares its hour and date.
+    public ZonedDateTime nowFor(AlertPreference prefs) {
+        return ZonedDateTime.now(clock).withZoneSameInstant(prefs.zone());
     }
 
     private static int clamp(int v, int lo, int hi) {

@@ -57,13 +57,32 @@ class AlertDigestFleetTest {
         statusSheetItemRepository.save(t);
     }
 
+    // Spec 013 research R3: most urgent first, days and hours compared by how
+    // far into the owner's lead time they are (defaults 30 days / 10 hrs).
+    @Test
+    void dueItemsAreSortedMostUrgentFirst() {
+        java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneOffset.UTC);
+        item(sr22, "Date 25 days", today.plusDays(25).toString(), null);  // 25/30 = 0.83
+        item(sr22, "Hours 8 left", null, "1408");                         // 8/10 = 0.8 (TIS 1400)
+        item(sr22, "Date 5 days", today.plusDays(5).toString(), null);    // 0.17
+        item(sr22, "Overdue 3 days", today.minusDays(3).toString(), null);
+        item(sr22, "Overdue 12 days", today.minusDays(12).toString(), null);
+        item(sr22, "Fine", today.plusDays(300).toString(), null);
+
+        AlertDigest d = digestService.buildDigest(owner, alertService.getOrCreatePrefs(owner), false);
+
+        java.util.List<String> order = d.sections().get(0).due().stream().map(AlertDigest.DueItem::name).toList();
+        assertEquals(java.util.List.of("Overdue 12 days", "Overdue 3 days", "Date 5 days", "Hours 8 left", "Date 25 days"), order);
+        assertEquals(1, d.sections().get(0).onTrackCount());
+    }
+
     @Test
     void oneAircraftReadsLikeBefore() {
         item(sr22, "ELT Battery", "2020-01-01", null);
         AlertDigest d = digestService.buildDigest(owner, alertService.getOrCreatePrefs(owner), false);
         assertEquals("N482DM — 1 overdue", d.subject());
-        assertTrue(d.body().startsWith("Maintenance status for N482DM (Cirrus SR22)"), d.body());
-        assertTrue(d.body().contains("Aircraft hours: Hobbs Time"));
+        assertTrue(d.body().startsWith("N482DM (Cirrus SR22) — 1 overdue"), d.body());
+        assertTrue(d.body().contains("Hours: Hobbs Time"));
     }
 
     @Test
@@ -80,16 +99,16 @@ class AlertDigestFleetTest {
         assertEquals(2, d.overdueCount());
         assertEquals("Your fleet — 2 overdue", d.subject());
         String body = d.body();
-        assertTrue(body.startsWith("Maintenance status for your fleet (3 aircraft)"), body);
+        assertTrue(body.startsWith("Your fleet — 2 overdue"), body);
         int sr22At = body.indexOf("\nN482DM");
         int pa28At = body.indexOf("\nN731KR");
         assertTrue(sr22At > 0 && pa28At > sr22At, body);
-        assertTrue(body.substring(pa28At).contains("OVERDUE   Oil Change"), body);
-        assertTrue(body.substring(sr22At, pa28At).contains("ok        Magneto"), body);
-        // An aircraft with nothing to report gets no section.
-        assertFalse(body.contains("N999XX"), body);
-        // What changed names the tail.
-        assertTrue(body.contains("N731KR: Oil Change"), body);
+        assertTrue(body.substring(pa28At).contains("  • Oil Change —"), body);
+        // Spec 013: an item that's fine isn't listed, it's only counted.
+        assertFalse(body.contains("Magneto"), body);
+        // An aircraft with nothing due gets no section, just the on-track line.
+        assertFalse(body.contains("\nN999XX ("), body);
+        assertTrue(body.contains("N999XX: all items on track."), body);
         assertTrue(idle.getId() > 0);
     }
 }

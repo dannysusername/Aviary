@@ -30,7 +30,7 @@ public abstract class BrowserTestBase {
     // expensive step in a Playwright run, so we keep one Browser per JVM
     // and isolate state with fresh BrowserContexts per test.
     private static Playwright playwright;
-    private static Browser browser;
+    protected static Browser browser;
 
     protected BrowserContext context;
     protected Page page;

@@ -235,15 +235,38 @@
                 <tr id="alerts-schedule-row">
                     <td>Alert schedule</td>
                     <td>
-                        Check daily at
-                        <select id="alerts-check-hour">
-                            <option th:each="h : ${#numbers.sequence(0, 23)}" th:value="${h}" th:text="${h} + ':00'"></option>
-                        </select>
-                        (local time). Warn
-                        <input type="number" id="alerts-lead-days" min="0" style="width:4rem"> days /
-                        <input type="number" id="alerts-lead-hours" min="0" style="width:4rem"> hours before due.
-                        Re-nudge overdue every
-                        <input type="number" id="alerts-renudge-days" min="1" style="width:4rem"> days.
+                        <!-- Spec 014: three kinds of alert email, each on its own schedule. -->
+                        <div class="alerts-schedule-line">
+                            Check daily at
+                            <select id="alerts-check-hour">
+                                <option th:each="h : ${#numbers.sequence(0, 23)}" th:value="${h}" th:text="${h} + ':00'"></option>
+                            </select>
+                            (<span id="alerts-time-zone">your time</span>).
+                        </div>
+                        <div class="alerts-schedule-line">
+                            Due soon means
+                            <input type="number" id="alerts-lead-days" min="0" style="width:4rem"> days or
+                            <input type="number" id="alerts-lead-hours" min="0" style="width:4rem"> hours before due.
+                        </div>
+                        <div class="alerts-frequency" th:each="f : ${ {'due-soon','overdue','status'} }">
+                            <label th:for="'alerts-' + ${f} + '-every'"
+                                   th:text="${f == 'due-soon'} ? 'Due soon' : (${f == 'overdue'} ? 'Overdue' : 'Status report')">Due soon</label>
+                            <select th:id="'alerts-' + ${f} + '-every'" class="alerts-every" th:attr="data-kind=${f}">
+                                <option value="off">Off</option>
+                                <option value="once" th:if="${f != 'status'}">Once</option>
+                                <option value="1">Every day</option>
+                                <option value="2">Every 2 days</option>
+                                <option value="3">Every 3 days</option>
+                                <option value="7">Every week</option>
+                                <option value="14">Every 2 weeks</option>
+                                <option value="30">Every month (30 days)</option>
+                                <option value="custom">Custom…</option>
+                            </select>
+                            <span class="alerts-every-custom" hidden>every
+                                <input type="number" min="1" max="90" style="width:4rem"
+                                       th:id="'alerts-' + ${f} + '-every-days'"> days</span>
+                            <span class="settings-hint alerts-every-hint" th:id="'alerts-' + ${f} + '-hint'"></span>
+                        </div>
                         <button id="alerts-save-schedule" class="no-print" type="button">Save</button>
                     </td>
                 </tr>

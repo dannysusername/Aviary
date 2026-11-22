@@ -22,6 +22,8 @@ import com.example.AviaryService.entity.StatusSheetItem;
 import com.example.AviaryService.entity.Aircraft;
 import com.example.AviaryService.repositories.FlightLogRepository;
 import com.example.AviaryService.repositories.StatusSheetItemRepository;
+import com.example.AviaryService.services.alerts.AlertLevel;
+import com.example.AviaryService.services.alerts.LeadTimes;
 import com.example.AviaryService.util.DueDates;
 import com.example.AviaryService.util.Formatting;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
@@ -46,13 +48,11 @@ public class PdfExportService {
         this.flightLogRepository = flightLogRepository;
     }
 
-    public byte[] generateDashboardPdf(Aircraft aircraft) {
-        return generateDashboardPdf(aircraft, LocalDate.now());
-    }
-
     // `today` drives Time Left, so the PDF matches what the user's own browser
-    // shows (the server may be a day ahead/behind in UTC).
-    public byte[] generateDashboardPdf(Aircraft aircraft, LocalDate today) {
+    // shows (the server may be a day ahead/behind in UTC). `lead` is the
+    // owner's alert lead times: they decide which items are DUE SOON, the
+    // same as the dashboard's amber pills (spec 013).
+    public byte[] generateDashboardPdf(Aircraft aircraft, LocalDate today, LeadTimes lead) {
         Context context = new Context();
         context.setVariable("makeModel", aircraft.getMakeModel());
         context.setVariable("tailNumber", aircraft.getTailNumber());
@@ -62,7 +62,7 @@ public class PdfExportService {
         context.setVariable("timeInServiceHours", formatHoursOrBlank(aircraft.getTimeInServiceHours()));
         context.setVariable("generatedAt", DateTimeFormatter.ofPattern("MMM d, yyyy h:mm a")
             .withZone(ZoneOffset.UTC).format(Instant.now()) + " UTC");
-        context.setVariable("statusSheetRows", buildStatusSheetRows(aircraft, today));
+        context.setVariable("statusSheetRows", buildStatusSheetRows(aircraft, today, lead));
         context.setVariable("logRows", buildLogRows(aircraft));
 
         String html = templateEngine.process("pdf-export", context);
@@ -71,14 +71,14 @@ public class PdfExportService {
 
     // Alert emails cover the whole fleet but carry one attachment: each
     // aircraft's report, one after another, merged into a single PDF.
-    public byte[] generateFleetPdf(List<Aircraft> fleet, LocalDate today) {
+    public byte[] generateFleetPdf(List<Aircraft> fleet, LocalDate today, LeadTimes lead) {
         if (fleet.size() == 1) {
-            return generateDashboardPdf(fleet.get(0), today);
+            return generateDashboardPdf(fleet.get(0), today, lead);
         }
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             org.apache.pdfbox.multipdf.PDFMergerUtility merger = new org.apache.pdfbox.multipdf.PDFMergerUtility();
             for (Aircraft aircraft : fleet) {
-                merger.addSource(new org.apache.pdfbox.io.RandomAccessReadBuffer(generateDashboardPdf(aircraft, today)));
+                merger.addSource(new org.apache.pdfbox.io.RandomAccessReadBuffer(generateDashboardPdf(aircraft, today, lead)));
             }
             merger.setDestinationStream(out);
             merger.mergeDocuments(org.apache.pdfbox.io.IOUtils.createMemoryOnlyStreamCache());
@@ -104,13 +104,14 @@ public class PdfExportService {
         }
     }
 
-    private List<Map<String, Object>> buildStatusSheetRows(Aircraft aircraft, LocalDate today) {
+    private List<Map<String, Object>> buildStatusSheetRows(Aircraft aircraft, LocalDate today, LeadTimes lead) {
         return statusSheetItemRepository.findByAircraftOrderByStatusSheetOrderAsc(aircraft).stream()
-            .map(t -> statusSheetRowData(t, today, aircraft.getTimeInServiceHours()))
+            .map(t -> statusSheetRowData(t, today, aircraft.getTimeInServiceHours(), lead))
             .collect(Collectors.toList());
     }
 
-    private Map<String, Object> statusSheetRowData(StatusSheetItem t, LocalDate today, Double currentTimeInService) {
+    private Map<String, Object> statusSheetRowData(StatusSheetItem t, LocalDate today, Double currentTimeInService,
+                                                   LeadTimes lead) {
         Map<String, Object> row = new HashMap<>();
         row.put("isTitle", t.getIsTitle());
         row.put("item", t.getItem());
@@ -122,7 +123,11 @@ public class PdfExportService {
         // as the last edit to the row.
         String timeLeft = DueDates.formatTimeLeft(t.getDueDateDate(), t.getDueDateHours(), today, currentTimeInService);
         row.put("timeLeft", timeLeft);
-        row.put("overdue", timeLeft.contains("overdue"));
+        // Same rule as alerts and the dashboard pills: the closest limit decides.
+        AlertLevel level = DueDates.classify(t.getDueDateDate(), t.getDueDateHours(), currentTimeInService, today,
+            lead.days(), lead.hours());
+        row.put("status", switch (level) { case OVERDUE -> "over"; case DUE_SOON -> "soon"; case OK -> "ok"; });
+        row.put("statusLabel", switch (level) { case OVERDUE -> "OVERDUE"; case DUE_SOON -> "DUE SOON"; case OK -> null; });
         return row;
     }
 

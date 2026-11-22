@@ -27,6 +27,7 @@ import com.example.AviaryService.repositories.AircraftRepository;
 import com.example.AviaryService.repositories.StatusSheetItemRepository;
 import com.example.AviaryService.repositories.UserRepository;
 import com.example.AviaryService.services.alerts.AlertRecipientService;
+import com.example.AviaryService.services.alerts.AlertSchedule;
 import com.example.AviaryService.services.alerts.AlertService;
 
 // The owner's control panel for maintenance alerts. The owner can change
@@ -70,15 +71,36 @@ public class AlertController {
         if (user == null) return unauthorized();
         AlertPreference current = alertService.getOrCreatePrefs(user);
         try {
+            // "overdueRenudgeDays": pre-014 key from an old open tab.
+            Object overdue = body.containsKey("overdueEvery") ? body.get("overdueEvery") : body.get("overdueRenudgeDays");
             AlertPreference prefs = alertService.updatePrefs(user,
                 asBool(body.get("enabled"), current.isAlertsEnabled()),
                 asInt(body.get("checkHour"), current.getCheckHour()),
                 asInt(body.get("leadTimeDays"), current.getLeadTimeDays()),
                 asInt(body.get("leadTimeHours"), current.getLeadTimeHours()),
-                asInt(body.get("overdueRenudgeDays"), current.getOverdueRenudgeDays()));
+                frequency(overdue, current.getOverdueEveryDays(), true),
+                frequency(body.get("dueSoonEvery"), current.getDueSoonEveryDays(), true),
+                frequency(body.get("statusEvery"), current.getStatusEveryDays(), false));
             return ResponseEntity.ok(prefsBody(user, prefs));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "error", e.getMessage(), "message", e.getMessage()));
+        }
+    }
+
+    // The owner's time zone, sent by the dashboard from the browser (spec 014).
+    @PostMapping("/time-zone")
+    public ResponseEntity<Map<String, Object>> updateTimeZone(@RequestBody Map<String, Object> body, Authentication auth) {
+        User user = currentUser(auth);
+        if (user == null) return unauthorized();
+        Object zone = body.get("timeZone");
+        if (!(zone instanceof String z) || z.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "Missing time zone."));
+        }
+        try {
+            AlertPreference prefs = alertService.updateTimeZone(user, z);
+            return ResponseEntity.ok(Map.of("timeZone", prefs.zone().getId()));
+        } catch (java.time.DateTimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "Unknown time zone."));
         }
     }
 
@@ -163,7 +185,11 @@ public class AlertController {
         m.put("checkHour", prefs.getCheckHour());
         m.put("leadTimeDays", prefs.getLeadTimeDays());
         m.put("leadTimeHours", prefs.getLeadTimeHours());
-        m.put("overdueRenudgeDays", prefs.getOverdueRenudgeDays());
+        m.put("overdueRenudgeDays", prefs.getOverdueRenudgeDays()); // pre-014 key, same value as overdueEvery
+        m.put("dueSoonEvery", AlertSchedule.Frequency.toJson(prefs.getDueSoonEveryDays()));
+        m.put("overdueEvery", AlertSchedule.Frequency.toJson(prefs.getOverdueEveryDays()));
+        m.put("statusEvery", AlertSchedule.Frequency.toJson(prefs.getStatusEveryDays()));
+        m.put("timeZone", prefs.zone().getId());
 
         // Readiness hints for the "turn on" dialog (advisory only).
         List<String> missing = new ArrayList<>();
@@ -196,6 +222,11 @@ public class AlertController {
         if (v instanceof Boolean b) return b;
         if (v instanceof String s) return Boolean.parseBoolean(s);
         return dflt;
+    }
+
+    // Missing -> keep current; otherwise "off", "once" or 1-90 days.
+    private static int frequency(Object v, int current, boolean allowOnce) {
+        return v == null ? current : AlertSchedule.Frequency.parse(v, allowOnce);
     }
 
     private static int asInt(Object v, int dflt) {
